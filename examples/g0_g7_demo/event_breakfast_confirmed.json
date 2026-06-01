@@ -1,0 +1,16 @@
+{
+  "user_id": "demo-user",
+  "event": {
+    "event_id": "evt-user-breakfast-confirmed",
+    "user_id": "demo-user",
+    "type": "meal",
+    "ts_start": "2026-05-31T00:30:00+00:00",
+    "payload": {
+      "category": "breakfast",
+      "note": "confirmed demo breakfast"
+    },
+    "confidence": 1.0,
+    "created_by": "user",
+    "user_confirmed": true
+  }
+}

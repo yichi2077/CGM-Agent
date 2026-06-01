@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-cgm-agent"
+version = "0.1.0"
+description = "Personal CGM AI agent project built around Hermes Agent"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Personal implementation" }]
+dependencies = [
+    "fastapi>=0.136,<1.0",
+    "pydantic>=2,<3",
+    "uvicorn>=0.48,<1.0",
+]
+
+[project.scripts]
+cgm-agent = "hermes_cgm_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

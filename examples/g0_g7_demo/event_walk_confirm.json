@@ -1,0 +1,9 @@
+{
+  "event_id": "evt-agent-walk-candidate",
+  "confirmed": true,
+  "correction": {
+    "payload": {
+      "user_note": "confirmed as a short post-meal walk"
+    }
+  }
+}

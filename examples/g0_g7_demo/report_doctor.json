@@ -1,0 +1,12 @@
+{
+  "user_id": "demo-user",
+  "report_type": "doctor",
+  "audience": "clinician",
+  "data_scope": {
+    "user_id": "demo-user",
+    "window_start": "2026-05-17T23:00:00+00:00",
+    "window_end": "2026-05-31T23:00:00+00:00"
+  },
+  "timezone": "Asia/Shanghai",
+  "report_anchor_time": "07:00"
+}

@@ -1,0 +1,15 @@
+{
+  "user_id": "demo-user",
+  "event": {
+    "event_id": "evt-agent-note-candidate",
+    "user_id": "demo-user",
+    "type": "note",
+    "ts_start": "2026-05-31T15:00:00+00:00",
+    "payload": {
+      "note": "agent candidate to be rejected in demo"
+    },
+    "confidence": 0.45,
+    "created_by": "agent",
+    "user_confirmed": false
+  }
+}

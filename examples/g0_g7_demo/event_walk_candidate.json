@@ -1,0 +1,16 @@
+{
+  "user_id": "demo-user",
+  "event": {
+    "event_id": "evt-agent-walk-candidate",
+    "user_id": "demo-user",
+    "type": "exercise",
+    "ts_start": "2026-05-31T10:30:00+00:00",
+    "payload": {
+      "activity_type": "walk",
+      "note": "agent candidate to be confirmed in demo"
+    },
+    "confidence": 0.72,
+    "created_by": "agent",
+    "user_confirmed": false
+  }
+}

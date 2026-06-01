@@ -1,0 +1,6 @@
+record_id,timestamp,glucose,unit,device_id
+csv-1,2026-05-31T00:00:00Z,108,mg/dL,device-a
+csv-2,2026-05-31T00:05:00Z,6.2,mmol/L,device-a
+csv-3,,111,mg/dL,device-a
+csv-4,2026-05-31T00:15:00Z,,mg/dL,device-a
+csv-5,not-a-time,115,mg/dL,device-a

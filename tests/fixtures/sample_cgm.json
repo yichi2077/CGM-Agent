@@ -1,0 +1,26 @@
+{
+  "records": [
+    {
+      "record_id": "json-1",
+      "timestamp": "2026-05-31T01:00:00Z",
+      "value": 101,
+      "unit": "mg/dL",
+      "device_id": "device-b"
+    },
+    {
+      "record_id": "json-2",
+      "timestamp": "2026-05-31T01:05:00Z",
+      "value": 5.8,
+      "unit": "mmol/L",
+      "device_id": "device-b"
+    },
+    {
+      "record_id": "json-3",
+      "timestamp": "2026-05-31T01:10:00Z",
+      "value": -1,
+      "unit": "mg/dL",
+      "device_id": "device-b"
+    },
+    "bad-record"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "kb_version": "authoritative-kb-2026-06-01",
+  "source_note": "Seed authoritative knowledge for dual-track RAG. Entries must be traceable to guidelines / consensus / product FAQ. NOT user memory. Replace with reviewed clinical content before any real use.",
+  "documents": [
+    {
+      "doc_id": "tir-consensus",
+      "title": "Time in Range consensus",
+      "text": "International consensus recommends Time in Range (TIR) 70-180 mg/dL as a key CGM metric; a common target for many adults is TIR above 70 percent, with time below range under 4 percent. 14 days of CGM data with at least 70 percent wear time approximates 3-month glucose exposure.",
+      "tags": ["TIR", "consensus", "metrics"],
+      "source": "Battelino et al., Diabetes Care 2019 (paraphrased)"
+    },
+    {
+      "doc_id": "stress-pseudo-hypo",
+      "title": "Common CGM misreads",
+      "text": "Compression lows (pressure-induced false low readings) can occur when lying on a sensor; first-day sensor drift and exercise can also distort readings. These are data-quality phenomena, not necessarily true hypoglycemia.",
+      "tags": ["misread", "compression low", "data quality"],
+      "source": "CGM common-misread scenario library (paraphrased)"
+    },
+    {
+      "doc_id": "hypo-education",
+      "title": "Hypoglycemia general education",
+      "text": "Glucose below 70 mg/dL is generally considered low. General education emphasizes following clinician guidance and established device alarms for treatment; this knowledge base does not provide dosing or treatment instructions.",
+      "tags": ["hypoglycemia", "education", "safety"],
+      "source": "General diabetes education (paraphrased)"
+    }
+  ]
+}

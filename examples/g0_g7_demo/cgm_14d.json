@@ -1,0 +1,25 @@
+{
+  "records": [
+    {
+      "timestamp": "2026-05-18T06:00:00+00:00",
+      "value": 118,
+      "unit": "mg/dL",
+      "device_id": "demo-sensor-json",
+      "record_id": "json-rec-001"
+    },
+    {
+      "timestamp": "2026-05-25T06:00:00+00:00",
+      "value": 164,
+      "unit": "mg/dL",
+      "device_id": "demo-sensor-json",
+      "record_id": "json-rec-002"
+    },
+    {
+      "timestamp": "2026-05-31T06:00:00+00:00",
+      "value": 132,
+      "unit": "mg/dL",
+      "device_id": "demo-sensor-json",
+      "record_id": "json-rec-003"
+    }
+  ]
+}

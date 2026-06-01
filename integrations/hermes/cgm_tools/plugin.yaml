@@ -1,0 +1,7 @@
+name: cgm_tools
+version: 0.1.0
+description: "Spike Hermes plugin wrapper for calling the local Hermes CGM Agent tool executor without copying domain logic into Hermes."
+author: Personal implementation
+kind: standalone
+provides_tools:
+  - cgm_reports_generate

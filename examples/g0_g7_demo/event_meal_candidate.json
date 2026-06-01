@@ -1,0 +1,16 @@
+{
+  "user_id": "demo-user",
+  "event": {
+    "event_id": "evt-agent-meal-candidate",
+    "user_id": "demo-user",
+    "type": "meal",
+    "ts_start": "2026-05-31T12:30:00+00:00",
+    "payload": {
+      "category": "lunch",
+      "note": "unconfirmed agent candidate kept for report review"
+    },
+    "confidence": 0.68,
+    "created_by": "agent",
+    "user_confirmed": false
+  }
+}
