@@ -201,8 +201,9 @@ def build_default_tool_registry() -> ToolRegistry:
             owner_module="event_repository",
             description="Promote or reject an agent-created candidate event after user confirmation.",
             input_schema=_object_schema(
-                required=["event_id", "confirmed"],
+                required=["user_id", "event_id", "confirmed"],
                 properties={
+                    "user_id": {"type": "string"},
                     "event_id": {"type": "string"},
                     "confirmed": {"type": "boolean"},
                     "correction": {"type": ["object", "null"]},
@@ -264,7 +265,9 @@ def build_default_tool_registry() -> ToolRegistry:
             output_schema=_response_schema(
                 {
                     "candidate_id": {"type": "string"},
-                    "status": {"type": "string"},
+                    # C8: align with executor payload (returns candidate_status,
+                    # not status; top-level status is the ok/error envelope).
+                    "candidate_status": {"type": "string"},
                 }
             ),
             risk_level="write",

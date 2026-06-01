@@ -103,6 +103,47 @@ class MemoryReviewServiceTests(unittest.TestCase):
         self.assertEqual(body["memory_id"], episode.episode_id)
         self.assertEqual(self.repo.list_episodes("u1")[0].summary, "corrected")
 
+    def test_confirm_keeps_candidate_pending_when_promotion_fails(self) -> None:
+        # C4: if promotion (_accept) fails, the candidate must NOT be left
+        # ACCEPTED without a memory record; it stays PENDING and is retryable.
+        cand = self._candidate("c1", requires_confirmation=True)
+        self.review.ingest_report_candidates([cand], now=NOW)
+
+        class _BoomConsolidation:
+            def ingest_accepted_candidate(self, *args: object, **kwargs: object) -> None:
+                raise RuntimeError("promotion failed")
+
+        failing = MemoryReviewService(repository=self.repo, consolidation=_BoomConsolidation())
+        with self.assertRaises(RuntimeError):
+            failing.confirm_candidate("c1", user_id="u1", confirmed=True, now=NOW)
+
+        pending = self.repo.list_candidates("u1", status=CandidateStatus.PENDING)
+        self.assertEqual([c.candidate_id for c in pending], ["c1"])
+        self.assertEqual(self.repo.list_episodes("u1"), [])
+
+        # retry with a healthy service succeeds
+        resolved = self.review.confirm_candidate("c1", user_id="u1", confirmed=True, now=NOW)
+        self.assertEqual(resolved.status, CandidateStatus.ACCEPTED)
+        self.assertEqual(len(self.repo.list_episodes("u1")), 1)
+
+    def test_confirm_retry_after_partial_promotion_does_not_duplicate(self) -> None:
+        # C4 residual: if a crash lands AFTER _accept commits the L1 episode but
+        # BEFORE the candidate status update, the candidate stays PENDING. The
+        # retry must be idempotent and NOT create a second L1 episode.
+        cand = self._candidate("c1", requires_confirmation=True)
+        self.review.ingest_report_candidates([cand], now=NOW)
+
+        # simulate the crashed first attempt: promotion committed, status not set
+        self.review._accept(cand, now=NOW)
+        self.assertEqual(len(self.repo.list_episodes("u1")), 1)
+        pending = self.repo.list_candidates("u1", status=CandidateStatus.PENDING)
+        self.assertEqual([c.candidate_id for c in pending], ["c1"])
+
+        # retry confirm: idempotent promotion, exactly one episode remains
+        resolved = self.review.confirm_candidate("c1", user_id="u1", confirmed=True, now=NOW)
+        self.assertEqual(resolved.status, CandidateStatus.ACCEPTED)
+        self.assertEqual(len(self.repo.list_episodes("u1")), 1)
+
     def _candidate(self, candidate_id: str, *, requires_confirmation: bool) -> MemoryCandidate:
         return MemoryCandidate(
             candidate_id=candidate_id,

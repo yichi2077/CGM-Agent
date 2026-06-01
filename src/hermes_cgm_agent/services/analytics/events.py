@@ -101,9 +101,14 @@ class GlucoseEventDetector:
         ts_start = run[0].timestamp
         ts_end = run[-1].timestamp
         duration_minutes = (ts_end - ts_start).total_seconds() / 60
-        # A single point cannot prove a sustained episode; require the configured
-        # minimum span unless the run already covers multiple points across it.
-        if duration_minutes < self.config.min_episode_minutes and len(run) < 2:
+        # C5: enforce the configured minimum episode duration. Gate on the
+        # inclusive sample span (each reading covers ~one interval), so a single
+        # point (covered = one interval) or a 2-point/5-min blip (covered 10min)
+        # is suppressed, while a 3-point/10-min episode (covered 15min) is kept.
+        # The previous `and len(run) < 2` made min_episode_minutes a no-op for
+        # any run of >=2 points, emitting false hypo/hyper events.
+        covered_minutes = duration_minutes + self.config.expected_interval_minutes
+        if covered_minutes < self.config.min_episode_minutes:
             return None
         values = [point.value_mg_dl for point in run]
         nadir = min(values)

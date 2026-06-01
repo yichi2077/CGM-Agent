@@ -13,12 +13,17 @@ kind ``user_memory``. Authoritative track -> AuthoritativeContext, evidence kind
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from hermes_cgm_agent.domain import EvidenceRef, HypothesisState
 from hermes_cgm_agent.domain.report import AuthoritativeContext, MemoryContext
 from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository
 from hermes_cgm_agent.services.memory.retrieval import HybridRetriever, MemoryDoc
-from hermes_cgm_agent.services.rag.authoritative import AuthoritativeRAGService
+
+if TYPE_CHECKING:
+    # Imported lazily at call time to avoid a rag <-> memory circular import
+    # (rag.authoritative imports memory.retrieval, which pulls memory/__init__).
+    from hermes_cgm_agent.services.rag.authoritative import AuthoritativeRAGService
 
 
 @dataclass
@@ -98,6 +103,10 @@ class MemoryContextAssembler:
         top_k: int = 3,
     ) -> AuthoritativeContext:
         if self.rag_service is None:
+            from hermes_cgm_agent.services.rag.authoritative import (
+                AuthoritativeRAGService,
+            )
+
             self.rag_service = AuthoritativeRAGService()
         results = self.rag_service.search(query, top_k=top_k)
         if not results:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,33 @@ class AuthoritativeRAGTests(unittest.TestCase):
         kb = load_knowledge_base()
         self.assertTrue(kb.kb_version)
         self.assertTrue(kb.documents)
+
+    def test_env_var_override_loads_custom_kb(self) -> None:
+        # C7: an operator can point the loader at an explicit KB file, and the
+        # default load must resolve from packaged data (not a repo-root guess).
+        import os
+
+        custom = {
+            "kb_version": "custom-kb-9",
+            "documents": [
+                {"doc_id": "x", "title": "Custom", "text": "custom entry", "tags": []}
+            ],
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            kb_file = Path(temp_dir) / "kb.json"
+            kb_file.write_text(json.dumps(custom), encoding="utf-8")
+            previous = os.environ.get("CGM_AGENT_KB_PATH")
+            os.environ["CGM_AGENT_KB_PATH"] = str(kb_file)
+            try:
+                kb = load_knowledge_base()
+            finally:
+                if previous is None:
+                    os.environ.pop("CGM_AGENT_KB_PATH", None)
+                else:
+                    os.environ["CGM_AGENT_KB_PATH"] = previous
+
+        self.assertEqual(kb.kb_version, "custom-kb-9")
+        self.assertEqual(kb.documents[0].doc_id, "x")
 
     def test_search_returns_authoritative_evidence_track(self) -> None:
         svc = AuthoritativeRAGService()

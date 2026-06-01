@@ -28,6 +28,23 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertIn("data_scope", spec.input_schema["properties"])
         self.assertIn("evidence_refs", spec.output_schema["properties"])
 
+    def test_memory_confirm_schema_matches_executor_payload(self) -> None:
+        # C8: schema must advertise candidate_status (what the executor returns),
+        # not a second "status" colliding with the ok/error envelope.
+        registry = build_default_tool_registry()
+        props = registry.get("memory.confirm").output_schema["properties"]
+
+        self.assertIn("candidate_status", props)
+        self.assertIn("candidate_id", props)
+
+    def test_events_confirm_requires_user_id(self) -> None:
+        # C2: ownership argument is part of the tool contract.
+        registry = build_default_tool_registry()
+        schema = registry.get("events.confirm").input_schema
+
+        self.assertIn("user_id", schema["properties"])
+        self.assertIn("user_id", schema["required"])
+
     def test_duplicate_tool_names_are_rejected(self) -> None:
         registry = build_default_tool_registry()
         spec = registry.get("events.create")

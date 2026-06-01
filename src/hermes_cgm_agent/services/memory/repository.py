@@ -68,6 +68,13 @@ class SQLiteMemoryRepository:
             )
         return episode
 
+    def get_episode(self, episode_id: str) -> L1Episode | None:
+        with self.store.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM l1_episodes WHERE episode_id = ?", (episode_id,)
+            ).fetchone()
+        return _row_to_episode(row) if row else None
+
     def replace_episode(self, episode: L1Episode) -> L1Episode:
         with self.store.connect() as conn:
             conn.execute(

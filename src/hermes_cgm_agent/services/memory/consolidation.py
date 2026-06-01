@@ -72,10 +72,21 @@ class ConsolidationService:
         episode_type: str,
         now: datetime | None = None,
     ) -> L1Episode:
-        """Promote an accepted L1-targeted candidate into an L1 episode."""
+        """Promote an accepted L1-targeted candidate into an L1 episode.
+
+        C4: promotion is idempotent per candidate. The episode id is derived
+        deterministically from the candidate id, and an existing episode is
+        returned instead of inserting a duplicate. This makes a retry safe when a
+        crash lands between the L1 write and the candidate status update (the
+        confirm path commits these separately).
+        """
         now = now or _now()
+        episode_id = f"ep-cand-{candidate.candidate_id}"
+        existing = self.repository.get_episode(episode_id)
+        if existing is not None:
+            return existing
         episode = L1Episode(
-            episode_id=new_id(),
+            episode_id=episode_id,
             user_id=candidate.user_id,
             occurred_at=occurred_at,
             episode_type=episode_type,

@@ -4,7 +4,7 @@ import csv
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -298,8 +298,10 @@ def _parse_datetime(value: Any) -> datetime:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as exc:
         raise ValueError(f"Invalid timestamp: {value}") from exc
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    # IMPORTANT (C1): do NOT attach UTC to naive timestamps here. A device export
+    # without an offset is local time; normalization applies the configured
+    # source timezone (NormalizationConfig.default_timezone) for naive values.
+    # Forcing UTC here would make that branch dead code and shift local data.
     return parsed
 
 

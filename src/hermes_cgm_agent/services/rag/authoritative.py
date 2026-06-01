@@ -13,7 +13,9 @@ but over a separate index/collection with its own ``kb_version``.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
+from importlib import resources
 from pathlib import Path
 
 from hermes_cgm_agent.domain import EvidenceRef
@@ -24,7 +26,34 @@ from hermes_cgm_agent.services.memory.retrieval import (
     MemoryDoc,
 )
 
-DEFAULT_KB_PATH = Path(__file__).resolve().parents[4] / "knowledge" / "authoritative_kb.json"
+# C7: the KB ships as package data (hermes_cgm_agent/knowledge/) so it resolves
+# both in an editable source tree and an installed wheel. Env var allows an
+# operator override; a legacy repo-root path is kept only as a last-resort
+# fallback. The old `__file__.parents[4]` assumption broke on install.
+KB_ENV_VAR = "CGM_AGENT_KB_PATH"
+KB_RESOURCE_PACKAGE = "hermes_cgm_agent.knowledge"
+KB_RESOURCE_NAME = "authoritative_kb.json"
+_LEGACY_KB_PATH = Path(__file__).resolve().parents[4] / "knowledge" / "authoritative_kb.json"
+
+
+def _resolve_kb_text(path: str | Path | None) -> str:
+    if path is not None:
+        return Path(path).read_text(encoding="utf-8")
+    env_path = os.environ.get(KB_ENV_VAR)
+    if env_path:
+        return Path(env_path).read_text(encoding="utf-8")
+    try:
+        resource = resources.files(KB_RESOURCE_PACKAGE).joinpath(KB_RESOURCE_NAME)
+        if resource.is_file():
+            return resource.read_text(encoding="utf-8")
+    except (FileNotFoundError, ModuleNotFoundError):
+        pass
+    if _LEGACY_KB_PATH.exists():
+        return _LEGACY_KB_PATH.read_text(encoding="utf-8")
+    raise FileNotFoundError(
+        "authoritative_kb.json not found. Install the hermes_cgm_agent.knowledge "
+        f"package data or set {KB_ENV_VAR} to a knowledge-base JSON file."
+    )
 
 
 @dataclass(frozen=True)
@@ -43,8 +72,7 @@ class KnowledgeBase:
 
 
 def load_knowledge_base(path: str | Path | None = None) -> KnowledgeBase:
-    kb_path = Path(path) if path else DEFAULT_KB_PATH
-    data = json.loads(kb_path.read_text(encoding="utf-8"))
+    data = json.loads(_resolve_kb_text(path))
     docs = [
         AuthoritativeDocument(
             doc_id=d["doc_id"],

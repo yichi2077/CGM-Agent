@@ -81,10 +81,14 @@ class MemoryReviewService:
         if candidate.status != CandidateStatus.PENDING:
             raise ValueError(f"Candidate already resolved: {candidate_id}")
         if confirmed:
+            # C4: promote first, then mark ACCEPTED only after the L1 write
+            # durably succeeds. If _accept raises, the candidate stays PENDING so
+            # the confirmation can be retried (the old order left it ACCEPTED
+            # with no memory record and blocked retry via the resolved guard).
+            self._accept(candidate, now=now)
             resolved = self.repository.set_candidate_status(
                 candidate_id, status=CandidateStatus.ACCEPTED, when=now
             )
-            self._accept(candidate, now=now)
         else:
             resolved = self.repository.set_candidate_status(
                 candidate_id, status=CandidateStatus.REJECTED, when=now

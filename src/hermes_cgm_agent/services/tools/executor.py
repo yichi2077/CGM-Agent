@@ -263,13 +263,15 @@ class ToolExecutor:
     ) -> ToolExecutionResponse:
         spec = self.registry.get("events.confirm")
         try:
+            user_id = str(arguments["user_id"])
             event_id = str(arguments["event_id"])
-            confirmed = bool(arguments["confirmed"])
+            confirmed = _require_bool(arguments.get("confirmed"), "confirmed")
             correction = arguments.get("correction")
             if correction is not None and not isinstance(correction, dict):
                 raise ValueError("correction must be an object when provided")
             saved = self.repository.confirm_user_event(
                 event_id,
+                user_id=user_id,
                 confirmed=confirmed,
                 correction=correction,
             )
@@ -278,7 +280,10 @@ class ToolExecutor:
                 session_id=session_id,
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
-                data_scope={"event_id": arguments.get("event_id")},
+                data_scope={
+                    "user_id": arguments.get("user_id"),
+                    "event_id": arguments.get("event_id"),
+                },
                 message=str(exc),
             )
 
@@ -386,7 +391,7 @@ class ToolExecutor:
         try:
             user_id = str(arguments["user_id"])
             candidate_id = str(arguments["candidate_id"])
-            confirmed = bool(arguments["confirmed"])
+            confirmed = _require_bool(arguments.get("confirmed"), "confirmed")
             review = MemoryReviewService(
                 repository=SQLiteMemoryRepository(self.repository.store)
             )
@@ -564,6 +569,14 @@ class ToolExecutor:
             audit_id=audit_id,
             payload={"error": message},
         )
+
+
+def _require_bool(value: Any, field: str) -> bool:
+    # C3: strict boolean. A JSON string like "false" is truthy in Python and
+    # must NOT be coerced; reject non-bool so a rejection cannot become accept.
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} must be a boolean")
+    return value
 
 
 def _parse_limit(value: Any) -> int | None:

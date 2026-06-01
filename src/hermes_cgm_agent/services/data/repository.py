@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from hermes_cgm_agent.domain import (
@@ -96,7 +96,7 @@ class SQLiteCGMRepository:
                         record.source_id,
                         record.source_format,
                         record.row_number,
-                        _dt(record.recorded_at),
+                        _dt_raw(record.recorded_at),
                         record.value,
                         record.unit,
                         record.device_id,
@@ -307,10 +307,15 @@ class SQLiteCGMRepository:
         self,
         event_id: str,
         *,
+        user_id: str,
         confirmed: bool,
         correction: dict[str, Any] | None = None,
     ) -> UserEvent:
         event = self.get_user_event(event_id, include_rejected=True)
+        # C2: enforce ownership. A caller may only confirm/reject/correct their
+        # own event. A mismatch is reported as "not found" (no information leak).
+        if event.user_id != user_id:
+            raise KeyError(event_id)
         corrected = self._apply_event_correction(event, correction or {})
         with self.store.connect() as conn:
             cursor = conn.execute(
@@ -325,7 +330,7 @@ class SQLiteCGMRepository:
                     user_confirmed = ?,
                     is_sensitive = ?,
                     is_rejected = ?
-                WHERE event_id = ?
+                WHERE event_id = ? AND user_id = ?
                 """,
                 (
                     corrected.event_type,
@@ -338,6 +343,7 @@ class SQLiteCGMRepository:
                     int(corrected.is_sensitive),
                     int(not confirmed),
                     event_id,
+                    user_id,
                 ),
             )
         if cursor.rowcount == 0:
@@ -479,6 +485,30 @@ class SQLiteCGMRepository:
 
 
 def _dt(value: datetime | str | None) -> str | None:
+    """Serialize a timestamp to canonical UTC ISO (C6).
+
+    Naive datetimes are assumed UTC; aware datetimes are converted to UTC. This
+    is used for every range-queried fact AND for query bounds, so stored rows and
+    bounds share one "+00:00" form and SQLite TEXT comparisons stay chronological
+    (a naive stored row and a naive/aware bound can no longer mismatch). Use
+    `_dt_raw` only for the raw import archive, where device-local naive values
+    must be preserved verbatim for later re-normalization.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
+
+
+def _dt_raw(value: datetime | str | None) -> str | None:
+    """Faithful serialization for the raw import archive: preserve naive/offset
+    exactly as the device reported it (normalization applies the configured
+    source timezone later). Never used for range-queried tables."""
     if value is None:
         return None
     if isinstance(value, str):

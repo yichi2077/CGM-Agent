@@ -75,6 +75,31 @@ class GlucoseEventDetectionTests(unittest.TestCase):
         self.assertEqual(len(gaps), 1)
         self.assertEqual(gaps[0].duration_minutes, 45.0)
 
+    def test_two_point_short_excursion_does_not_emit_threshold_event(self) -> None:
+        # C5: two lows 5 minutes apart (inclusive covered span 10min < 15min
+        # minimum) must NOT surface a hypo episode.
+        values = [120, 60, 60, 120]
+        points = _series(values, start_hour=12)
+        scope = _scope(points)
+
+        events = GlucoseEventDetector().detect(points=points, scope=scope)
+
+        self.assertEqual(
+            [e for e in events if e.event_type == GlucoseEventType.HYPO], []
+        )
+
+    def test_three_point_episode_meets_inclusive_span_threshold(self) -> None:
+        # C5: a 3-point/10-min hyper (covered span 15min) is still detected.
+        values = [150, 200, 220, 210, 160]
+        points = _series(values, start_hour=12)
+        scope = _scope(points)
+
+        events = GlucoseEventDetector().detect(points=points, scope=scope)
+
+        self.assertEqual(
+            len([e for e in events if e.event_type == GlucoseEventType.HYPER]), 1
+        )
+
     def test_no_events_for_stable_in_range_series(self) -> None:
         values = [100, 105, 110, 108, 102, 106]
         points = _series(values, start_hour=12)
