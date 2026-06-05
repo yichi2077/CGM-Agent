@@ -1,0 +1,11 @@
+{
+  "user_id": "demo-user",
+  "report_type": "weekly",
+  "data_scope": {
+    "user_id": "demo-user",
+    "window_start": "2026-05-30T00:00:00+08:00",
+    "window_end": "2026-06-06T00:00:00+08:00"
+  },
+  "timezone": "Asia/Shanghai",
+  "report_anchor_time": "07:00"
+}
