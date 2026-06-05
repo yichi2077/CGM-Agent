@@ -13,7 +13,7 @@ provider does not write USER.md directly.
 
 - prefetch(query): recall L1 episodes + active L3 hypotheses (user_memory track).
 - sync_turn(...): hook point for async consolidation (kept lightweight here).
-- get_tool_schemas(): exposes memory.correct / memory.confirm style tools.
+- get_tool_schemas(): exposes memory.correct / memory.confirm / list / delete tools.
 """
 
 from __future__ import annotations
@@ -37,6 +37,33 @@ from hermes_cgm_agent.storage.sqlite import SQLiteStore
 # answer `get_tool_schemas()` before `initialize()` without a divergent
 # hardcoded copy (NEW-5).
 MEMORY_TOOL_SCHEMAS: list[dict[str, Any]] = [
+    {
+        "name": "memory.list",
+        "description": "Browse CGM memory records by layer.",
+        "parameters": {
+            "type": "object",
+            "required": ["user_id", "layer"],
+            "properties": {
+                "user_id": {"type": "string"},
+                "layer": {"type": "string", "enum": ["L1", "L2", "L3", "all"]},
+                "limit": {"type": "integer", "minimum": 1},
+                "include_archived": {"type": "boolean"},
+            },
+        },
+    },
+    {
+        "name": "memory.delete",
+        "description": "Delete a CGM memory record by layer and id.",
+        "parameters": {
+            "type": "object",
+            "required": ["user_id", "memory_id", "layer"],
+            "properties": {
+                "user_id": {"type": "string"},
+                "memory_id": {"type": "string"},
+                "layer": {"type": "string", "enum": ["L1", "L2", "L3"]},
+            },
+        },
+    },
     {
         "name": "memory.confirm",
         "description": "Confirm or reject a pending CGM memory candidate.",
@@ -287,6 +314,40 @@ def _looks_memory_relevant(text: str) -> bool:
         "高血糖",
         "运动",
         "胰岛素",
+        "烦",
+        "焦虑",
+        "沮丧",
+        "累",
+        "自责",
+        "压力大",
+        "心情不好",
+        "蛋糕",
+        "面条",
+        "甜点",
+        "水果",
+        "奶茶",
+        "火锅",
+        "甜品",
+        "零食",
+        "米饭",
+        "馒头",
+        "睡觉",
+        "失眠",
+        "睡得晚",
+        "睡眠",
+        "熬夜",
+        "睡不好",
+        "药",
+        "二甲双胍",
+        "打针",
+        "吃药",
+        "用药",
+        "压力",
+        "生病",
+        "感冒",
+        "发烧",
+        "不舒服",
+        "难受",
     )
     return any(keyword in lowered for keyword in keywords)
 

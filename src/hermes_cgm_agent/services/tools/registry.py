@@ -250,6 +250,55 @@ def build_default_tool_registry() -> ToolRegistry:
     )
     registry.register(
         ToolSpec(
+            name="memory.list",
+            group="memory",
+            owner_module="memory",
+            description="Browse stored CGM memory records by layer.",
+            input_schema=_object_schema(
+                required=["user_id", "layer"],
+                properties={
+                    "user_id": {"type": "string"},
+                    "layer": {"type": "string", "enum": ["L1", "L2", "L3", "all"]},
+                    "limit": {"type": "integer", "minimum": 1},
+                    "include_archived": {"type": "boolean"},
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "memories": {"type": "array", "items": {"type": "object"}},
+                    "total_count": {"type": "integer"},
+                }
+            ),
+            risk_level="read",
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="memory.delete",
+            group="memory",
+            owner_module="memory",
+            description="Delete a stored CGM memory record by layer and id.",
+            input_schema=_object_schema(
+                required=["user_id", "memory_id", "layer"],
+                properties={
+                    "user_id": {"type": "string"},
+                    "memory_id": {"type": "string"},
+                    "layer": {"type": "string", "enum": ["L1", "L2", "L3"]},
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "deleted_id": {"type": "string"},
+                    "layer": {"type": "string"},
+                }
+            ),
+            risk_level="write",
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
             name="memory.confirm",
             group="memory",
             owner_module="memory",
@@ -306,7 +355,7 @@ def build_default_tool_registry() -> ToolRegistry:
                     "hypothesis_id": {"type": "string"},
                     "state": {
                         "type": "string",
-                        "enum": ["candidate", "observing", "stable", "invalid"],
+                        "enum": ["candidate", "observing", "stable", "archived"],
                     },
                     "evidence_refs": {"type": "array", "items": EVIDENCE_REF_SCHEMA},
                 },
@@ -344,6 +393,44 @@ def build_default_tool_registry() -> ToolRegistry:
                 }
             ),
             risk_level="read",
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="data.dexcom_sync",
+            group="data",
+            owner_module="dexcom_sync",
+            description=(
+                "Sync glucose readings (EGVs) and user events from the Dexcom "
+                "cloud (API v3) into local CGM storage. Requires a prior "
+                "dexcom-auth authorization for the user."
+            ),
+            input_schema=_object_schema(
+                required=["user_id"],
+                properties={
+                    "user_id": {"type": "string"},
+                    "days": {"type": "integer", "minimum": 1, "maximum": 90},
+                    "force": {"type": "boolean"},
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "environment": {"type": "string"},
+                    "window_start": {"type": ["string", "null"]},
+                    "window_end": {"type": ["string", "null"]},
+                    "egv_fetched": {"type": "integer"},
+                    "egv_inserted": {"type": "integer"},
+                    "egv_duplicate": {"type": "integer"},
+                    "egv_skipped": {"type": "integer"},
+                    "event_fetched": {"type": "integer"},
+                    "event_inserted": {"type": "integer"},
+                    "event_duplicate": {"type": "integer"},
+                    "event_skipped": {"type": "integer"},
+                }
+            ),
+            risk_level="external",
+            evidence_required=False,
             status="active",
         )
     )

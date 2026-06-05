@@ -68,7 +68,7 @@ class ReportToolTests(unittest.TestCase):
 
         self.assertEqual(body["status"], "ok")
         self.assertEqual(body["report"]["report_type"], "daily")
-        self.assertIn("CGM daily report", body["rendered_markdown"])
+        self.assertIn("血糖日报", body["rendered_markdown"])
         self.assertTrue(body["evidence_refs"])
         self.assertEqual(saved.audit_id, body["audit_id"])
         self.assertEqual(audit_payload["tool_name"], "reports.generate")
@@ -77,7 +77,7 @@ class ReportToolTests(unittest.TestCase):
         self.assertEqual(audit_payload["template_version"], "g7-report-template-v1")
         self.assertEqual(audit_payload["output_hash"], body["report"]["output_hash"])
         self.assertEqual(audit_payload["route"], "reports.generate")
-        self.assertEqual(audit_payload["safety_result"]["status"], "not_run")
+        self.assertEqual(audit_payload["safety_result"]["status"], "clear")
         self.assertEqual(audit_payload["section_count"], len(body["sections"]))
 
     def test_reports_generate_validation_error_is_audited(self) -> None:

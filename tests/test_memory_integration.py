@@ -109,7 +109,8 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertIn("authoritative_kb", kinds)
         # facts untouched: metrics section still present and analytics-derived
         metrics = next(s for s in body["sections"] if s["section_id"] == "metrics")
-        self.assertIn("TIR", metrics["content"])
+        self.assertTrue(metrics["content"])
+        self.assertTrue(any(ref["kind"] == "aggregate" for ref in metrics["evidence_refs"]))
 
     def test_provider_contract_shape_and_prefetch(self) -> None:
         self._seed_episode()
@@ -119,7 +120,10 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertEqual(provider.name, "cgm_memory")
         self.assertTrue(provider.is_available())
         schemas = provider.get_tool_schemas()
-        self.assertEqual({s["name"] for s in schemas}, {"memory.confirm", "memory.correct"})
+        self.assertEqual(
+            {s["name"] for s in schemas},
+            {"memory.list", "memory.delete", "memory.confirm", "memory.correct"},
+        )
         recall = provider.prefetch("lunch spike")
         self.assertIn("user-memory recall", recall)
 

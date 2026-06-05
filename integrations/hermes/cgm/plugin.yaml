@@ -11,3 +11,4 @@ provides_tools:
   - cgm_hypothesis_update
   - cgm_rag_authoritative_search
   - cgm_delivery_send
+  - cgm_data_dexcom_sync

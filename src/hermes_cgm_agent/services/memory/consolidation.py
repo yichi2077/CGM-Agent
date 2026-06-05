@@ -9,7 +9,7 @@ Staging (threshold-gated, never "every episode becomes a profile"):
 - same episode_type recurring on >= L2_MIN_EPISODES distinct days -> L2 belief
   (confidence from evidence_count; conflict -> supersede + lower confidence)
 - >= L3_MIN_PATTERN distinct days -> L3 hypothesis state machine
-  (candidate -> observing -> stable; contradiction -> invalid)
+  (candidate -> observing -> stable; contradiction -> archived)
 - forgetting: L1 90d idle archive, L2 30d decay (handled by repository helpers)
 
 The actual L1 extraction from raw turns uses a lightweight model in production;
@@ -210,7 +210,7 @@ class ConsolidationService:
             state = HypothesisState.OBSERVING
         if existing:
             hyp = existing[0]
-            if hyp.state == HypothesisState.INVALID:
+            if hyp.state == HypothesisState.ARCHIVED:
                 return 0
             hyp.state = state
             hyp.evidence_count = day_count

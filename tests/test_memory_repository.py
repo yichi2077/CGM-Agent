@@ -94,6 +94,32 @@ class MemoryRepositoryTests(unittest.TestCase):
         self.assertEqual(observing[0].evidence_count, 3)
         self.assertEqual(observing[0].state, HypothesisState.OBSERVING)
 
+    def test_delete_memory_records_by_id(self) -> None:
+        self.repo.create_episode(self._episode("e1", NOW, "meal"))
+        self.repo.upsert_profile_item(
+            L2ProfileItem(
+                item_id="p1",
+                user_id="user-1",
+                key="sleep",
+                value={"late": True},
+            )
+        )
+        self.repo.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="h1",
+                user_id="user-1",
+                statement="Late dinner runs high",
+                state=HypothesisState.ARCHIVED,
+            )
+        )
+
+        self.assertTrue(self.repo.delete_episode("e1"))
+        self.assertTrue(self.repo.delete_profile_item("p1"))
+        self.assertTrue(self.repo.delete_hypothesis("h1"))
+        self.assertIsNone(self.repo.get_episode("e1"))
+        self.assertEqual(self.repo.list_profile_items("user-1", active_only=False), [])
+        self.assertEqual(self.repo.list_hypotheses("user-1", states=[HypothesisState.ARCHIVED]), [])
+
     def test_candidate_queue_enqueue_and_resolve(self) -> None:
         cand = MemoryCandidate(
             candidate_id="c1",

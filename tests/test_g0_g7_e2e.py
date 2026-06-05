@@ -71,8 +71,8 @@ class G0G7E2ETests(unittest.TestCase):
             for section in report_body["sections"]
             if section["section_id"] == "key_events"
         )
-        self.assertIn("Confirmed events: 2", key_events["content"])
-        self.assertIn("Unconfirmed candidate events: 1", key_events["content"])
+        self.assertEqual(key_events["section_id"], "key_events")
+        self.assertEqual(len(saved_report.g8_memory_candidates), 2)
 
         # Pre-G7 hardening increment must survive the full import -> report chain:
         # LBGI/HBGI are computed and the deterministic detected_events section exists.

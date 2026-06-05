@@ -72,6 +72,27 @@ def build_parser() -> argparse.ArgumentParser:
     tool_call.add_argument("--input", required=True, help="JSON file containing tool arguments")
     tool_call.add_argument("--session-id", required=True)
 
+    dexcom_auth = sub.add_parser(
+        "dexcom-auth",
+        help="Authorize Dexcom API v3 access (OAuth2) and store encrypted tokens",
+    )
+    dexcom_auth.add_argument("--user-id", required=True)
+    dexcom_auth.add_argument("--state", default=None, help="Optional OAuth state value")
+    dexcom_auth.add_argument(
+        "--code",
+        default=None,
+        help="Authorization code or full redirect URL (skips the interactive prompt)",
+    )
+
+    dexcom_sync = sub.add_parser(
+        "dexcom-sync",
+        help="Sync glucose readings and events from the Dexcom cloud into local storage",
+    )
+    dexcom_sync.add_argument("--user-id", required=True)
+    dexcom_sync.add_argument("--days", type=int, default=7)
+    dexcom_sync.add_argument("--force", action="store_true")
+    dexcom_sync.add_argument("--session-id", default="dexcom-cli-session")
+
     hermes_install = sub.add_parser("hermes-install", help="Install or refresh Hermes user-plugin integration")
     hermes_install.add_argument("--project-root", default=None)
     hermes_install.add_argument("--hermes-home", default=None)
@@ -193,6 +214,23 @@ def main(argv: list[str] | None = None) -> int:
             db_path=config.database_path,
             tool_name=args.tool_name,
             input_path=Path(args.input),
+            session_id=args.session_id,
+        )
+
+    if args.command == "dexcom-auth":
+        return _dexcom_auth(
+            db_path=config.database_path,
+            user_id=args.user_id,
+            state=args.state,
+            code=args.code,
+        )
+
+    if args.command == "dexcom-sync":
+        return _dexcom_sync(
+            db_path=config.database_path,
+            user_id=args.user_id,
+            days=args.days,
+            force=args.force,
             session_id=args.session_id,
         )
 
@@ -330,6 +368,93 @@ def _tool_call(
         session_id=session_id,
     )
     body = response.to_dict()
+    print(json.dumps(body, ensure_ascii=False, sort_keys=True))
+    return 0 if response.status == "ok" else 1
+
+
+def _dexcom_auth(
+    *,
+    db_path: Path,
+    user_id: str,
+    state: str | None,
+    code: str | None,
+) -> int:
+    from hermes_cgm_agent.services.dexcom import (
+        DexcomAuthError,
+        DexcomAuthService,
+        DexcomClient,
+        DexcomConfig,
+        DexcomTokenStore,
+    )
+
+    try:
+        dexcom_config = DexcomConfig.from_env()
+    except ValueError as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False))
+        return 1
+
+    store = SQLiteStore(db_path)
+    store.initialize()
+    client = DexcomClient(dexcom_config)
+    auth = DexcomAuthService(
+        config=dexcom_config,
+        client=client,
+        token_store=DexcomTokenStore(store),
+    )
+
+    authorize_url = auth.authorization_url(state=state)
+    print(f"environment: {dexcom_config.environment}")
+    print(f"redirect_uri: {dexcom_config.redirect_uri}")
+    print("Open this URL in a browser, authorize, then copy the redirect URL you land on:")
+    print(authorize_url)
+
+    code_or_url = code
+    if not code_or_url:
+        try:
+            code_or_url = input("Paste the redirect URL or authorization code: ").strip()
+        except EOFError:
+            code_or_url = ""
+
+    try:
+        token = auth.complete_authorization(user_id, code_or_url)
+    except (DexcomAuthError, ValueError) as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False))
+        return 1
+
+    payload = {
+        "status": "ok",
+        "user_id": token.user_id,
+        "environment": token.environment,
+        "scope": token.scope,
+        "token_type": token.token_type,
+        "expires_at": token.expires_at.isoformat(),
+        "database_path": str(db_path),
+    }
+    print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def _dexcom_sync(
+    *,
+    db_path: Path,
+    user_id: str,
+    days: int,
+    force: bool,
+    session_id: str,
+) -> int:
+    store = SQLiteStore(db_path)
+    store.initialize()
+    executor = ToolExecutor(
+        repository=SQLiteCGMRepository(store),
+        audit_service=AuditService(store),
+    )
+    response = executor.execute(
+        tool_name="data.dexcom_sync",
+        arguments={"user_id": user_id, "days": days, "force": force},
+        session_id=session_id,
+    )
+    body = response.to_dict()
+    body["database_path"] = str(db_path)
     print(json.dumps(body, ensure_ascii=False, sort_keys=True))
     return 0 if response.status == "ok" else 1
 

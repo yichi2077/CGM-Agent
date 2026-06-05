@@ -13,6 +13,8 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertIn("timeseries.get_points", names)
         self.assertIn("events.create", names)
         self.assertIn("reports.generate", names)
+        self.assertIn("memory.list", names)
+        self.assertIn("memory.delete", names)
         self.assertIn("memory.correct", names)
         self.assertIn("rag.authoritative_search", names)
 
@@ -36,6 +38,13 @@ class ToolRegistryTests(unittest.TestCase):
 
         self.assertIn("candidate_status", props)
         self.assertIn("candidate_id", props)
+
+    def test_hypothesis_update_schema_uses_archived_state(self) -> None:
+        registry = build_default_tool_registry()
+        states = registry.get("hypothesis.update").input_schema["properties"]["state"]["enum"]
+
+        self.assertIn("archived", states)
+        self.assertNotIn("invalid", states)
 
     def test_events_confirm_requires_user_id(self) -> None:
         # C2: ownership argument is part of the tool contract.

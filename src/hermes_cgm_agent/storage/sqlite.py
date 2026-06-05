@@ -283,6 +283,18 @@ class SQLiteStore:
 
                 CREATE INDEX IF NOT EXISTS idx_candidates_user_status
                     ON memory_candidates(user_id, status);
+
+                CREATE TABLE IF NOT EXISTS dexcom_tokens (
+                    user_id TEXT PRIMARY KEY,
+                    access_token TEXT NOT NULL,
+                    refresh_token TEXT NOT NULL,
+                    token_type TEXT NOT NULL DEFAULT 'Bearer',
+                    scope TEXT,
+                    expires_at TEXT NOT NULL,
+                    environment TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
             self._ensure_column(

@@ -69,9 +69,12 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_timeseries_get_aggregate",
                 "cgm_events_create",
                 "cgm_events_confirm",
+                "cgm_memory_list",
+                "cgm_memory_delete",
                 "cgm_hypothesis_update",
                 "cgm_rag_authoritative_search",
                 "cgm_delivery_send",
+                "cgm_data_dexcom_sync",
             },
         )
         for call in collector.calls:
@@ -153,4 +156,7 @@ class HermesPluginIntegrationTests(unittest.TestCase):
         self.assertEqual(provider.name, "cgm_memory")
         self.assertTrue(provider.is_available())
         schema_names = {schema["name"] for schema in provider.get_tool_schemas()}
-        self.assertEqual(schema_names, {"memory.confirm", "memory.correct"})
+        self.assertEqual(
+            schema_names,
+            {"memory.list", "memory.delete", "memory.confirm", "memory.correct"},
+        )

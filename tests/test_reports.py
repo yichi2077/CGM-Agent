@@ -7,13 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from hermes_cgm_agent.domain import GlucosePoint, UserEvent
-from hermes_cgm_agent.domain.report import ReportInput
+from hermes_cgm_agent.domain.report import ReportAudience, ReportInput
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.reports import (
     ReportService,
     SQLiteReportRepository,
     resolve_report_scope,
 )
+from hermes_cgm_agent.services.safety.router import RED_ZONE_TEMPLATE
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 
@@ -84,21 +85,41 @@ class ReportServiceTests(unittest.TestCase):
         section_ids = [section.section_id for section in report.sections]
 
         self.assertEqual(report.report_type, "daily")
+        self.assertIn("daily_card", section_ids)
         self.assertIn("overview", section_ids)
         self.assertIn("metrics", section_ids)
         self.assertIn("key_events", section_ids)
-        self.assertIn("CGM daily report", report.rendered_markdown)
+        self.assertIn("血糖日报", report.rendered_markdown)
+        self.assertIn("用户版", report.rendered_markdown)
         self.assertEqual(loaded.report_id, report.report_id)
         self.assertEqual(len(report.g8_memory_candidates), 1)
         self.assertEqual(report.g8_memory_candidates[0].target_layer, "L1")
         self.assertEqual(report.template_version, "g7-report-template-v1")
         self.assertEqual(report.route, "reports.generate")
-        self.assertEqual(
-            report.safety_result,
-            {"status": "not_run", "reason": "safety_review_not_implemented"},
-        )
+        self.assertEqual(report.safety_result, {"status": "clear", "reason": "no_red_zone_points"})
         self.assertEqual(report.output_hash, sha256(report.rendered_markdown.encode("utf-8")).hexdigest())
         self.assertEqual(loaded.output_hash, report.output_hash)
+
+    def test_red_zone_report_is_routed_to_safety_template(self) -> None:
+        self._create_points(values=[92, 48, 110, 305])
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+
+        self.assertEqual(report.route, "reports.generate.red_zone")
+        self.assertEqual(report.safety_result["status"], "red_zone")
+        self.assertEqual(report.sections[0].section_id, "safety_red_zone")
+        self.assertEqual(report.sections[0].content, RED_ZONE_TEMPLATE)
+        self.assertIn(RED_ZONE_TEMPLATE, report.rendered_markdown)
 
     def test_weekly_report_emits_l3_candidate_but_no_memory_table_write(self) -> None:
         self._create_points(values=[190, 195, 200, 205])
@@ -237,14 +258,126 @@ class ReportServiceTests(unittest.TestCase):
             section for section in report.sections if section.section_id == "detected_events"
         )
 
-        self.assertIn("hypo", detected.content)
+        self.assertIn("偏低片段", detected.content)
         self.assertTrue(detected.evidence_refs)
         self.assertEqual(report.source_versions["event_detector"], "g6-detector-v1")
         # detected events are fact-track, never user-confirmed UserEvents
         key_events = next(
             section for section in report.sections if section.section_id == "key_events"
         )
-        self.assertIn("No timeline events", key_events.content)
+        self.assertIn("还没有记下特别的生活事件", key_events.content)
+
+    def test_daily_report_without_exception_emits_only_stable_card(self) -> None:
+        from datetime import timedelta
+
+        base = datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc)
+        for index, value in enumerate([100, 105, 110, 108]):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=base + timedelta(minutes=index * 5),
+                    value=value,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+
+        section_ids = [section.section_id for section in report.sections]
+
+        self.assertIn("daily_card", section_ids)
+        self.assertEqual(report.route, "reports.generate")
+        self.assertEqual(report.safety_result["status"], "clear")
+
+    def test_report_supports_audience_specific_narratives(self) -> None:
+        self._create_points(values=[95, 145, 190, 175])
+
+        self_report = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                audience=ReportAudience.SELF,
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        clinician_report = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                audience=ReportAudience.CLINICIAN,
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        family_report = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                audience=ReportAudience.FAMILY,
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+
+        self.assertIn("可能", self_report.sections[0].content)
+        self.assertIn("mg/dL", clinician_report.rendered_markdown)
+        self.assertIn("医生报告", clinician_report.rendered_markdown)
+        self.assertIn("家属版", family_report.rendered_markdown)
+        self.assertIn("今天", family_report.sections[0].content)
+
+    def test_weekly_patterns_use_negotiated_tone(self) -> None:
+        from datetime import timedelta
+
+        base = datetime(2026, 5, 31, 1, 0, tzinfo=timezone.utc)
+        for offset_day in (0, 1):
+            for index, value in enumerate([95, 185, 190, 195, 110]):
+                self.cgm_repository.create_glucose_point(
+                    GlucosePoint(
+                        user_id="user-1",
+                        timestamp=base + timedelta(days=offset_day, minutes=index * 5),
+                        value=value,
+                        unit="mg/dL",
+                        source="sensor:test",
+                        quality_flag="valid",
+                    )
+                )
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="weekly",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-07T00:00:00+00:00",
+                },
+            )
+        )
+        patterns = next(section for section in report.sections if section.section_id == "patterns")
+
+        self.assertIn("看起来可能有关，但还不够确定", patterns.content)
 
     def _create_points(self, values: list[int] | None = None) -> None:
         for index, value in enumerate(values or [90, 100, 150, 190]):

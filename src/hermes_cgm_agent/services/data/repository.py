@@ -164,12 +164,16 @@ class SQLiteCGMRepository:
             issues=[self._row_to_import_issue(row) for row in issue_rows],
         )
 
-    def create_glucose_point(self, point: GlucosePoint) -> str:
+    def create_glucose_point(self, point: GlucosePoint, *, replace: bool = False) -> str:
+        # ``replace`` swaps plain INSERT for INSERT OR REPLACE so a forced re-sync
+        # overwrites the row sharing the UNIQUE(user_id, timestamp, source) key
+        # instead of raising IntegrityError. Default stays strict for dedup.
+        verb = "INSERT OR REPLACE INTO" if replace else "INSERT INTO"
         point_id = uuid.uuid4().hex
         with self.store.connect() as conn:
             conn.execute(
-                """
-                INSERT INTO glucose_points (
+                f"""
+                {verb} glucose_points (
                     id, user_id, timestamp, value, unit, value_mg_dl, value_mmol_l,
                     source, quality_flag, trend, device_id, session_id, raw_record_id,
                     created_at
@@ -255,11 +259,14 @@ class SQLiteCGMRepository:
             ).fetchall()
         return [self._row_to_device_session(row) for row in rows]
 
-    def create_user_event(self, event: UserEvent) -> str:
+    def create_user_event(self, event: UserEvent, *, replace: bool = False) -> str:
+        # ``replace`` overwrites the row sharing the event_id primary key, used by
+        # a forced Dexcom re-sync (event_ids are deterministic: dexcom-evt-<id>).
+        verb = "INSERT OR REPLACE INTO" if replace else "INSERT INTO"
         with self.store.connect() as conn:
             conn.execute(
-                """
-                INSERT INTO user_events (
+                f"""
+                {verb} user_events (
                     event_id, user_id, type, ts_start, ts_end, payload_json,
                     attachment, confidence, created_by, user_confirmed,
                     is_sensitive, is_rejected, created_at

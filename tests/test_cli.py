@@ -58,6 +58,23 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.input, "report.json")
         self.assertEqual(args.session_id, "manual-session")
 
+    def test_dexcom_auth_command_parses(self) -> None:
+        args = build_parser().parse_args(
+            ["dexcom-auth", "--user-id", "user-1", "--code", "abc123"]
+        )
+        self.assertEqual(args.command, "dexcom-auth")
+        self.assertEqual(args.user_id, "user-1")
+        self.assertEqual(args.code, "abc123")
+
+    def test_dexcom_sync_command_parses(self) -> None:
+        args = build_parser().parse_args(
+            ["dexcom-sync", "--user-id", "user-1", "--days", "14", "--force"]
+        )
+        self.assertEqual(args.command, "dexcom-sync")
+        self.assertEqual(args.user_id, "user-1")
+        self.assertEqual(args.days, 14)
+        self.assertTrue(args.force)
+
     def test_hermes_install_command_parses_flags(self) -> None:
         args = build_parser().parse_args(
             [

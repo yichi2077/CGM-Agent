@@ -132,6 +132,14 @@ class SQLiteMemoryRepository:
             rows = conn.execute(sql, values).fetchall()
         return [_row_to_episode(row, self.store) for row in rows]
 
+    def delete_episode(self, episode_id: str) -> bool:
+        with self.store.connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM l1_episodes WHERE episode_id = ?",
+                (episode_id,),
+            )
+        return cursor.rowcount > 0
+
     def touch_episode(self, episode_id: str, *, when: datetime | None = None) -> None:
         with self.store.connect() as conn:
             conn.execute(
@@ -201,6 +209,14 @@ class SQLiteMemoryRepository:
         with self.store.connect() as conn:
             rows = conn.execute(sql, values).fetchall()
         return [_row_to_profile(row, self.store) for row in rows]
+
+    def delete_profile_item(self, item_id: str) -> bool:
+        with self.store.connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM l2_profile_items WHERE item_id = ?",
+                (item_id,),
+            )
+        return cursor.rowcount > 0
 
     def decay_profile_items(
         self,
@@ -272,13 +288,29 @@ class SQLiteMemoryRepository:
         clauses = ["user_id = ?"]
         values: list[Any] = [user_id]
         if states:
-            placeholders = ",".join("?" for _ in states)
+            expanded_states: list[str] = []
+            for state in states:
+                state_value = _enum(state)
+                expanded_states.append(state_value)
+                if state_value == HypothesisState.ARCHIVED.value:
+                    # Backward-compatible read path for old rows persisted as
+                    # `invalid` before the terminology change.
+                    expanded_states.append("invalid")
+            placeholders = ",".join("?" for _ in expanded_states)
             clauses.append(f"state IN ({placeholders})")
-            values.extend(_enum(state) for state in states)
+            values.extend(expanded_states)
         sql = "SELECT * FROM l3_hypotheses WHERE " + " AND ".join(clauses) + " ORDER BY updated_at DESC"
         with self.store.connect() as conn:
             rows = conn.execute(sql, values).fetchall()
         return [_row_to_hypothesis(row, self.store) for row in rows]
+
+    def delete_hypothesis(self, hypothesis_id: str) -> bool:
+        with self.store.connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM l3_hypotheses WHERE hypothesis_id = ?",
+                (hypothesis_id,),
+            )
+        return cursor.rowcount > 0
 
     # -- candidate queue -----------------------------------------------------
 
@@ -422,11 +454,14 @@ def _row_to_profile(row: Any, store: SQLiteStore) -> L2ProfileItem:
 
 
 def _row_to_hypothesis(row: Any, store: SQLiteStore) -> L3Hypothesis:
+    state_value = row["state"]
+    if state_value == "invalid":
+        state_value = HypothesisState.ARCHIVED.value
     return L3Hypothesis(
         hypothesis_id=row["hypothesis_id"],
         user_id=row["user_id"],
         statement=store.unseal(row["statement"]),
-        state=HypothesisState(row["state"]),
+        state=HypothesisState(state_value),
         evidence_count=row["evidence_count"],
         contra_count=row["contra_count"],
         evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),

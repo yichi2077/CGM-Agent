@@ -8,7 +8,7 @@ the USER.md-mapped L2 snapshot (DECISION_LOG D012/D024-D026).
 - L2ProfileItem  : distilled semantic belief, with confidence + last_verified +
                    evidence_count (Hindsight-style proof count) + decay support.
 - L3Hypothesis   : individualized hypothesis state machine
-                   (candidate -> observing -> stable / invalid).
+                   (candidate -> observing -> stable / archived).
 - MemoryCandidate: pending queue fed by G7 report `g8_memory_candidates`.
 """
 
@@ -33,7 +33,7 @@ class HypothesisState(str, Enum):
     CANDIDATE = "candidate"
     OBSERVING = "observing"
     STABLE = "stable"
-    INVALID = "invalid"
+    ARCHIVED = "archived"
 
 
 class CandidateStatus(str, Enum):

@@ -4,7 +4,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import ValidationError
 
@@ -18,6 +18,12 @@ from hermes_cgm_agent.domain import (
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.analytics import CGMAnalyticsService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.services.dexcom import (
+    DexcomAuthError,
+    DexcomError,
+    DexcomSyncService,
+    build_dexcom_sync_service,
+)
 from hermes_cgm_agent.services.memory import (
     MemoryContextAssembler,
     MemoryReviewService,
@@ -51,11 +57,15 @@ class ToolExecutor:
         repository: SQLiteCGMRepository,
         audit_service: AuditService,
         registry: ToolRegistry | None = None,
+        dexcom_sync_factory: Callable[[SQLiteCGMRepository], DexcomSyncService] | None = None,
     ) -> None:
         self.repository = repository
         self.audit_service = audit_service
         self.registry = registry or build_default_tool_registry()
         self._rag_service: AuthoritativeRAGService | None = None
+        # Seam for tests: a factory that builds a DexcomSyncService from the
+        # repository. Defaults to env-sourced wiring (build_dexcom_sync_service).
+        self._dexcom_sync_factory = dexcom_sync_factory or build_dexcom_sync_service
 
     def execute(
         self,
@@ -94,6 +104,10 @@ class ToolExecutor:
             return self._confirm_event(arguments=arguments, session_id=session_id)
         if tool_name == "reports.generate":
             return self._generate_report(arguments=arguments, session_id=session_id)
+        if tool_name == "memory.list":
+            return self._memory_list(arguments=arguments, session_id=session_id)
+        if tool_name == "memory.delete":
+            return self._memory_delete(arguments=arguments, session_id=session_id)
         if tool_name == "memory.confirm":
             return self._memory_confirm(arguments=arguments, session_id=session_id)
         if tool_name == "memory.correct":
@@ -104,6 +118,8 @@ class ToolExecutor:
             return self._hypothesis_update(arguments=arguments, session_id=session_id)
         if tool_name == "delivery.send":
             return self._delivery_send(arguments=arguments, session_id=session_id)
+        if tool_name == "data.dexcom_sync":
+            return self._dexcom_sync(arguments=arguments, session_id=session_id)
 
         return self._error_response(
             session_id=session_id,
@@ -439,6 +455,102 @@ class ToolExecutor:
             payload={"candidate_id": candidate_id, "candidate_status": status_value},
         )
 
+    def _memory_list(
+        self,
+        *,
+        arguments: dict[str, Any],
+        session_id: str,
+    ) -> ToolExecutionResponse:
+        spec = self.registry.get("memory.list")
+        try:
+            user_id = str(arguments["user_id"])
+            layer = str(arguments["layer"])
+            limit = _parse_limit(arguments.get("limit"))
+            include_archived = bool(arguments.get("include_archived", False))
+            repository = SQLiteMemoryRepository(self.repository.store)
+            memories = self._list_memories(
+                repository=repository,
+                user_id=user_id,
+                layer=layer,
+                include_archived=include_archived,
+            )
+            if limit is not None:
+                memories = memories[:limit]
+        except (KeyError, TypeError, ValueError) as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope={"user_id": arguments.get("user_id")},
+                message=str(exc),
+            )
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": {"user_id": user_id, "layer": layer},
+                "risk_level": spec.risk_level,
+                "evidence_refs": [],
+                "total_count": len(memories),
+                "include_archived": include_archived,
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=[],
+            audit_id=audit_id,
+            payload={"memories": memories, "total_count": len(memories)},
+        )
+
+    def _memory_delete(
+        self,
+        *,
+        arguments: dict[str, Any],
+        session_id: str,
+    ) -> ToolExecutionResponse:
+        spec = self.registry.get("memory.delete")
+        try:
+            user_id = str(arguments["user_id"])
+            memory_id = str(arguments["memory_id"])
+            layer = str(arguments["layer"])
+            repository = SQLiteMemoryRepository(self.repository.store)
+            deleted = self._delete_memory(
+                repository=repository,
+                user_id=user_id,
+                memory_id=memory_id,
+                layer=layer,
+            )
+            if not deleted:
+                raise KeyError(f"Unknown memory record: {layer}:{memory_id}")
+        except (KeyError, TypeError, ValueError) as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope={"user_id": arguments.get("user_id")},
+                message=str(exc),
+            )
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": {"user_id": user_id, "layer": layer},
+                "risk_level": spec.risk_level,
+                "evidence_refs": [],
+                "deleted_id": memory_id,
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=[],
+            audit_id=audit_id,
+            payload={"deleted_id": memory_id, "layer": layer},
+        )
+
     def _memory_correct(
         self,
         *,
@@ -687,6 +799,132 @@ class ToolExecutor:
                 "manifest_path": manifest_path,
             },
         )
+
+    def _dexcom_sync(
+        self,
+        *,
+        arguments: dict[str, Any],
+        session_id: str,
+    ) -> ToolExecutionResponse:
+        spec = self.registry.get("data.dexcom_sync")
+        try:
+            user_id = str(arguments["user_id"])
+            days = int(arguments.get("days", 7))
+            if days < 1 or days > 90:
+                raise ValueError("days must be between 1 and 90")
+            force = arguments.get("force", False)
+            if not isinstance(force, bool):
+                raise ValueError("force must be a boolean")
+            sync_service = self._dexcom_sync_factory(self.repository)
+            result = sync_service.sync(user_id=user_id, days=days, force=force)
+        except DexcomAuthError as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope={"user_id": arguments.get("user_id")},
+                message=f"Dexcom authorization required: {exc}",
+            )
+        except (DexcomError, KeyError, TypeError, ValueError) as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope={"user_id": arguments.get("user_id")},
+                message=str(exc),
+            )
+
+        payload = result.to_dict()
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": {
+                    "user_id": user_id,
+                    "window_start": payload["window_start"],
+                    "window_end": payload["window_end"],
+                },
+                "risk_level": spec.risk_level,
+                "evidence_refs": [],
+                **payload,
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=[],
+            audit_id=audit_id,
+            payload=payload,
+        )
+
+    def _list_memories(
+        self,
+        *,
+        repository: SQLiteMemoryRepository,
+        user_id: str,
+        layer: str,
+        include_archived: bool,
+    ) -> list[dict[str, Any]]:
+        normalized = layer.lower()
+        if normalized not in {"l1", "l2", "l3", "all"}:
+            raise ValueError("layer must be one of: L1, L2, L3, all")
+        memories: list[dict[str, Any]] = []
+        if normalized in {"l1", "all"}:
+            for episode in repository.list_episodes(user_id, include_archived=include_archived):
+                item = episode.model_dump(mode="json")
+                item["layer"] = "L1"
+                item["memory_id"] = episode.episode_id
+                memories.append(item)
+        if normalized in {"l2", "all"}:
+            for profile in repository.list_profile_items(user_id, active_only=not include_archived):
+                item = profile.model_dump(mode="json")
+                item["layer"] = "L2"
+                item["memory_id"] = profile.item_id
+                memories.append(item)
+        if normalized in {"l3", "all"}:
+            states = None if include_archived else [
+                HypothesisState.CANDIDATE,
+                HypothesisState.OBSERVING,
+                HypothesisState.STABLE,
+            ]
+            for hypothesis in repository.list_hypotheses(user_id, states=states):
+                item = hypothesis.model_dump(mode="json")
+                item["layer"] = "L3"
+                item["memory_id"] = hypothesis.hypothesis_id
+                memories.append(item)
+        return memories
+
+    def _delete_memory(
+        self,
+        *,
+        repository: SQLiteMemoryRepository,
+        user_id: str,
+        memory_id: str,
+        layer: str,
+    ) -> bool:
+        normalized = layer.upper()
+        if normalized == "L1":
+            episode = repository.get_episode(memory_id)
+            if episode is None or episode.user_id != user_id:
+                return False
+            return repository.delete_episode(memory_id)
+        if normalized == "L2":
+            items = {item.item_id: item for item in repository.list_profile_items(user_id, active_only=False)}
+            if memory_id not in items:
+                return False
+            return repository.delete_profile_item(memory_id)
+        if normalized == "L3":
+            hypotheses = {item.hypothesis_id: item for item in repository.list_hypotheses(user_id, states=[
+                HypothesisState.CANDIDATE,
+                HypothesisState.OBSERVING,
+                HypothesisState.STABLE,
+                HypothesisState.ARCHIVED,
+            ])}
+            if memory_id not in hypotheses:
+                return False
+            return repository.delete_hypothesis(memory_id)
+        raise ValueError("layer must be one of: L1, L2, L3")
 
     def _error_response(
         self,
