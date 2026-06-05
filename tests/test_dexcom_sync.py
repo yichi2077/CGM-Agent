@@ -116,11 +116,40 @@ class DexcomConfigEnvTests(unittest.TestCase):
             "DEXCOM_CLIENT_ID": "abc",
             "DEXCOM_CLIENT_SECRET": "xyz",
             "DEXCOM_USE_SANDBOX": "false",
+            "DEXCOM_REGION": "",
         }
         with patch.dict(os.environ, env, clear=False):
             config = DexcomConfig.from_env()
         self.assertEqual(config.base_url, "https://api.dexcom.com")
         self.assertEqual(config.environment, "production")
+
+    def test_ous_region_selects_eu_hosts(self) -> None:
+        env = {
+            "DEXCOM_CLIENT_ID": "abc",
+            "DEXCOM_CLIENT_SECRET": "xyz",
+            "DEXCOM_USE_SANDBOX": "false",
+            "DEXCOM_REGION": "australia",  # alias -> ous
+        }
+        with patch.dict(os.environ, env, clear=False):
+            config = DexcomConfig.from_env()
+        self.assertEqual(config.region, "ous")
+        self.assertEqual(config.base_url, "https://api.dexcom.eu")
+
+    def test_ous_sandbox_host(self) -> None:
+        config = DexcomConfig(client_id="a", client_secret="b", use_sandbox=True, region="ous")
+        self.assertEqual(config.base_url, "https://sandbox-api.dexcom.eu")
+
+    def test_base_url_override_wins_over_region_and_sandbox(self) -> None:
+        env = {
+            "DEXCOM_CLIENT_ID": "abc",
+            "DEXCOM_CLIENT_SECRET": "xyz",
+            "DEXCOM_REGION": "ous",
+            "DEXCOM_USE_SANDBOX": "true",
+            "DEXCOM_BASE_URL": "http://127.0.0.1:8473/",  # trailing slash trimmed
+        }
+        with patch.dict(os.environ, env, clear=False):
+            config = DexcomConfig.from_env()
+        self.assertEqual(config.base_url, "http://127.0.0.1:8473")
 
     def test_missing_credentials_raises(self) -> None:
         with patch.dict(os.environ, {"DEXCOM_CLIENT_ID": "", "DEXCOM_CLIENT_SECRET": ""}, clear=False):

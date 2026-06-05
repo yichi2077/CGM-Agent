@@ -9,8 +9,34 @@ from dataclasses import dataclass
 #   - authorize/login: GET  {base}/v3/oauth2/login
 #   - token/refresh:   POST {base}/v3/oauth2/token  (x-www-form-urlencoded)
 #   - data:            GET  {base}/v3/users/self/{egvs,events,dataRange}
-SANDBOX_BASE_URL = "https://sandbox-api.dexcom.com"
-PRODUCTION_BASE_URL = "https://api.dexcom.com"
+#
+# Dexcom runs region-segregated stacks: a developer app AND the user's data
+# account both live in exactly one region, and they must match (a US-portal app
+# cannot read OUS/EU data, and vice versa). ``region`` selects the host family.
+_REGION_HOSTS: dict[str, tuple[str, str]] = {
+    # region: (production_base, sandbox_base)
+    "us": ("https://api.dexcom.com", "https://sandbox-api.dexcom.com"),
+    "ous": ("https://api.dexcom.eu", "https://sandbox-api.dexcom.eu"),
+    "jp": ("https://api.dexcom.jp", "https://sandbox-api.dexcom.jp"),
+}
+
+# Aliases accepted from DEXCOM_REGION so callers can say "eu"/"au"/"australia".
+_REGION_ALIASES: dict[str, str] = {
+    "us": "us", "usa": "us", "america": "us",
+    "ous": "ous", "eu": "ous", "europe": "ous", "au": "ous", "australia": "ous",
+    "row": "ous", "world": "ous", "intl": "ous", "international": "ous",
+    "jp": "jp", "japan": "jp",
+}
+
+DEFAULT_REGION = "us"
+
+SANDBOX_BASE_URL = _REGION_HOSTS[DEFAULT_REGION][1]
+PRODUCTION_BASE_URL = _REGION_HOSTS[DEFAULT_REGION][0]
+
+
+def normalize_region(value: str | None) -> str:
+    key = (value or DEFAULT_REGION).strip().lower()
+    return _REGION_ALIASES.get(key, DEFAULT_REGION)
 
 # Default OAuth scope. ``offline_access`` is required to receive a refresh_token
 # so the access_token can be refreshed transparently after it expires.
@@ -41,13 +67,23 @@ class DexcomConfig:
     redirect_uri: str = DEFAULT_REDIRECT_URI
     use_sandbox: bool = True
     scope: str = DEFAULT_SCOPE
+    # Region of the Dexcom developer app + data account: "us", "ous" (EU/AU/RoW),
+    # or "jp". Must match where the user's CGM data actually lives.
+    region: str = DEFAULT_REGION
     # Maximum API requests allowed per rolling minute (Dexcom limits ~ 20 req/min
     # for the public app tier; kept conservative and configurable).
     max_requests_per_minute: int = 20
+    # Explicit API host override (``DEXCOM_BASE_URL``). When set it wins over the
+    # region/sandbox host table — used to point the real client + CLI at a local
+    # mock Dexcom server for offline end-to-end testing. Empty/None = real hosts.
+    base_url_override: str | None = None
 
     @property
     def base_url(self) -> str:
-        return SANDBOX_BASE_URL if self.use_sandbox else PRODUCTION_BASE_URL
+        if self.base_url_override:
+            return self.base_url_override.rstrip("/")
+        production, sandbox = _REGION_HOSTS.get(self.region, _REGION_HOSTS[DEFAULT_REGION])
+        return sandbox if self.use_sandbox else production
 
     @property
     def environment(self) -> str:
@@ -82,5 +118,7 @@ class DexcomConfig:
             redirect_uri=redirect_uri,
             use_sandbox=_env_bool("DEXCOM_USE_SANDBOX", True),
             scope=(os.getenv("DEXCOM_SCOPE") or DEFAULT_SCOPE).strip(),
+            region=normalize_region(os.getenv("DEXCOM_REGION")),
             max_requests_per_minute=max(1, max_rpm),
+            base_url_override=(os.getenv("DEXCOM_BASE_URL") or "").strip() or None,
         )
