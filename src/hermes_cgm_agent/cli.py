@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sqlite3
-import sys
+import subprocess
 from pathlib import Path
-
-import uvicorn
 
 from hermes_cgm_agent.domain import (
     DataScope,
@@ -20,9 +19,7 @@ from hermes_cgm_agent.domain import (
     Report,
     UserEvent,
 )
-from hermes_cgm_agent.api.app import create_app
-from hermes_cgm_agent.platform.base import ChatRequest
-from hermes_cgm_agent.platform.hermes_cli import HermesCliPlatform
+from hermes_cgm_agent.hermes_plugins import install_hermes_integration
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import (
     CGMImporter,
@@ -31,7 +28,8 @@ from hermes_cgm_agent.services.data import (
     SQLiteCGMRepository,
 )
 from hermes_cgm_agent.services.tools import ToolExecutor, build_default_tool_registry
-from hermes_cgm_agent.storage.sqlite import SQLiteStore, utc_now
+from hermes_cgm_agent.config import AppConfig, default_hermes_exe
+from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 
 DOMAIN_MODELS = [
@@ -61,8 +59,6 @@ def build_parser() -> argparse.ArgumentParser:
     tools = sub.add_parser("tools", help="List planned Hermes-facing CGM tools")
     tools.add_argument("--group", default=None)
     tools.add_argument("--status", default=None, choices=["planned", "active", "disabled"])
-    sessions = sub.add_parser("sessions", help="List locally persisted sessions")
-    sessions.add_argument("--limit", type=int, default=20)
 
     import_cgm = sub.add_parser("import-cgm", help="Import and normalize CGM CSV/JSON data")
     import_cgm.add_argument("--file", required=True, help="Path to a CGM CSV or JSON file")
@@ -76,20 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
     tool_call.add_argument("--input", required=True, help="JSON file containing tool arguments")
     tool_call.add_argument("--session-id", required=True)
 
-    serve = sub.add_parser("serve", help="Run the local FastAPI application")
-    serve.add_argument("--host", default=None)
-    serve.add_argument("--port", type=int, default=None)
-
-    chat = sub.add_parser("chat", help="Send a single open-ended prompt to Hermes")
-    chat.add_argument("prompt", help="Prompt text")
-    chat.add_argument("--model", default=None)
-    chat.add_argument("--provider", default=None)
-    chat.add_argument("--toolsets", default=None)
-    chat.add_argument("--skills", default=None)
-    chat.add_argument("--resume", default=None)
-    chat.add_argument("--continue-session", default=None)
-    chat.add_argument("--max-turns", type=int, default=None)
-    chat.add_argument("--timeout-seconds", type=int, default=None)
+    hermes_install = sub.add_parser("hermes-install", help="Install or refresh Hermes user-plugin integration")
+    hermes_install.add_argument("--project-root", default=None)
+    hermes_install.add_argument("--hermes-home", default=None)
+    hermes_install.add_argument("--hermes-bin", default=None)
+    hermes_install.add_argument("--skip-editable-install", action="store_true")
+    hermes_install.add_argument("--skip-runtime-config", action="store_true")
 
     return parser
 
@@ -97,22 +85,21 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    platform = HermesCliPlatform()
-    config = platform.config
+    config = AppConfig.from_env()
 
     if args.command == "status":
-        status = platform.status()
+        status = _hermes_status(config)
         print(f"project: hermes-cgm-agent")
-        print(f"hermes_available: {str(status.available).lower()}")
-        print(f"hermes_executable: {status.executable}")
-        print(f"hermes_version: {status.version or ''}")
+        print(f"hermes_available: {str(status['available']).lower()}")
+        print(f"hermes_executable: {status['executable']}")
+        print(f"hermes_version: {status['version'] or ''}")
         print(f"database_path: {config.database_path}")
-        if status.detail and status.detail != status.version:
-            print(f"detail: {status.detail}")
-        return 0 if status.available else 1
+        if status["detail"] and status["detail"] != status["version"]:
+            print(f"detail: {status['detail']}")
+        return 0 if status["available"] else 1
 
     if args.command == "dev-status":
-        status = platform.status()
+        status = _hermes_status(config)
         registry = build_default_tool_registry()
         tools = registry.list()
         planned_tools = [tool for tool in tools if tool.status == "planned"]
@@ -138,18 +125,16 @@ def main(argv: list[str] | None = None) -> int:
                   AND name IN ('l1_episodes', 'l2_profile_items', 'l3_hypotheses', 'memory_candidates')
                 """
             ).fetchall()
-        session_count = len(store.list_sessions(limit=1000))
         memory_present = len(memory_tables) == 4
 
         print("project: hermes-cgm-agent")
-        print("architecture: Hermes CLI main shell + CGM capability layer")
-        print("main_shell: Hermes CLI")
-        print("support_surfaces: local CLI, local API")
+        print("architecture: Hermes-native plugins + CGM capability layer")
+        print("main_shell: Hermes runtime")
+        print("support_surfaces: local CLI for import/tool/install only")
         print("ui_mainline: false")
-        print(f"hermes_available: {str(status.available).lower()}")
-        print(f"hermes_version: {status.version or ''}")
+        print(f"hermes_available: {str(status['available']).lower()}")
+        print(f"hermes_version: {status['version'] or ''}")
         print(f"database_path: {config.database_path}")
-        print(f"local_session_count_sample: {session_count}")
         print(f"tool_count: {len(tools)}")
         print(f"planned_tool_count: {len(planned_tools)}")
         print(f"active_tool_count: {len(active_tools)}")
@@ -175,14 +160,14 @@ def main(argv: list[str] | None = None) -> int:
         print("dual_track_rag_present: true")
         print("current_phase: G8 memory/rag implemented")
         print("prototype_limit: L2->USER.md sync and live Hermes provider install are spikes")
-        print("test_command: $env:PYTHONPATH='src'; python -m unittest discover -s tests")
-        return 0 if status.available else 1
+        print("test_command: PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests")
+        return 0 if status["available"] else 1
 
     if args.command == "hermes-version":
-        status = platform.status()
-        if status.detail:
-            print(status.detail)
-        return 0 if status.available else 1
+        status = _hermes_status(config)
+        if status["detail"]:
+            print(status["detail"])
+        return 0 if status["available"] else 1
 
     if args.command == "tools":
         registry = build_default_tool_registry()
@@ -190,16 +175,6 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"{spec.name}\tgroup={spec.group}\tstatus={spec.status}\t"
                 f"risk={spec.risk_level}\taudit={str(spec.writes_audit).lower()}"
-            )
-        return 0
-
-    if args.command == "sessions":
-        store = SQLiteStore(config.database_path)
-        store.initialize()
-        for session in store.list_sessions(limit=args.limit):
-            print(
-                f"{session.id}\t{session.title or ''}\t"
-                f"messages={session.message_count}\tupdated_at={session.updated_at}"
             )
         return 0
 
@@ -221,34 +196,57 @@ def main(argv: list[str] | None = None) -> int:
             session_id=args.session_id,
         )
 
-    if args.command == "serve":
-        host = args.host or config.host
-        port = args.port or config.port
-        uvicorn.run(create_app(), host=host, port=port)
-        return 0
-
-    if args.command == "chat":
-        result = platform.chat(
-            ChatRequest(
-                prompt=args.prompt,
-                model=args.model,
-                provider=args.provider,
-                toolsets=args.toolsets,
-                skills=args.skills,
-                resume=args.resume,
-                continue_session=args.continue_session,
-                max_turns=args.max_turns,
-                timeout_seconds=args.timeout_seconds,
-            )
+    if args.command == "hermes-install":
+        report = install_hermes_integration(
+            project_root=Path(args.project_root) if args.project_root else None,
+            hermes_home=Path(args.hermes_home) if args.hermes_home else None,
+            hermes_bin=args.hermes_bin,
+            install_editable=not args.skip_editable_install,
+            configure_runtime=not args.skip_runtime_config,
         )
-        if result.raw_stderr.strip():
-            print(result.raw_stderr.strip(), file=sys.stderr)
-        if result.text:
-            print(result.text)
-        return result.returncode
+        print(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True))
+        return 0
 
     parser.error(f"Unhandled command {args.command}")
     return 2
+
+
+def _hermes_status(config: AppConfig) -> dict[str, object]:
+    hermes_bin = _resolve_hermes_bin(config.hermes_bin)
+    try:
+        completed = subprocess.run(
+            [hermes_bin, "--version"],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {
+            "available": False,
+            "executable": hermes_bin,
+            "version": None,
+            "detail": str(exc),
+        }
+    output = (completed.stdout or completed.stderr).strip()
+    return {
+        "available": completed.returncode == 0,
+        "executable": hermes_bin,
+        "version": output.splitlines()[0] if output else None,
+        "detail": output or None,
+    }
+
+
+def _resolve_hermes_bin(configured: str | None) -> str:
+    if configured:
+        return configured
+    discovered = shutil.which("hermes")
+    if discovered:
+        return discovered
+    fallback = default_hermes_exe()
+    return str(fallback) if fallback is not None else "hermes"
 
 
 def _import_cgm(
@@ -321,7 +319,6 @@ def _tool_call(
 ) -> int:
     store = SQLiteStore(db_path)
     store.initialize()
-    _ensure_session(store, session_id)
     arguments = _read_json_object(input_path)
     executor = ToolExecutor(
         repository=SQLiteCGMRepository(store),
@@ -343,19 +340,6 @@ def _read_json_object(path: Path) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError("tool-call input must be a JSON object")
     return payload
-
-
-def _ensure_session(store: SQLiteStore, session_id: str) -> None:
-    now = utc_now()
-    with store.connect() as conn:
-        conn.execute(
-            """
-            INSERT OR IGNORE INTO sessions (
-                id, title, created_at, updated_at, hermes_resume_id, hermes_continue_name
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (session_id, "manual tool-call", now, now, None, None),
-        )
 
 
 if __name__ == "__main__":

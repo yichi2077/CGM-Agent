@@ -22,7 +22,7 @@ class ReportToolTests(unittest.TestCase):
         self.store.initialize()
         self.repository = SQLiteCGMRepository(self.store)
         self.report_repository = SQLiteReportRepository(self.store)
-        self.session = self.store.create_session(title="report-tool-test")
+        self.session_id = "report-tool-test"
         self.executor = ToolExecutor(
             repository=self.repository,
             audit_service=AuditService(self.store),
@@ -51,7 +51,7 @@ class ReportToolTests(unittest.TestCase):
 
         response = self.executor.execute(
             tool_name="reports.generate",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "report_type": "daily",
@@ -83,7 +83,7 @@ class ReportToolTests(unittest.TestCase):
     def test_reports_generate_validation_error_is_audited(self) -> None:
         response = self.executor.execute(
             tool_name="reports.generate",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "report_type": "monthly",
@@ -100,7 +100,7 @@ class ReportToolTests(unittest.TestCase):
     def test_reports_generate_empty_window_returns_quality_warning(self) -> None:
         response = self.executor.execute(
             tool_name="reports.generate",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "report_type": "daily",
@@ -126,10 +126,10 @@ class ReportToolTests(unittest.TestCase):
                 ORDER BY rowid DESC
                 LIMIT 1
                 """,
-                (self.session.id,),
+                (self.session_id,),
             ).fetchone()
         self.assertIsNotNone(row)
-        return json.loads(row["payload_json"])
+        return self.store.unseal(row["payload_json"], legacy="json")
 
 
 if __name__ == "__main__":

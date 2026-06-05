@@ -55,9 +55,9 @@ class SQLiteMemoryRepository:
                     episode.user_id,
                     _dt(episode.occurred_at),
                     episode.episode_type,
-                    episode.summary,
-                    _json(episode.payload),
-                    _refs(episode.evidence_refs),
+                    self.store.seal(episode.summary),
+                    self.store.seal(episode.payload),
+                    self.store.seal([ref.model_dump(mode="json") for ref in episode.evidence_refs]),
                     episode.source_report_id,
                     episode.source_section_id,
                     episode.confidence,
@@ -73,7 +73,7 @@ class SQLiteMemoryRepository:
             row = conn.execute(
                 "SELECT * FROM l1_episodes WHERE episode_id = ?", (episode_id,)
             ).fetchone()
-        return _row_to_episode(row) if row else None
+        return _row_to_episode(row, self.store) if row else None
 
     def replace_episode(self, episode: L1Episode) -> L1Episode:
         with self.store.connect() as conn:
@@ -88,9 +88,9 @@ class SQLiteMemoryRepository:
                 (
                     _dt(episode.occurred_at),
                     episode.episode_type,
-                    episode.summary,
-                    _json(episode.payload),
-                    _refs(episode.evidence_refs),
+                    self.store.seal(episode.summary),
+                    self.store.seal(episode.payload),
+                    self.store.seal([ref.model_dump(mode="json") for ref in episode.evidence_refs]),
                     episode.source_report_id,
                     episode.source_section_id,
                     episode.confidence,
@@ -130,7 +130,7 @@ class SQLiteMemoryRepository:
         )
         with self.store.connect() as conn:
             rows = conn.execute(sql, values).fetchall()
-        return [_row_to_episode(row) for row in rows]
+        return [_row_to_episode(row, self.store) for row in rows]
 
     def touch_episode(self, episode_id: str, *, when: datetime | None = None) -> None:
         with self.store.connect() as conn:
@@ -171,7 +171,7 @@ class SQLiteMemoryRepository:
                     item.item_id,
                     item.user_id,
                     item.key,
-                    json.dumps(item.value, default=str),
+                    self.store.seal(item.value),
                     item.confidence,
                     item.evidence_count,
                     _dt(item.last_verified),
@@ -200,7 +200,7 @@ class SQLiteMemoryRepository:
         sql = "SELECT * FROM l2_profile_items WHERE " + " AND ".join(clauses) + " ORDER BY key"
         with self.store.connect() as conn:
             rows = conn.execute(sql, values).fetchall()
-        return [_row_to_profile(row) for row in rows]
+        return [_row_to_profile(row, self.store) for row in rows]
 
     def decay_profile_items(
         self,
@@ -251,11 +251,11 @@ class SQLiteMemoryRepository:
                 (
                     hypothesis.hypothesis_id,
                     hypothesis.user_id,
-                    hypothesis.statement,
+                    self.store.seal(hypothesis.statement),
                     _enum(hypothesis.state),
                     hypothesis.evidence_count,
                     hypothesis.contra_count,
-                    _refs(hypothesis.evidence_refs),
+                    self.store.seal([ref.model_dump(mode="json") for ref in hypothesis.evidence_refs]),
                     _dt(hypothesis.last_checked),
                     _dt(hypothesis.created_at),
                     _dt(hypothesis.updated_at),
@@ -278,7 +278,7 @@ class SQLiteMemoryRepository:
         sql = "SELECT * FROM l3_hypotheses WHERE " + " AND ".join(clauses) + " ORDER BY updated_at DESC"
         with self.store.connect() as conn:
             rows = conn.execute(sql, values).fetchall()
-        return [_row_to_hypothesis(row) for row in rows]
+        return [_row_to_hypothesis(row, self.store) for row in rows]
 
     # -- candidate queue -----------------------------------------------------
 
@@ -297,12 +297,12 @@ class SQLiteMemoryRepository:
                     candidate.user_id,
                     _enum(candidate.target_layer),
                     candidate.candidate_type,
-                    candidate.summary,
+                    self.store.seal(candidate.summary),
                     int(candidate.requires_user_confirmation),
                     _enum(candidate.status),
                     candidate.source_report_id,
                     candidate.source_section_id,
-                    _refs(candidate.evidence_refs),
+                    self.store.seal([ref.model_dump(mode="json") for ref in candidate.evidence_refs]),
                     candidate.confidence,
                     _dt(candidate.created_at),
                     _dt(candidate.resolved_at) if candidate.resolved_at else None,
@@ -324,7 +324,7 @@ class SQLiteMemoryRepository:
         sql = "SELECT * FROM memory_candidates WHERE " + " AND ".join(clauses) + " ORDER BY created_at"
         with self.store.connect() as conn:
             rows = conn.execute(sql, values).fetchall()
-        return [_row_to_candidate(row) for row in rows]
+        return [_row_to_candidate(row, self.store) for row in rows]
 
     def set_candidate_status(
         self,
@@ -344,7 +344,7 @@ class SQLiteMemoryRepository:
             ).fetchone()
         if row is None:
             raise KeyError(f"Unknown candidate: {candidate_id}")
-        return _row_to_candidate(row)
+        return _row_to_candidate(row, self.store)
 
 
 # -- helpers ----------------------------------------------------------------
@@ -379,21 +379,23 @@ def _refs(refs: list[EvidenceRef]) -> str:
     return json.dumps([ref.model_dump(mode="json") for ref in refs])
 
 
-def _parse_refs(raw: str | None) -> list[EvidenceRef]:
+def _parse_refs(raw: object | None) -> list[EvidenceRef]:
     if not raw:
         return []
-    return [EvidenceRef.model_validate(item) for item in json.loads(raw)]
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    return [EvidenceRef.model_validate(item) for item in raw]
 
 
-def _row_to_episode(row: Any) -> L1Episode:
+def _row_to_episode(row: Any, store: SQLiteStore) -> L1Episode:
     return L1Episode(
         episode_id=row["episode_id"],
         user_id=row["user_id"],
         occurred_at=datetime.fromisoformat(row["occurred_at"]),
         episode_type=row["episode_type"],
-        summary=row["summary"],
-        payload=json.loads(row["payload_json"]) if row["payload_json"] else {},
-        evidence_refs=_parse_refs(row["evidence_refs_json"]),
+        summary=store.unseal(row["summary"]),
+        payload=store.unseal(row["payload_json"], legacy="json") or {},
+        evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),
         source_report_id=row["source_report_id"],
         source_section_id=row["source_section_id"],
         confidence=row["confidence"],
@@ -403,12 +405,12 @@ def _row_to_episode(row: Any) -> L1Episode:
     )
 
 
-def _row_to_profile(row: Any) -> L2ProfileItem:
+def _row_to_profile(row: Any, store: SQLiteStore) -> L2ProfileItem:
     return L2ProfileItem(
         item_id=row["item_id"],
         user_id=row["user_id"],
         key=row["key"],
-        value=json.loads(row["value_json"]) if row["value_json"] else {},
+        value=store.unseal(row["value_json"], legacy="json") or {},
         confidence=row["confidence"],
         evidence_count=row["evidence_count"],
         last_verified=datetime.fromisoformat(row["last_verified"]),
@@ -419,33 +421,33 @@ def _row_to_profile(row: Any) -> L2ProfileItem:
     )
 
 
-def _row_to_hypothesis(row: Any) -> L3Hypothesis:
+def _row_to_hypothesis(row: Any, store: SQLiteStore) -> L3Hypothesis:
     return L3Hypothesis(
         hypothesis_id=row["hypothesis_id"],
         user_id=row["user_id"],
-        statement=row["statement"],
+        statement=store.unseal(row["statement"]),
         state=HypothesisState(row["state"]),
         evidence_count=row["evidence_count"],
         contra_count=row["contra_count"],
-        evidence_refs=_parse_refs(row["evidence_refs_json"]),
+        evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),
         last_checked=datetime.fromisoformat(row["last_checked"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
 
 
-def _row_to_candidate(row: Any) -> MemoryCandidate:
+def _row_to_candidate(row: Any, store: SQLiteStore) -> MemoryCandidate:
     return MemoryCandidate(
         candidate_id=row["candidate_id"],
         user_id=row["user_id"],
         target_layer=MemoryLayer(row["target_layer"]),
         candidate_type=row["candidate_type"],
-        summary=row["summary"],
+        summary=store.unseal(row["summary"]),
         requires_user_confirmation=bool(row["requires_user_confirmation"]),
         status=CandidateStatus(row["status"]),
         source_report_id=row["source_report_id"],
         source_section_id=row["source_section_id"],
-        evidence_refs=_parse_refs(row["evidence_refs_json"]),
+        evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),
         confidence=row["confidence"],
         created_at=datetime.fromisoformat(row["created_at"]),
         resolved_at=datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None,

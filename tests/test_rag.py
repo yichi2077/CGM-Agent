@@ -61,7 +61,7 @@ class RAGToolTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.store = SQLiteStore(Path(self.temp_dir.name) / "app.db")
         self.store.initialize()
-        self.session = self.store.create_session(title="rag-test")
+        self.session_id = "rag-test"
         self.executor = ToolExecutor(
             repository=SQLiteCGMRepository(self.store),
             audit_service=AuditService(self.store),
@@ -74,7 +74,7 @@ class RAGToolTests(unittest.TestCase):
         body = self.executor.execute(
             tool_name="rag.authoritative_search",
             arguments={"query": "compression low false reading", "top_k": 2},
-            session_id=self.session.id,
+            session_id=self.session_id,
         ).to_dict()
 
         self.assertEqual(body["status"], "ok")
@@ -87,7 +87,7 @@ class RAGToolTests(unittest.TestCase):
         body = self.executor.execute(
             tool_name="rag.authoritative_search",
             arguments={"query": "   "},
-            session_id=self.session.id,
+            session_id=self.session_id,
         ).to_dict()
         self.assertEqual(body["status"], "error")
 

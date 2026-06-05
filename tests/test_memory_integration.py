@@ -5,7 +5,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from hermes_cgm_agent.domain import EvidenceRef, GlucosePoint, L1Episode
+from hermes_cgm_agent.domain import CandidateStatus, EvidenceRef, GlucosePoint, L1Episode
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import (
@@ -27,7 +27,7 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.store.initialize()
         self.cgm = SQLiteCGMRepository(self.store)
         self.mem = SQLiteMemoryRepository(self.store)
-        self.session = self.store.create_session(title="integration")
+        self.session_id = "integration"
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
@@ -94,7 +94,7 @@ class MemoryIntegrationTests(unittest.TestCase):
                     "window_end": "2026-06-01T00:00:00+00:00",
                 },
             },
-            session_id=self.session.id,
+            session_id=self.session_id,
         ).to_dict()
 
         self.assertEqual(body["status"], "ok")
@@ -114,7 +114,7 @@ class MemoryIntegrationTests(unittest.TestCase):
     def test_provider_contract_shape_and_prefetch(self) -> None:
         self._seed_episode()
         provider = CGMMemoryProvider(self.store, user_id="user-1")
-        provider.initialize(session_id=self.session.id, user_id="user-1")
+        provider.initialize(session_id=self.session_id, user_id="user-1")
 
         self.assertEqual(provider.name, "cgm_memory")
         self.assertTrue(provider.is_available())
@@ -122,6 +122,29 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertEqual({s["name"] for s in schemas}, {"memory.confirm", "memory.correct"})
         recall = provider.prefetch("lunch spike")
         self.assertIn("user-memory recall", recall)
+
+    def test_provider_sync_turn_and_precompress_preserve_relevant_context(self) -> None:
+        provider = CGMMemoryProvider(self.store, user_id="user-1")
+        provider.initialize(
+            session_id=self.session_id,
+            user_id="user-1",
+            hermes_home=self.temp_dir.name,
+            platform="cli",
+            agent_context="primary",
+        )
+
+        provider.sync_turn(
+            "After dinner my blood sugar spiked above 220 and I had to walk.",
+            "Noted.",
+            session_id=self.session_id,
+        )
+        pending = self.mem.list_candidates("user-1", status=CandidateStatus.PENDING)
+        digest = provider.on_pre_compress([])
+
+        self.assertEqual(len(pending), 1)
+        self.assertIn("blood sugar spiked", pending[0].summary)
+        self.assertIn("Recent conversation notes:", digest)
+        self.assertIn("blood sugar spiked", digest)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ This file records the G0-G7 hardening baseline.
 
 Project root:
 
-`C:\Users\postgres\Desktop\新建文件夹 (4)\hermes-cgm-agent`
+`/Users/yichizhang/code/CGM-Agent`
 
 Current baseline intent:
 
@@ -24,9 +24,8 @@ Known baseline facts:
 
 Manual verification commands:
 
-```powershell
-$env:PYTHONPATH='src'
-python -m hermes_cgm_agent dev-status
-python -m hermes_cgm_agent tools
-python -m unittest discover -s tests
+```bash
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent dev-status
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent tools
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests
 ```

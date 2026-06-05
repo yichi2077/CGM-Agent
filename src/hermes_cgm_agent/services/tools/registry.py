@@ -311,8 +311,14 @@ def build_default_tool_registry() -> ToolRegistry:
                     "evidence_refs": {"type": "array", "items": EVIDENCE_REF_SCHEMA},
                 },
             ),
-            output_schema=_response_schema({"hypothesis_id": {"type": "string"}}),
+            output_schema=_response_schema(
+                {
+                    "hypothesis_id": {"type": "string"},
+                    "state": {"type": "string"},
+                }
+            ),
             risk_level="write",
+            status="active",
         )
     )
     registry.register(
@@ -359,9 +365,11 @@ def build_default_tool_registry() -> ToolRegistry:
                 {
                     "delivery_id": {"type": "string"},
                     "delivery_status": {"type": "string", "enum": ["queued", "sent", "failed"]},
+                    "manifest_path": {"type": ["string", "null"]},
                 }
             ),
             risk_level="external",
+            status="active",
         )
     )
 

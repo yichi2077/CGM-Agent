@@ -1,0 +1,6 @@
+name: cgm_memory
+version: 0.1.0
+description: "Hermes memory provider wrapper for local CGM memory recall and review."
+kind: exclusive
+hooks:
+  - on_session_end

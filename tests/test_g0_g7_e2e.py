@@ -5,10 +5,13 @@ import io
 import json
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
+from hermes_cgm_agent.domain import EvidenceRef, HypothesisState, L3Hypothesis
 from hermes_cgm_agent.cli import _import_cgm, _tool_call
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.services.memory import SQLiteMemoryRepository
 from hermes_cgm_agent.services.reports import SQLiteReportRepository
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -82,16 +85,42 @@ class G0G7E2ETests(unittest.TestCase):
         )
         self.assertTrue(daily_aggregate.ref_id)
 
-    def test_planned_tool_call_returns_error_and_audit(self) -> None:
-        # hypothesis.update remains a planned (not active) tool.
-        body = self._tool("hypothesis.update", "aggregate_daily.json")
+    def test_hypothesis_update_tool_call_updates_existing_record(self) -> None:
+        self._capture_import()
         store = SQLiteStore(self.db_path)
         store.initialize()
-        audit_payload = self._latest_audit_payload(store)
+        memory = SQLiteMemoryRepository(store)
+        memory.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="hyp-demo",
+                user_id="demo-user",
+                statement="Late dinner tends to raise overnight baseline",
+                state=HypothesisState.CANDIDATE,
+                evidence_refs=[EvidenceRef(kind="event", ref_id="ev-seed")],
+                created_at=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+                updated_at=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            )
+        )
 
-        self.assertEqual(body["status"], "error")
-        self.assertIn("Tool is not active", body["error"])
+        body = self._tool_payload(
+            "hypothesis.update",
+            {
+                "user_id": "demo-user",
+                "hypothesis_id": "hyp-demo",
+                "state": "observing",
+                "evidence_refs": [{"kind": "aggregate", "ref_id": "agg-demo"}],
+            },
+        )
+        audit_payload = self._latest_audit_payload(store)
+        updated = {h.hypothesis_id: h for h in memory.list_hypotheses("demo-user")}["hyp-demo"]
+
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["hypothesis_id"], "hyp-demo")
+        self.assertEqual(body["state"], "observing")
+        self.assertEqual(updated.state, HypothesisState.OBSERVING)
         self.assertEqual(audit_payload["tool_name"], "hypothesis.update")
+        self.assertEqual(audit_payload["status"], "ok")
+        self.assertEqual(audit_payload["state"], "observing")
 
     def _capture_import(self) -> tuple[int, dict[str, object]]:
         output = io.StringIO()
@@ -117,6 +146,19 @@ class G0G7E2ETests(unittest.TestCase):
             )
         return json.loads(output.getvalue())
 
+    def _tool_payload(self, tool_name: str, payload: dict[str, object]) -> dict[str, object]:
+        temp_path = Path(self.temp_dir.name) / f"{tool_name.replace('.', '_')}.json"
+        temp_path.write_text(json.dumps(payload), encoding="utf-8")
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            _tool_call(
+                db_path=self.db_path,
+                tool_name=tool_name,
+                input_path=temp_path,
+                session_id="demo-session",
+            )
+        return json.loads(output.getvalue())
+
     def _audit_payload(self, store: SQLiteStore, audit_id: str) -> dict[str, object]:
         with store.connect() as conn:
             row = conn.execute(
@@ -128,7 +170,7 @@ class G0G7E2ETests(unittest.TestCase):
                 (audit_id,),
             ).fetchone()
         self.assertIsNotNone(row)
-        return json.loads(row["payload_json"])
+        return store.unseal(row["payload_json"], legacy="json")
 
     def _latest_audit_payload(self, store: SQLiteStore) -> dict[str, object]:
         with store.connect() as conn:
@@ -141,7 +183,7 @@ class G0G7E2ETests(unittest.TestCase):
                 """
             ).fetchone()
         self.assertIsNotNone(row)
-        return json.loads(row["payload_json"])
+        return store.unseal(row["payload_json"], legacy="json")
 
 
 if __name__ == "__main__":

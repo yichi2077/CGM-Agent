@@ -13,10 +13,10 @@ Engineering rules:
 
 - Do not implement a separate general chat engine. Open-ended conversation goes through `Hermes`.
 - Keep project code behind `AgentPlatform` style adapters so `Hermes` integration can be tested and replaced cleanly.
-- Do not modify the local `Hermes` installation tree under `%LOCALAPPDATA%\hermes\hermes-agent`.
+- Do not modify the local `Hermes` installation tree under `~/.hermes/hermes-agent`.
 - Future `Hermes` memory providers must be user plugins or project services, not in-tree `Hermes` providers.
-- Keep executable project code in `C:\Users\postgres\Desktop\新建文件夹 (4)\hermes-cgm-agent`.
-- Leave planning and source documents under `C:\Users\postgres\Desktop\新建文件夹 (4)\dveps\docs`.
+- Keep executable project code in the current repository root.
+- Leave planning and source documents outside the Hermes install tree.
 - The local project `CLI` and `API` are support surfaces, not the current main product shell.
 - Next real product modules are `CGM` data, analytics, events, reports, memory and `RAG`.
 - Keep outputs and docs recoverable on disk.

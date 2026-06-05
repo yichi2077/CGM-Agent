@@ -96,12 +96,12 @@ class SQLiteCGMRepository:
                         record.source_id,
                         record.source_format,
                         record.row_number,
-                        _dt_raw(record.recorded_at),
-                        record.value,
-                        record.unit,
-                        record.device_id,
-                        record.source_record_id,
-                        _json(record.raw_payload),
+                        self.store.seal(_dt_raw(record.recorded_at)),
+                        self.store.seal(record.value),
+                        self.store.seal(record.unit),
+                        self.store.seal(record.device_id),
+                        self.store.seal(record.source_record_id),
+                        self.store.seal(record.raw_payload),
                     ),
                 )
             for issue in batch.issues:
@@ -118,7 +118,7 @@ class SQLiteCGMRepository:
                         issue.row_number,
                         issue.field,
                         issue.message,
-                        _json_or_none(issue.raw_record),
+                        self.store.seal(issue.raw_record) if issue.raw_record is not None else None,
                     ),
                 )
         return self.get_import_batch(batch.batch_id)
@@ -177,21 +177,21 @@ class SQLiteCGMRepository:
                 """,
                 (
                     point_id,
-                    point.user_id,
-                    _dt(point.timestamp),
-                    point.value,
-                    point.unit,
-                    point.value_mg_dl,
-                    point.value_mmol_l,
-                    point.source,
-                    point.quality_flag,
-                    point.trend,
-                    point.device_id,
-                    point.session_id,
-                    point.raw_record_id,
-                    utc_now(),
-                ),
-            )
+                        point.user_id,
+                        _dt(point.timestamp),
+                        self.store.seal(point.value),
+                        self.store.seal(point.unit),
+                        self.store.seal(point.value_mg_dl),
+                        self.store.seal(point.value_mmol_l),
+                        point.source,
+                        self.store.seal(point.quality_flag),
+                        self.store.seal(point.trend),
+                        self.store.seal(point.device_id),
+                        self.store.seal(point.session_id),
+                        self.store.seal(point.raw_record_id),
+                        utc_now(),
+                    ),
+                )
         return point_id
 
     def list_glucose_points(self, scope: DataScope) -> list[GlucosePoint]:
@@ -232,11 +232,11 @@ class SQLiteCGMRepository:
                 (
                     session.session_id,
                     session.user_id,
-                    session.device_id,
+                    self.store.seal(session.device_id),
                     _dt(session.sensor_started_at),
                     _dt(session.sensor_ended_at),
                     _dt(session.warmup_ended_at),
-                    _json([item.model_dump(mode="json") for item in session.missing_ranges]),
+                    self.store.seal([item.model_dump(mode="json") for item in session.missing_ranges]),
                 ),
             )
         return session.session_id
@@ -268,12 +268,12 @@ class SQLiteCGMRepository:
                 (
                     event.event_id,
                     event.user_id,
-                    event.event_type,
+                    self.store.seal(event.event_type),
                     _dt(event.ts_start),
                     _dt(event.ts_end),
-                    _json(event.payload),
-                    event.attachment,
-                    event.confidence,
+                    self.store.seal(event.payload),
+                    self.store.seal(event.attachment),
+                    self.store.seal(event.confidence),
                     event.created_by,
                     int(event.user_confirmed),
                     int(event.is_sensitive),
@@ -333,12 +333,12 @@ class SQLiteCGMRepository:
                 WHERE event_id = ? AND user_id = ?
                 """,
                 (
-                    corrected.event_type,
+                    self.store.seal(corrected.event_type),
                     _dt(corrected.ts_start),
                     _dt(corrected.ts_end),
-                    _json(corrected.payload),
-                    corrected.attachment,
-                    corrected.confidence,
+                    self.store.seal(corrected.payload),
+                    self.store.seal(corrected.attachment),
+                    self.store.seal(corrected.confidence),
                     int(confirmed),
                     int(corrected.is_sensitive),
                     int(not confirmed),
@@ -391,72 +391,67 @@ class SQLiteCGMRepository:
         row = conn.execute(f"SELECT COUNT(*) AS count FROM {table_name}").fetchone()
         return int(row["count"])
 
-    @staticmethod
-    def _row_to_raw_record(row: Any) -> RawCGMRecord:
+    def _row_to_raw_record(self, row: Any) -> RawCGMRecord:
         return RawCGMRecord(
             source_id=row["source_id"],
             source_format=row["source_format"],
-            raw_payload=json.loads(row["raw_payload_json"]),
+            raw_payload=self.store.unseal(row["raw_payload_json"], legacy="json"),
             row_number=row["row_number"],
-            recorded_at=row["recorded_at"],
-            value=row["value"],
-            unit=row["unit"],
-            device_id=row["device_id"],
-            source_record_id=row["source_record_id"],
+            recorded_at=self.store.unseal(row["recorded_at"]),
+            value=self.store.unseal(row["value"]),
+            unit=self.store.unseal(row["unit"]),
+            device_id=self.store.unseal(row["device_id"]),
+            source_record_id=self.store.unseal(row["source_record_id"]),
         )
 
-    @staticmethod
-    def _row_to_import_issue(row: Any) -> ImportIssue:
+    def _row_to_import_issue(self, row: Any) -> ImportIssue:
         raw_record = row["raw_record_json"]
         return ImportIssue(
             row_number=row["row_number"],
             field=row["field"],
             message=row["message"],
-            raw_record=json.loads(raw_record) if raw_record else None,
+            raw_record=self.store.unseal(raw_record, legacy="json") if raw_record else None,
         )
 
-    @staticmethod
-    def _row_to_glucose_point(row: Any) -> GlucosePoint:
+    def _row_to_glucose_point(self, row: Any) -> GlucosePoint:
         return GlucosePoint(
             user_id=row["user_id"],
             timestamp=row["timestamp"],
-            value=row["value"],
-            unit=row["unit"],
+            value=self.store.unseal(row["value"]),
+            unit=self.store.unseal(row["unit"]),
             source=row["source"],
-            quality_flag=row["quality_flag"],
-            trend=row["trend"],
-            device_id=row["device_id"],
-            session_id=row["session_id"],
-            raw_record_id=row["raw_record_id"],
+            quality_flag=self.store.unseal(row["quality_flag"]),
+            trend=self.store.unseal(row["trend"]),
+            device_id=self.store.unseal(row["device_id"]),
+            session_id=self.store.unseal(row["session_id"]),
+            raw_record_id=self.store.unseal(row["raw_record_id"]),
         )
 
-    @staticmethod
-    def _row_to_device_session(row: Any) -> DeviceSession:
+    def _row_to_device_session(self, row: Any) -> DeviceSession:
         missing_ranges = [
             TimeRange.model_validate(item)
-            for item in json.loads(row["missing_ranges_json"] or "[]")
+            for item in self.store.unseal(row["missing_ranges_json"], legacy="json") or []
         ]
         return DeviceSession(
             session_id=row["session_id"],
             user_id=row["user_id"],
-            device_id=row["device_id"],
+            device_id=self.store.unseal(row["device_id"]),
             sensor_started_at=row["sensor_started_at"],
             sensor_ended_at=row["sensor_ended_at"],
             warmup_ended_at=row["warmup_ended_at"],
             missing_ranges=missing_ranges,
         )
 
-    @staticmethod
-    def _row_to_user_event(row: Any) -> UserEvent:
+    def _row_to_user_event(self, row: Any) -> UserEvent:
         return UserEvent(
             event_id=row["event_id"],
             user_id=row["user_id"],
-            type=row["type"],
+            type=self.store.unseal(row["type"]),
             ts_start=row["ts_start"],
             ts_end=row["ts_end"],
-            payload=json.loads(row["payload_json"] or "{}"),
-            attachment=row["attachment"],
-            confidence=row["confidence"],
+            payload=self.store.unseal(row["payload_json"], legacy="json") or {},
+            attachment=self.store.unseal(row["attachment"]),
+            confidence=self.store.unseal(row["confidence"]),
             created_by=row["created_by"],
             user_confirmed=bool(row["user_confirmed"]),
             is_sensitive=bool(row["is_sensitive"]),

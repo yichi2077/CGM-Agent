@@ -4,14 +4,14 @@ This folder is a manual smoke dataset for the G0-G7 hardening path.
 
 Use it with a disposable database:
 
-```powershell
-$env:PYTHONPATH='src'
-$env:CGM_AGENT_DB_PATH='.runtime/demo_g0_g7.db'
+```bash
+export PYTHONPATH=src
+export CGM_AGENT_DB_PATH=.runtime/demo_g0_g7.db
 ```
 
 The full command sequence is documented in:
 
-`C:\Users\postgres\Desktop\新建文件夹 (4)\dveps\docs\hermes-cgm-agent-dev-plan\G0_G7_HARDENING_RUNBOOK.md`
+`../dveps/docs/hermes-cgm-agent-dev-plan/G0_G7_HARDENING_RUNBOOK.md`
 
 ## Fixtures
 
@@ -21,10 +21,9 @@ The full command sequence is documented in:
   validate LBGI/HBGI, coverage, and `GlucoseEvent` detection against lifelike density.
   Regenerate with:
 
-  ```powershell
+  ```bash
   python examples/g0_g7_demo/generate_realistic_cgm.py
   ```
 
   Importing it yields ~99% coverage and a realistic spread of detected glucose events
   (hyper from meals, two overnight lows at alert severity, rapid rise/fall, one data gap).
-

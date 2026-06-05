@@ -6,9 +6,10 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from hermes_cgm_agent.domain import GlucosePoint
+from hermes_cgm_agent.domain import EvidenceRef, GlucosePoint, HypothesisState, L3Hypothesis
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.services.memory import SQLiteMemoryRepository
 from hermes_cgm_agent.services.tools import ToolExecutor
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -20,7 +21,7 @@ class TimeseriesToolTests(unittest.TestCase):
         self.store = SQLiteStore(db_path)
         self.store.initialize()
         self.repository = SQLiteCGMRepository(self.store)
-        self.session = self.store.create_session(title="tool-test")
+        self.session_id = "tool-test"
         self.executor = ToolExecutor(
             repository=self.repository,
             audit_service=AuditService(self.store),
@@ -53,7 +54,7 @@ class TimeseriesToolTests(unittest.TestCase):
 
         response = self.executor.execute(
             tool_name="timeseries.get_points",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "data_scope": {
                     "user_id": "user-1",
@@ -82,7 +83,7 @@ class TimeseriesToolTests(unittest.TestCase):
     def test_timeseries_get_points_validation_error_is_audited(self) -> None:
         response = self.executor.execute(
             tool_name="timeseries.get_points",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "data_scope": {
                     "user_id": "user-1",
@@ -116,7 +117,7 @@ class TimeseriesToolTests(unittest.TestCase):
 
         response = self.executor.execute(
             tool_name="timeseries.get_aggregate",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "data_scope": {
                     "user_id": "user-1",
@@ -141,23 +142,43 @@ class TimeseriesToolTests(unittest.TestCase):
         self.assertEqual(audit_payload["status"], "ok")
         self.assertEqual(audit_payload["aggregate"]["point_count"], 4)
 
-    def test_inactive_tool_returns_error_and_audit(self) -> None:
+    def test_hypothesis_update_returns_state_and_audit(self) -> None:
+        memory = SQLiteMemoryRepository(self.store)
+        memory.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="h1",
+                user_id="user-1",
+                statement="Breakfast spikes after oatmeal",
+                state=HypothesisState.CANDIDATE,
+                evidence_refs=[EvidenceRef(kind="event", ref_id="ev-1")],
+            )
+        )
+
         response = self.executor.execute(
             tool_name="hypothesis.update",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "hypothesis_id": "h1",
                 "state": "observing",
+                "evidence_refs": [
+                    {"kind": "aggregate", "ref_id": "agg-1", "summary": "Daily aggregate"}
+                ],
             },
         )
         body = response.to_dict()
         audit_payload = self._last_audit_payload()
 
-        self.assertEqual(body["status"], "error")
-        self.assertIn("Tool is not active", body["error"])
+        saved = {h.hypothesis_id: h for h in memory.list_hypotheses("user-1")}["h1"]
+
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["hypothesis_id"], "h1")
+        self.assertEqual(body["state"], "observing")
+        self.assertEqual(saved.state, HypothesisState.OBSERVING)
+        self.assertGreaterEqual(saved.evidence_count, 2)
         self.assertEqual(audit_payload["tool_name"], "hypothesis.update")
-        self.assertEqual(audit_payload["status"], "error")
+        self.assertEqual(audit_payload["status"], "ok")
+        self.assertEqual(audit_payload["state"], "observing")
 
     def _last_audit_payload(self) -> dict[str, object]:
         with self.store.connect() as conn:
@@ -169,10 +190,10 @@ class TimeseriesToolTests(unittest.TestCase):
                 ORDER BY rowid DESC
                 LIMIT 1
                 """,
-                (self.session.id,),
+                (self.session_id,),
             ).fetchone()
         self.assertIsNotNone(row)
-        return json.loads(row["payload_json"])
+        return self.store.unseal(row["payload_json"], legacy="json")
 
 
 if __name__ == "__main__":

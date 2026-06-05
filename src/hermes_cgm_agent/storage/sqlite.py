@@ -1,61 +1,73 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Literal
+
+from cryptography.fernet import Fernet
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-@dataclass(frozen=True)
-class SessionRecord:
-    id: str
-    title: str | None
-    created_at: str
-    updated_at: str
-    hermes_resume_id: str | None
-    hermes_continue_name: str | None
-    message_count: int = 0
+class _StorageCipher:
+    PREFIX = "enc:v1:"
 
+    def __init__(self, key_path: Path, env_key: str | None = None) -> None:
+        self.key_path = key_path
+        self.key_path.parent.mkdir(parents=True, exist_ok=True)
+        key = env_key.encode("utf-8") if env_key else self._load_or_create_key()
+        self._fernet = Fernet(key)
+        self._harden_permissions()
 
-@dataclass(frozen=True)
-class MessageRecord:
-    id: str
-    session_id: str
-    role: str
-    content: str
-    created_at: str
-    metadata: dict[str, Any]
+    def _load_or_create_key(self) -> bytes:
+        if self.key_path.exists():
+            return self.key_path.read_bytes().strip()
+        key = Fernet.generate_key()
+        self.key_path.write_bytes(key + b"\n")
+        return key
 
+    def _harden_permissions(self) -> None:
+        if os.name == "nt":
+            return
+        try:
+            os.chmod(self.key_path, 0o600)
+        except OSError:
+            return
 
-@dataclass(frozen=True)
-class AIOutputRecord:
-    id: str
-    session_id: str
-    request_message_id: str
-    response_message_id: str
-    text: str
-    raw_stdout: str
-    raw_stderr: str
-    returncode: int
-    model: str | None
-    provider: str | None
-    toolsets: str | None
-    skills: str | None
-    created_at: str
+    def seal(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        payload = json.dumps(value, ensure_ascii=True, sort_keys=True, default=str).encode("utf-8")
+        return f"{self.PREFIX}{self._fernet.encrypt(payload).decode('utf-8')}"
+
+    def open(self, value: Any, *, legacy: Literal["raw", "json"] = "raw") -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str) and value.startswith(self.PREFIX):
+            token = value[len(self.PREFIX) :].encode("utf-8")
+            payload = self._fernet.decrypt(token).decode("utf-8")
+            return json.loads(payload)
+        if legacy == "json" and isinstance(value, str):
+            return json.loads(value)
+        return value
 
 
 class SQLiteStore:
     def __init__(self, db_path: str | Path) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        env_key_path = os.getenv("CGM_AGENT_STORAGE_KEY_PATH")
+        env_key = os.getenv("CGM_AGENT_STORAGE_KEY")
+        key_path = Path(env_key_path).expanduser() if env_key_path else self.db_path.parent / "storage.key"
+        self._cipher = _StorageCipher(key_path, env_key=env_key)
+        self._harden_permissions()
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -67,56 +79,18 @@ class SQLiteStore:
             conn.commit()
         finally:
             conn.close()
+            self._harden_permissions()
 
     def initialize(self) -> None:
         with self.connect() as conn:
             conn.executescript(
                 """
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id TEXT PRIMARY KEY,
-                    title TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    hermes_resume_id TEXT,
-                    hermes_continue_name TEXT
-                );
-
-                CREATE TABLE IF NOT EXISTS messages (
-                    id TEXT PRIMARY KEY,
-                    session_id TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    metadata_json TEXT NOT NULL,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
-                );
-
-                CREATE TABLE IF NOT EXISTS ai_outputs (
-                    id TEXT PRIMARY KEY,
-                    session_id TEXT NOT NULL,
-                    request_message_id TEXT NOT NULL,
-                    response_message_id TEXT NOT NULL,
-                    text TEXT NOT NULL,
-                    raw_stdout TEXT NOT NULL,
-                    raw_stderr TEXT NOT NULL,
-                    returncode INTEGER NOT NULL,
-                    model TEXT,
-                    provider TEXT,
-                    toolsets TEXT,
-                    skills TEXT,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-                    FOREIGN KEY(request_message_id) REFERENCES messages(id) ON DELETE CASCADE,
-                    FOREIGN KEY(response_message_id) REFERENCES messages(id) ON DELETE CASCADE
-                );
-
                 CREATE TABLE IF NOT EXISTS audit_logs (
                     id TEXT PRIMARY KEY,
                     session_id TEXT NOT NULL,
                     event_type TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE
+                    created_at TEXT NOT NULL
                 );
 
                 CREATE TABLE IF NOT EXISTS import_batches (
@@ -347,227 +321,23 @@ class SQLiteStore:
                 "safety_result_json",
                 "TEXT NOT NULL DEFAULT '{}'",
             )
+            self._migrate_legacy_session_tables(conn)
+        self._harden_permissions()
 
-    def create_session(
-        self,
-        *,
-        title: str | None = None,
-        hermes_resume_id: str | None = None,
-        hermes_continue_name: str | None = None,
-    ) -> SessionRecord:
-        session_id = uuid.uuid4().hex
-        now = utc_now()
-        with self.connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO sessions (
-                    id, title, created_at, updated_at, hermes_resume_id, hermes_continue_name
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    session_id,
-                    title,
-                    now,
-                    now,
-                    hermes_resume_id,
-                    hermes_continue_name,
-                ),
-            )
-        return self.get_session(session_id)
+    def _harden_permissions(self) -> None:
+        if os.name == "nt":
+            return
+        if self.db_path.exists():
+            try:
+                os.chmod(self.db_path, 0o600)
+            except OSError:
+                pass
 
-    def update_session(
-        self,
-        session_id: str,
-        *,
-        title: str | None = None,
-        hermes_resume_id: str | None = None,
-        hermes_continue_name: str | None = None,
-    ) -> SessionRecord:
-        fields: list[str] = ["updated_at = ?"]
-        values: list[Any] = [utc_now()]
-        if title is not None:
-            fields.append("title = ?")
-            values.append(title)
-        if hermes_resume_id is not None:
-            fields.append("hermes_resume_id = ?")
-            values.append(hermes_resume_id)
-        if hermes_continue_name is not None:
-            fields.append("hermes_continue_name = ?")
-            values.append(hermes_continue_name)
-        values.append(session_id)
-        with self.connect() as conn:
-            conn.execute(
-                f"UPDATE sessions SET {', '.join(fields)} WHERE id = ?",
-                values,
-            )
-        return self.get_session(session_id)
+    def seal(self, value: Any) -> str | None:
+        return self._cipher.seal(value)
 
-    def get_session(self, session_id: str) -> SessionRecord:
-        with self.connect() as conn:
-            row = conn.execute(
-                """
-                SELECT s.id, s.title, s.created_at, s.updated_at,
-                       s.hermes_resume_id, s.hermes_continue_name,
-                       COUNT(m.id) AS message_count
-                FROM sessions s
-                LEFT JOIN messages m ON m.session_id = s.id
-                WHERE s.id = ?
-                GROUP BY s.id
-                """,
-                (session_id,),
-            ).fetchone()
-        if row is None:
-            raise KeyError(session_id)
-        return self._row_to_session(row)
-
-    def list_sessions(self, *, limit: int = 50) -> list[SessionRecord]:
-        with self.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT s.id, s.title, s.created_at, s.updated_at,
-                       s.hermes_resume_id, s.hermes_continue_name,
-                       COUNT(m.id) AS message_count
-                FROM sessions s
-                LEFT JOIN messages m ON m.session_id = s.id
-                GROUP BY s.id
-                ORDER BY s.updated_at DESC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
-        return [self._row_to_session(row) for row in rows]
-
-    def delete_session(self, session_id: str) -> bool:
-        with self.connect() as conn:
-            cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-        return cursor.rowcount > 0
-
-    def create_message(
-        self,
-        *,
-        session_id: str,
-        role: str,
-        content: str,
-        metadata: dict[str, Any] | None = None,
-    ) -> MessageRecord:
-        message_id = uuid.uuid4().hex
-        now = utc_now()
-        payload = json.dumps(metadata or {}, ensure_ascii=True, sort_keys=True)
-        with self.connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO messages (id, session_id, role, content, created_at, metadata_json)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (message_id, session_id, role, content, now, payload),
-            )
-            conn.execute(
-                "UPDATE sessions SET updated_at = ? WHERE id = ?",
-                (now, session_id),
-            )
-        return self.get_message(message_id)
-
-    def get_message(self, message_id: str) -> MessageRecord:
-        with self.connect() as conn:
-            row = conn.execute(
-                """
-                SELECT id, session_id, role, content, created_at, metadata_json
-                FROM messages
-                WHERE id = ?
-                """,
-                (message_id,),
-            ).fetchone()
-        if row is None:
-            raise KeyError(message_id)
-        return self._row_to_message(row)
-
-    def list_messages(self, session_id: str) -> list[MessageRecord]:
-        with self.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, session_id, role, content, created_at, metadata_json
-                FROM messages
-                WHERE session_id = ?
-                ORDER BY created_at ASC, id ASC
-                """,
-                (session_id,),
-            ).fetchall()
-        return [self._row_to_message(row) for row in rows]
-
-    def create_ai_output(
-        self,
-        *,
-        session_id: str,
-        request_message_id: str,
-        response_message_id: str,
-        text: str,
-        raw_stdout: str,
-        raw_stderr: str,
-        returncode: int,
-        model: str | None,
-        provider: str | None,
-        toolsets: str | None,
-        skills: str | None,
-    ) -> AIOutputRecord:
-        output_id = uuid.uuid4().hex
-        now = utc_now()
-        with self.connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO ai_outputs (
-                    id, session_id, request_message_id, response_message_id,
-                    text, raw_stdout, raw_stderr, returncode,
-                    model, provider, toolsets, skills, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    output_id,
-                    session_id,
-                    request_message_id,
-                    response_message_id,
-                    text,
-                    raw_stdout,
-                    raw_stderr,
-                    returncode,
-                    model,
-                    provider,
-                    toolsets,
-                    skills,
-                    now,
-                ),
-            )
-        return self.get_ai_output(output_id)
-
-    def get_ai_output(self, output_id: str) -> AIOutputRecord:
-        with self.connect() as conn:
-            row = conn.execute(
-                """
-                SELECT id, session_id, request_message_id, response_message_id,
-                       text, raw_stdout, raw_stderr, returncode,
-                       model, provider, toolsets, skills, created_at
-                FROM ai_outputs
-                WHERE id = ?
-                """,
-                (output_id,),
-            ).fetchone()
-        if row is None:
-            raise KeyError(output_id)
-        return self._row_to_ai_output(row)
-
-    def list_ai_outputs(self, session_id: str) -> list[AIOutputRecord]:
-        with self.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, session_id, request_message_id, response_message_id,
-                       text, raw_stdout, raw_stderr, returncode,
-                       model, provider, toolsets, skills, created_at
-                FROM ai_outputs
-                WHERE session_id = ?
-                ORDER BY created_at ASC, id ASC
-                """,
-                (session_id,),
-            ).fetchall()
-        return [self._row_to_ai_output(row) for row in rows]
+    def unseal(self, value: Any, *, legacy: Literal["raw", "json"] = "raw") -> Any:
+        return self._cipher.open(value, legacy=legacy)
 
     def create_audit_log(
         self,
@@ -577,17 +347,44 @@ class SQLiteStore:
         payload: dict[str, Any],
     ) -> str:
         log_id = uuid.uuid4().hex
-        now = utc_now()
-        payload_json = json.dumps(payload, ensure_ascii=True, sort_keys=True)
         with self.connect() as conn:
             conn.execute(
                 """
                 INSERT INTO audit_logs (id, session_id, event_type, payload_json, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (log_id, session_id, event_type, payload_json, now),
+                (log_id, session_id, event_type, self.seal(payload), utc_now()),
             )
         return log_id
+
+    @staticmethod
+    def _migrate_legacy_session_tables(conn: sqlite3.Connection) -> None:
+        audit_fks = conn.execute("PRAGMA foreign_key_list(audit_logs)").fetchall()
+        if any(row["table"] == "sessions" for row in audit_fks):
+            conn.execute("ALTER TABLE audit_logs RENAME TO audit_logs_legacy")
+            conn.execute(
+                """
+                CREATE TABLE audit_logs (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO audit_logs (id, session_id, event_type, payload_json, created_at)
+                SELECT id, session_id, event_type, payload_json, created_at
+                FROM audit_logs_legacy
+                """
+            )
+            conn.execute("DROP TABLE audit_logs_legacy")
+
+        conn.execute("DROP TABLE IF EXISTS ai_outputs")
+        conn.execute("DROP TABLE IF EXISTS messages")
+        conn.execute("DROP TABLE IF EXISTS sessions")
 
     @staticmethod
     def _ensure_column(
@@ -604,44 +401,3 @@ class SQLiteStore:
             conn.execute(
                 f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}"
             )
-
-    @staticmethod
-    def _row_to_session(row: sqlite3.Row) -> SessionRecord:
-        return SessionRecord(
-            id=row["id"],
-            title=row["title"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-            hermes_resume_id=row["hermes_resume_id"],
-            hermes_continue_name=row["hermes_continue_name"],
-            message_count=int(row["message_count"] or 0),
-        )
-
-    @staticmethod
-    def _row_to_message(row: sqlite3.Row) -> MessageRecord:
-        return MessageRecord(
-            id=row["id"],
-            session_id=row["session_id"],
-            role=row["role"],
-            content=row["content"],
-            created_at=row["created_at"],
-            metadata=json.loads(row["metadata_json"] or "{}"),
-        )
-
-    @staticmethod
-    def _row_to_ai_output(row: sqlite3.Row) -> AIOutputRecord:
-        return AIOutputRecord(
-            id=row["id"],
-            session_id=row["session_id"],
-            request_message_id=row["request_message_id"],
-            response_message_id=row["response_message_id"],
-            text=row["text"],
-            raw_stdout=row["raw_stdout"],
-            raw_stderr=row["raw_stderr"],
-            returncode=int(row["returncode"]),
-            model=row["model"],
-            provider=row["provider"],
-            toolsets=row["toolsets"],
-            skills=row["skills"],
-            created_at=row["created_at"],
-        )

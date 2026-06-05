@@ -18,12 +18,52 @@ provider does not write USER.md directly.
 
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
+import os
 from typing import Any
 
+from hermes_cgm_agent.domain import EvidenceRef, MemoryCandidate, MemoryLayer
+from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.memory.assembler import MemoryContextAssembler
 from hermes_cgm_agent.services.memory.consolidation import ConsolidationService
-from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository
+from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository, new_id
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
+
+
+# Single source of truth for the memory tool schemas exposed to Hermes. The
+# Hermes-facing wrapper (`integrations/hermes/cgm_memory`) imports this so it can
+# answer `get_tool_schemas()` before `initialize()` without a divergent
+# hardcoded copy (NEW-5).
+MEMORY_TOOL_SCHEMAS: list[dict[str, Any]] = [
+    {
+        "name": "memory.confirm",
+        "description": "Confirm or reject a pending CGM memory candidate.",
+        "parameters": {
+            "type": "object",
+            "required": ["user_id", "candidate_id", "confirmed"],
+            "properties": {
+                "user_id": {"type": "string"},
+                "candidate_id": {"type": "string"},
+                "confirmed": {"type": "boolean"},
+            },
+        },
+    },
+    {
+        "name": "memory.correct",
+        "description": "Apply an explicit user correction to L1/L2/L3 memory.",
+        "parameters": {
+            "type": "object",
+            "required": ["user_id", "target", "correction"],
+            "properties": {
+                "user_id": {"type": "string"},
+                "target": {"type": "string", "enum": ["L1", "L2", "L3"]},
+                "correction": {"type": "object"},
+            },
+        },
+    },
+]
 
 
 class CGMMemoryProvider:
@@ -36,6 +76,10 @@ class CGMMemoryProvider:
         self._assembler = MemoryContextAssembler(repository=self._repository)
         self._consolidation = ConsolidationService(repository=self._repository)
         self._session_id = ""
+        self._hermes_home = ""
+        self._platform = ""
+        self._agent_context = "primary"
+        self._session_turns: dict[str, list[str]] = {}
 
     @property
     def name(self) -> str:
@@ -47,15 +91,22 @@ class CGMMemoryProvider:
 
     def initialize(self, session_id: str, **kwargs: Any) -> None:
         self._session_id = session_id
+        self._hermes_home = str(kwargs.get("hermes_home") or "")
+        self._platform = str(kwargs.get("platform") or "")
+        self._agent_context = str(kwargs.get("agent_context") or "primary")
         if kwargs.get("user_id"):
             self._user_id = str(kwargs["user_id"])
+        self._session_turns.setdefault(session_id, [])
 
     def system_prompt_block(self) -> str:
-        return (
+        block = (
             "CGM memory is active. Personal episodes and hypotheses are recalled "
             "as user_memory evidence and must be cited with uncertainty, never as "
             "authoritative medical fact."
         )
+        if self._hermes_home:
+            block += f" Runtime scope: {self._hermes_home}."
+        return block
 
     def prefetch(self, query: str, *, session_id: str = "") -> str:
         context = self._assembler.build_memory_context(
@@ -80,43 +131,182 @@ class CGMMemoryProvider:
         session_id: str = "",
         messages: list[dict[str, Any]] | None = None,
     ) -> None:
-        # Consolidation is intentionally async/batch (run after reports/sessions),
-        # not per-turn. Kept as a no-op hook to honor the contract.
-        return None
+        if self._agent_context != "primary":
+            return None
+        active_session = session_id or self._session_id
+        if not active_session:
+            return None
+        user_text = user_content.strip()
+        if not user_text:
+            return None
+        self._session_turns.setdefault(active_session, []).append(user_text[:240])
+        if not _looks_memory_relevant(user_text):
+            return None
+        candidate = MemoryCandidate(
+            candidate_id=_turn_candidate_id(active_session, user_text),
+            user_id=self._user_id,
+            target_layer=MemoryLayer.L1,
+            candidate_type="conversation_note",
+            summary=_candidate_summary(user_text),
+            requires_user_confirmation=True,
+            evidence_refs=[
+                EvidenceRef(
+                    kind="memory",
+                    ref_id=f"session:{active_session}",
+                    summary="Captured from Hermes conversation turn",
+                )
+            ],
+            created_at=utc_now(),
+        )
+        existing = {
+            item.candidate_id
+            for item in self._repository.list_candidates(self._user_id)
+        }
+        if candidate.candidate_id not in existing:
+            self._repository.enqueue_candidate(candidate)
 
     def on_session_end(self, messages: list[dict[str, Any]]) -> None:
         # End-of-session is a natural consolidation trigger (D026).
         self._consolidation.consolidate(self._user_id)
+        self._session_turns.pop(self._session_id, None)
+
+    def on_session_switch(
+        self,
+        new_session_id: str,
+        *,
+        parent_session_id: str = "",
+        reset: bool = False,
+        rewound: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        if reset or rewound:
+            self._session_turns.pop(new_session_id, None)
+        self._session_id = new_session_id
+        if kwargs.get("user_id"):
+            self._user_id = str(kwargs["user_id"])
+        if kwargs.get("agent_context"):
+            self._agent_context = str(kwargs["agent_context"])
+
+    def on_turn_start(self, turn_number: int, message: str, **kwargs: Any) -> None:
+        if kwargs.get("agent_context"):
+            self._agent_context = str(kwargs["agent_context"])
+        if self._session_id:
+            self._session_turns.setdefault(self._session_id, [])
 
     def get_tool_schemas(self) -> list[dict[str, Any]]:
-        return [
-            {
-                "name": "memory.confirm",
-                "description": "Confirm or reject a pending CGM memory candidate.",
-                "parameters": {
-                    "type": "object",
-                    "required": ["user_id", "candidate_id", "confirmed"],
-                    "properties": {
-                        "user_id": {"type": "string"},
-                        "candidate_id": {"type": "string"},
-                        "confirmed": {"type": "boolean"},
-                    },
-                },
-            },
-            {
-                "name": "memory.correct",
-                "description": "Apply an explicit user correction to L1/L2/L3 memory.",
-                "parameters": {
-                    "type": "object",
-                    "required": ["user_id", "target", "correction"],
-                    "properties": {
-                        "user_id": {"type": "string"},
-                        "target": {"type": "string", "enum": ["L1", "L2", "L3"]},
-                        "correction": {"type": "object"},
-                    },
-                },
-            },
-        ]
+        return copy.deepcopy(MEMORY_TOOL_SCHEMAS)
 
     def shutdown(self) -> None:
         return None
+
+    def on_pre_compress(self, messages: list[dict[str, Any]]) -> str:
+        items: list[str] = []
+        episodes = self._repository.list_episodes(self._user_id)
+        hypotheses = self._repository.list_hypotheses(self._user_id)
+        if episodes:
+            items.append("Recent episodes:")
+            for episode in episodes[-3:]:
+                items.append(f"- {episode.summary}")
+        if hypotheses:
+            items.append("Active hypotheses:")
+            for hypothesis in hypotheses[:3]:
+                items.append(f"- {hypothesis.state.value}: {hypothesis.statement}")
+        turns = self._session_turns.get(self._session_id, [])
+        if turns:
+            items.append("Recent conversation notes:")
+            for note in turns[-3:]:
+                items.append(f"- {note}")
+        return "\n".join(items)
+
+    def on_memory_write(
+        self,
+        action: str,
+        target: str,
+        content: Any,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if action not in {"add", "replace"}:
+            return
+        text = _stringify_memory_content(content)
+        if not text.strip():
+            return
+        candidate = MemoryCandidate(
+            candidate_id=f"builtin-{hashlib.sha1(f'{target}:{text}'.encode('utf-8')).hexdigest()[:16]}",
+            user_id=self._user_id,
+            target_layer=MemoryLayer.L1,
+            candidate_type="builtin_memory_write",
+            summary=_candidate_summary(text),
+            requires_user_confirmation=True,
+            evidence_refs=[
+                EvidenceRef(
+                    kind="memory",
+                    ref_id=f"builtin:{target}",
+                    summary="Mirrored from Hermes built-in memory write",
+                )
+            ],
+            created_at=utc_now(),
+        )
+        existing = {item.candidate_id for item in self._repository.list_candidates(self._user_id)}
+        if candidate.candidate_id not in existing:
+            self._repository.enqueue_candidate(candidate)
+
+    def on_delegation(
+        self,
+        task: str,
+        result: str,
+        *,
+        child_session_id: str = "",
+        **kwargs: Any,
+    ) -> None:
+        note = f"Delegated task: {task.strip()} | Result: {result.strip()}"
+        if self._session_id:
+            self._session_turns.setdefault(self._session_id, []).append(note[:240])
+
+
+def _looks_memory_relevant(text: str) -> bool:
+    lowered = text.lower()
+    keywords = (
+        "glucose",
+        "blood sugar",
+        "cgm",
+        "meal",
+        "ate",
+        "food",
+        "exercise",
+        "walk",
+        "insulin",
+        "low",
+        "high",
+        "hypo",
+        "hyper",
+        "早餐",
+        "午餐",
+        "晚餐",
+        "血糖",
+        "低血糖",
+        "高血糖",
+        "运动",
+        "胰岛素",
+    )
+    return any(keyword in lowered for keyword in keywords)
+
+
+def _turn_candidate_id(session_id: str, text: str) -> str:
+    digest = hashlib.sha1(f"{session_id}:{text}".encode("utf-8")).hexdigest()
+    return f"turn-{digest[:16]}"
+
+
+def _candidate_summary(text: str) -> str:
+    normalized = " ".join(text.split())
+    if len(normalized) <= 180:
+        return normalized
+    return normalized[:177] + "..."
+
+
+def _stringify_memory_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    try:
+        return json.dumps(content, ensure_ascii=False, sort_keys=True)
+    except TypeError:
+        return str(content)

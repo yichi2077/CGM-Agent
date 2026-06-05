@@ -20,7 +20,7 @@ class EventToolTests(unittest.TestCase):
         self.store = SQLiteStore(db_path)
         self.store.initialize()
         self.repository = SQLiteCGMRepository(self.store)
-        self.session = self.store.create_session(title="event-tool-test")
+        self.session_id = "event-tool-test"
         self.executor = ToolExecutor(
             repository=self.repository,
             audit_service=AuditService(self.store),
@@ -32,7 +32,7 @@ class EventToolTests(unittest.TestCase):
     def test_events_create_stores_agent_candidate_without_confirming_fact(self) -> None:
         response = self.executor.execute(
             tool_name="events.create",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event": {
@@ -70,7 +70,7 @@ class EventToolTests(unittest.TestCase):
     def test_events_create_rejects_agent_confirmed_event(self) -> None:
         response = self.executor.execute(
             tool_name="events.create",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event": {
@@ -96,7 +96,7 @@ class EventToolTests(unittest.TestCase):
 
         response = self.executor.execute(
             tool_name="events.confirm",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event_id": "evt-1",
@@ -125,7 +125,7 @@ class EventToolTests(unittest.TestCase):
 
         response = self.executor.execute(
             tool_name="events.confirm",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event_id": "evt-1",
@@ -156,7 +156,7 @@ class EventToolTests(unittest.TestCase):
 
         response = self.executor.execute(
             tool_name="events.confirm",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "attacker",
                 "event_id": "evt-1",
@@ -177,7 +177,7 @@ class EventToolTests(unittest.TestCase):
 
         response = self.executor.execute(
             tool_name="events.confirm",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event_id": "evt-1",
@@ -194,7 +194,7 @@ class EventToolTests(unittest.TestCase):
     def _create_candidate(self, event_id: str) -> None:
         response = self.executor.execute(
             tool_name="events.create",
-            session_id=self.session.id,
+            session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event": {
@@ -220,10 +220,10 @@ class EventToolTests(unittest.TestCase):
                 ORDER BY rowid DESC
                 LIMIT 1
                 """,
-                (self.session.id,),
+                (self.session_id,),
             ).fetchone()
         self.assertIsNotNone(row)
-        return json.loads(row["payload_json"])
+        return self.store.unseal(row["payload_json"], legacy="json")
 
 
 if __name__ == "__main__":

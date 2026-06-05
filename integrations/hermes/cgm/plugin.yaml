@@ -1,0 +1,13 @@
+name: cgm
+version: 0.1.0
+description: "Hermes plugin wrapper for local CGM capability tools."
+kind: standalone
+provides_tools:
+  - cgm_reports_generate
+  - cgm_timeseries_get_points
+  - cgm_timeseries_get_aggregate
+  - cgm_events_create
+  - cgm_events_confirm
+  - cgm_hypothesis_update
+  - cgm_rag_authoritative_search
+  - cgm_delivery_send

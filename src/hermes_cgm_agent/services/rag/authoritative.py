@@ -28,12 +28,11 @@ from hermes_cgm_agent.services.memory.retrieval import (
 
 # C7: the KB ships as package data (hermes_cgm_agent/knowledge/) so it resolves
 # both in an editable source tree and an installed wheel. Env var allows an
-# operator override; a legacy repo-root path is kept only as a last-resort
-# fallback. The old `__file__.parents[4]` assumption broke on install.
+# operator override. The old repo-root fallback was brittle on install and has
+# been removed.
 KB_ENV_VAR = "CGM_AGENT_KB_PATH"
 KB_RESOURCE_PACKAGE = "hermes_cgm_agent.knowledge"
 KB_RESOURCE_NAME = "authoritative_kb.json"
-_LEGACY_KB_PATH = Path(__file__).resolve().parents[4] / "knowledge" / "authoritative_kb.json"
 
 
 def _resolve_kb_text(path: str | Path | None) -> str:
@@ -48,8 +47,6 @@ def _resolve_kb_text(path: str | Path | None) -> str:
             return resource.read_text(encoding="utf-8")
     except (FileNotFoundError, ModuleNotFoundError):
         pass
-    if _LEGACY_KB_PATH.exists():
-        return _LEGACY_KB_PATH.read_text(encoding="utf-8")
     raise FileNotFoundError(
         "authoritative_kb.json not found. Install the hermes_cgm_agent.knowledge "
         f"package data or set {KB_ENV_VAR} to a knowledge-base JSON file."

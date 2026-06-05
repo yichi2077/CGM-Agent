@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import os
 import unittest
+from unittest.mock import patch
 
 from hermes_cgm_agent.services.memory import (
     BM25Index,
     HashingEmbedder,
     HybridRetriever,
     MemoryDoc,
+)
+from hermes_cgm_agent.services.memory.retrieval import (
+    CrossEncoderReranker,
+    SentenceTransformerEmbedder,
+    build_default_embedder,
+    build_default_reranker,
 )
 
 
@@ -20,6 +28,40 @@ DOCS = [
 
 
 class HybridRetrievalTests(unittest.TestCase):
+    def test_default_embedder_stays_hashing_without_explicit_opt_in(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            with patch(
+                "hermes_cgm_agent.services.memory.retrieval._sentence_transformers_available",
+                return_value=True,
+            ):
+                self.assertIsInstance(build_default_embedder(), HashingEmbedder)
+                self.assertIsNone(build_default_reranker())
+
+    def test_semantic_retrieval_can_be_explicitly_enabled(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"CGM_AGENT_ENABLE_SEMANTIC_RETRIEVAL": "1"},
+            clear=True,
+        ):
+            with patch(
+                "hermes_cgm_agent.services.memory.retrieval._sentence_transformers_available",
+                return_value=True,
+            ):
+                self.assertIsInstance(build_default_embedder(), SentenceTransformerEmbedder)
+                self.assertIsInstance(build_default_reranker(), CrossEncoderReranker)
+
+    def test_model_env_also_counts_as_explicit_opt_in(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"CGM_AGENT_EMBED_MODEL": "custom-model"},
+            clear=True,
+        ):
+            with patch(
+                "hermes_cgm_agent.services.memory.retrieval._sentence_transformers_available",
+                return_value=True,
+            ):
+                self.assertIsInstance(build_default_embedder(), SentenceTransformerEmbedder)
+
     def test_bm25_exact_term_match(self) -> None:
         index = BM25Index(DOCS)
         results = index.search("overnight low")

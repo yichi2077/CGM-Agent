@@ -1,4 +1,1 @@
-from .agent_chat import AgentChatService
-
-__all__ = ["AgentChatService"]
-
+"""Service package for the CGM capability layer."""

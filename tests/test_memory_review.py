@@ -70,11 +70,11 @@ class MemoryReviewServiceTests(unittest.TestCase):
         self.review.ingest_report_candidates([cand], now=NOW)
         executor = self._executor()
 
-        session = self.store.create_session(title="memory-test")
+        session_id = "memory-test"
         body = executor.execute(
             tool_name="memory.confirm",
             arguments={"user_id": "u1", "candidate_id": "c1", "confirmed": True},
-            session_id=session.id,
+            session_id=session_id,
         ).to_dict()
 
         self.assertEqual(body["status"], "ok")
@@ -88,7 +88,7 @@ class MemoryReviewServiceTests(unittest.TestCase):
         episode = self.repo.list_episodes("u1")[0]
         executor = self._executor()
 
-        session = self.store.create_session(title="memory-test")
+        session_id = "memory-test"
         body = executor.execute(
             tool_name="memory.correct",
             arguments={
@@ -96,7 +96,7 @@ class MemoryReviewServiceTests(unittest.TestCase):
                 "target": "L1",
                 "correction": {"episode_id": episode.episode_id, "summary": "corrected"},
             },
-            session_id=session.id,
+            session_id=session_id,
         ).to_dict()
 
         self.assertEqual(body["status"], "ok")
