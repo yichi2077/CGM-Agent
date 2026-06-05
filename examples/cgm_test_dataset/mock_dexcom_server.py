@@ -62,6 +62,7 @@ def load_egvs(csv_path: Path, source_tz: str) -> list[dict[str, object]]:
     zone = ZoneInfo(source_tz)
     records: list[dict[str, object]] = []
     prev_by_device: dict[str, float] = {}
+    ticks_by_device: dict[str, int] = {}
     with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle):
             local_naive = datetime.fromisoformat(row["timestamp"])
@@ -70,7 +71,16 @@ def load_egvs(csv_path: Path, source_tz: str) -> list[dict[str, object]]:
             device = row.get("device_id") or "mock-sensor"
             prev = prev_by_device.get(device)
             trend = _trend(value - prev) if prev is not None else "flat"
+            # Rate of change in mg/dL/min over the 5-min cadence (Dexcom populates
+            # this on real records); None on the first reading of each sensor.
+            trend_rate = round((value - prev) / 5.0, 1) if prev is not None else None
             prev_by_device[device] = value
+            ticks = ticks_by_device.get(device, 0) + 300  # transmitter clock, ~5 min/step
+            ticks_by_device[device] = ticks
+            # status is null on normal readings; Dexcom only sets it for sensor
+            # error/out-of-range states. Mark the clamp extremes so the mapper's
+            # status->SUSPECT branch is exercised on genuinely edge values.
+            status = "high" if value >= 350 else "low" if value <= 45 else None
             records.append(
                 {
                     "_dt": system_dt,  # internal sort/filter key (stripped on output)
@@ -78,65 +88,89 @@ def load_egvs(csv_path: Path, source_tz: str) -> list[dict[str, object]]:
                     "systemTime": system_dt.strftime(QUERY_DT_FORMAT),
                     "displayTime": local_naive.strftime(QUERY_DT_FORMAT),
                     "transmitterId": device,
+                    "transmitterTicks": ticks,
                     "transmitterGeneration": "g6",
                     "displayDevice": "iPhone",
                     "unit": "mg/dL",
                     "rateUnit": "mg/dL/min",
                     "value": value,
                     "trend": trend,
-                    "trendRate": None,
-                    "status": None,
+                    "trendRate": trend_rate,
+                    "status": status,
                 }
             )
     records.sort(key=lambda r: r["_dt"])  # chronological
     return records
 
 
-# Local-time event schedule aligned to the EGV meal spikes (07:30 / 12:30 / 18:45)
-# so carbs/insulin/exercise actually explain the curve. Exercise on Mon/Wed/Fri.
-_MEAL_EVENTS = (
-    (7, 30, "carbs", 45, "grams"),
-    (7, 30, "insulin", 6, "units"),
-    (12, 30, "carbs", 60, "grams"),
-    (12, 30, "insulin", 7, "units"),
-    (18, 45, "carbs", 55, "grams"),
-    (18, 45, "insulin", 6, "units"),
+# Daily local-time event schedule covering ALL SIX Dexcom v3 event categories so
+# the full "life data" surface is exercised, not just meals. Aligned to the EGV
+# meal spikes (07:30 / 12:30 / 18:45) so carbs/insulin actually explain the curve.
+# Each entry: (hour, minute, eventType, eventSubType|None, value, unit).
+_DAILY_EVENTS = (
+    (6, 45, "bloodGlucose", None, 102, "mg/dL"),       # morning fingerstick / calibration
+    (7, 0, "insulin", "longActing", 18, "units"),       # basal dose
+    (7, 30, "carbs", None, 45, "grams"),
+    (7, 30, "insulin", "fastActing", 6, "units"),       # bolus
+    (12, 30, "carbs", None, 60, "grams"),
+    (12, 30, "insulin", "fastActing", 7, "units"),
+    (18, 45, "carbs", None, 55, "grams"),
+    (18, 45, "insulin", "fastActing", 6, "units"),
 )
+# Exercise rotates intensity by weekday; Mon/Wed/Fri only.
+_EXERCISE_BY_WEEKDAY = {0: "light", 2: "medium", 4: "heavy"}
+# Sparse health + free-text notes keyed on (weekday, day-of-month parity) so a few
+# land in each sensor window. health subtypes are Dexcom's documented set.
+_HEALTH_ROTATION = ("stress", "illness", "highSymptoms", "lowSymptoms")
 
 
 def build_events(start_dt: datetime, end_dt: datetime, source_tz: str) -> list[dict[str, object]]:
-    """Synthesize Dexcom v3 event records (carbs/insulin/exercise) over the
-    dataset window, in local time, converted to UTC systemTime."""
+    """Synthesize the full Dexcom v3 event surface (carbs / insulin / exercise /
+    bloodGlucose / health / notes, with subtypes) over the dataset window, in
+    local time, converted to UTC systemTime."""
     zone = ZoneInfo(source_tz)
-    # Walk local calendar days spanned by the (UTC) data window.
     first_local = start_dt.replace(tzinfo=timezone.utc).astimezone(zone)
     last_local = end_dt.replace(tzinfo=timezone.utc).astimezone(zone)
     events: list[dict[str, object]] = []
     day = first_local.replace(hour=0, minute=0, second=0, microsecond=0)
     idx = 0
+    health_n = 0
+
+    def emit(local, etype, subtype, value, unit):
+        nonlocal idx
+        system_dt = local.astimezone(timezone.utc).replace(tzinfo=None)
+        if not (start_dt <= system_dt <= end_dt):
+            return
+        events.append(
+            {
+                "_dt": system_dt,
+                "recordId": f"evt-{etype}-{idx:05d}",
+                "systemTime": system_dt.strftime(QUERY_DT_FORMAT),
+                "displayTime": local.replace(tzinfo=None).strftime(QUERY_DT_FORMAT),
+                "eventType": etype,
+                "eventSubType": subtype,
+                "value": "" if value is None else str(value),
+                "unit": unit,
+                "eventStatus": "created",
+            }
+        )
+        idx += 1
+
     while day.date() <= last_local.date():
-        schedule = list(_MEAL_EVENTS)
-        if day.weekday() in (0, 2, 4):  # Mon/Wed/Fri
-            schedule.append((17, 0, "exercise", 30, "minutes"))
-        for hour, minute, etype, value, unit in schedule:
-            local = day.replace(hour=hour, minute=minute)
-            system_dt = local.astimezone(timezone.utc).replace(tzinfo=None)
-            if not (start_dt <= system_dt <= end_dt):
-                continue
-            events.append(
-                {
-                    "_dt": system_dt,
-                    "recordId": f"evt-{etype}-{idx:05d}",
-                    "systemTime": system_dt.strftime(QUERY_DT_FORMAT),
-                    "displayTime": local.replace(tzinfo=None).strftime(QUERY_DT_FORMAT),
-                    "eventType": etype,
-                    "eventSubType": None,
-                    "value": str(value),
-                    "unit": unit,
-                    "eventStatus": "created",
-                }
-            )
-            idx += 1
+        for hour, minute, etype, subtype, value, unit in _DAILY_EVENTS:
+            emit(day.replace(hour=hour, minute=minute), etype, subtype, value, unit)
+        if day.weekday() in _EXERCISE_BY_WEEKDAY:
+            emit(day.replace(hour=17, minute=0), "exercise",
+                 _EXERCISE_BY_WEEKDAY[day.weekday()], 30, "minutes")
+        # A health event roughly twice a week (subtype rotates).
+        if day.weekday() in (1, 5):
+            emit(day.replace(hour=15, minute=0), "health",
+                 _HEALTH_ROTATION[health_n % len(_HEALTH_ROTATION)], None, "")
+            health_n += 1
+        # A free-text note on the 1st/15th-ish of activity.
+        if day.day in (1, 15):
+            emit(day.replace(hour=21, minute=30), "notes", None,
+                 "Felt tired after dinner", None)
         day = day + timedelta(days=1)
     events.sort(key=lambda r: r["_dt"])
     return events

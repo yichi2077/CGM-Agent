@@ -92,11 +92,29 @@ single `dexcom-sync --days 45` pulls everything in 7-day chunks. The points land
 in `glucose_points` with `source = dexcom:sandbox`, so the same reports/analytics
 above work on Dexcom-ingested data too.
 
-The mock also serves `/v3/users/self/events` (carbs/insulin/exercise aligned to the
-meal spikes), so `dexcom-sync` exercises both sub-paths: EGVs → `glucose_points`
-and events → `user_events` (meal / medication / exercise, `created_by=device`).
+### Field richness
 
-Verified completeness (single full pull): EGV `inserted=11988` (= all CSV rows;
-the 5 `dup` are inclusive chunk-boundary overlaps the repository dedups), events
-`inserted=270`. The egvs/events window is inclusive of `endDate` so the final
-reading on `dataRange.end` is never dropped.
+EGV records carry the consumed Dexcom v3 fields with real values — `value`,
+`systemTime`, `displayTime`, `unit`, `trend`, **`trendRate`** (mg/dL/min),
+`transmitterId`, `transmitterTicks`, `transmitterGeneration`, `displayDevice`,
+`recordId`, and `status` (null on normal readings, set on clamp extremes, as on
+the real API).
+
+The mock serves the **full Dexcom "life data" surface** on `/v3/users/self/events`
+— all six event categories with subtypes — so `dexcom-sync` exercises every
+mapper branch:
+
+| Dexcom eventType (subType) | → project UserEvent | payload |
+|---|---|---|
+| carbs | meal | `carbs_grams` |
+| insulin (fastActing / longActing) | medication | `insulin_units`, `subtype` |
+| exercise (light / medium / heavy) | exercise | `duration_minutes`, `ts_end`, `subtype` |
+| health (stress / illness / …) | symptom | `subtype` |
+| bloodGlucose | note | `blood_glucose`, `unit` |
+| notes | note | free text |
+
+Verified single full pull: EGV `inserted=11988` (= all CSV rows; the 5 `dup` are
+inclusive chunk-boundary overlaps the repository dedups), events `inserted=369,
+skipped=0` mapping to meal 126 / medication 168 / exercise 18 / symptom 12 /
+note 45. The egvs/events window is inclusive of `endDate` so the final reading on
+`dataRange.end` is never dropped.
