@@ -40,6 +40,7 @@ from hermes_cgm_agent.domain.memory import (
     L3Hypothesis,
     MemoryCandidate,
     MemoryLayer,
+    MemorySummary,
 )
 from hermes_cgm_agent.domain.report import (
     AuthoritativeContext,
@@ -91,6 +92,7 @@ __all__ = [
     "L2ProfileItem",
     "L3Hypothesis",
     "MemoryCandidate",
+    "MemorySummary",
     "MemoryLayer",
     "AuthoritativeContext",
     "DataQualityWarning",

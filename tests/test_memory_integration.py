@@ -10,6 +10,7 @@ from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import (
     CGMMemoryProvider,
+    ConsolidationService,
     MemoryContextAssembler,
     SQLiteMemoryRepository,
     new_id,
@@ -45,8 +46,8 @@ class MemoryIntegrationTests(unittest.TestCase):
                 )
             )
 
-    def _seed_episode(self) -> None:
-        self.mem.create_episode(
+    def _seed_episode(self):
+        return self.mem.create_episode(
             L1Episode(
                 episode_id=new_id(),
                 user_id="user-1",
@@ -71,8 +72,44 @@ class MemoryIntegrationTests(unittest.TestCase):
         )
         self.assertTrue(auth_ctx.documents)
         self.assertEqual(
-            auth_ctx.documents[0]["evidence_refs"][0]["kind"], "authoritative_kb"
+            auth_ctx.documents[0].evidence_refs[0].kind, "authoritative_kb"
         )
+        self.assertIs(auth_ctx.documents[0].verified, False)
+        self.assertTrue(auth_ctx.documents[0].citation)
+
+    def test_assembler_injects_profile_and_hypotheses_hot_without_retrieval(self) -> None:
+        # P2 / D029: L2 profile + active L3 hypotheses are Hot — injected in full,
+        # not retrieved. They must surface even when the query matches nothing.
+        from hermes_cgm_agent.domain import HypothesisState, L2ProfileItem, L3Hypothesis
+
+        self.mem.upsert_profile_item(
+            L2ProfileItem(
+                item_id=new_id(),
+                user_id="user-1",
+                key="breakfast_habit",
+                value={"summary": "常跳过早餐"},
+                confidence=0.9,
+            )
+        )
+        self.mem.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id=new_id(),
+                user_id="user-1",
+                statement="周五晚餐后血糖易偏高",
+                state=HypothesisState.STABLE,
+            )
+        )
+        self._seed_episode()
+        assembler = MemoryContextAssembler(repository=self.mem)
+
+        ctx = assembler.build_memory_context(user_id="user-1", query="zzz-irrelevant-query")
+        layers = {item["layer"] for item in ctx.items}
+        self.assertEqual(layers, {"L1", "L2", "L3"})
+        hot_layers = {item["layer"] for item in ctx.items if item.get("hot")}
+        self.assertEqual(hot_layers, {"L2", "L3"})
+        l2 = next(item for item in ctx.items if item["layer"] == "L2")
+        self.assertIn("早餐", l2["summary"])
+        self.assertEqual(l2["evidence_refs"][0]["kind"], "user_memory")
 
     def test_report_with_retrieve_context_injects_but_keeps_facts(self) -> None:
         self._seed_points()
@@ -127,6 +164,23 @@ class MemoryIntegrationTests(unittest.TestCase):
         recall = provider.prefetch("lunch spike")
         self.assertIn("user-memory recall", recall)
 
+    def test_provider_prefetch_includes_warm_and_l0_summaries(self) -> None:
+        self._seed_points()
+        ConsolidationService(repository=self.mem).synthesize_state(
+            "user-1",
+            window_start=datetime(2026, 5, 25, tzinfo=timezone.utc),
+            window_end=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            period="weekly",
+            metrics_summary={"tir_pct": 75},
+        )
+        provider = CGMMemoryProvider(self.store, user_id="user-1")
+        provider.initialize(session_id=self.session_id, user_id="user-1")
+
+        recall = provider.prefetch("today")
+
+        self.assertIn("[CGM state summary]", recall)
+        self.assertIn("[CGM L0 context]", recall)
+
     def test_provider_sync_turn_and_precompress_preserve_relevant_context(self) -> None:
         provider = CGMMemoryProvider(self.store, user_id="user-1")
         provider.initialize(
@@ -142,6 +196,11 @@ class MemoryIntegrationTests(unittest.TestCase):
             "Noted.",
             session_id=self.session_id,
         )
+        provider.sync_turn(
+            "After dinner my blood sugar spiked above 220 and I had to walk.",
+            "Still noted.",
+            session_id=self.session_id,
+        )
         pending = self.mem.list_candidates("user-1", status=CandidateStatus.PENDING)
         digest = provider.on_pre_compress([])
 
@@ -149,6 +208,22 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertIn("blood sugar spiked", pending[0].summary)
         self.assertIn("Recent conversation notes:", digest)
         self.assertIn("blood sugar spiked", digest)
+
+    def test_memory_context_touch_updates_matched_l1_reference_time(self) -> None:
+        episode = self._seed_episode()
+        from datetime import timedelta
+
+        self.mem.touch_episode(episode.episode_id, when=NOW - timedelta(days=10))
+        episode = self.mem.get_episode(episode.episode_id)
+        before = episode.last_referenced_at
+
+        MemoryContextAssembler(repository=self.mem).build_memory_context(
+            user_id="user-1",
+            query="lunch spike",
+        )
+        after = self.mem.get_episode(episode.episode_id).last_referenced_at
+
+        self.assertGreater(after, before)
 
 
 if __name__ == "__main__":

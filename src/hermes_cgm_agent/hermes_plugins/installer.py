@@ -34,42 +34,57 @@ def install_hermes_integration(
     hermes_bin: str | None = None,
     install_editable: bool = True,
     configure_runtime: bool = True,
+    dry_run: bool = False,
 ) -> HermesInstallReport:
     root = _resolve_project_root(project_root)
     home = _resolve_hermes_home(hermes_home)
     bin_path = _resolve_hermes_bin(hermes_bin)
 
     plugins_dir = home / "plugins"
-    plugins_dir.mkdir(parents=True, exist_ok=True)
+    if not dry_run:
+        plugins_dir.mkdir(parents=True, exist_ok=True)
     actions: list[str] = []
     plugin_targets: dict[str, str] = {}
 
     for plugin_name in PLUGIN_NAMES:
         source = root / "integrations" / "hermes" / plugin_name
         target = plugins_dir / plugin_name
-        _install_plugin_dir(source=source, target=target)
         plugin_targets[plugin_name] = str(target)
-        actions.append(f"installed:{plugin_name}")
+        if dry_run:
+            actions.append(f"would-install:{plugin_name}:{target}")
+        else:
+            _install_plugin_dir(source=source, target=target)
+            actions.append(f"installed:{plugin_name}")
 
     marker_path = home / ROOT_MARKER_NAME
-    marker_path.write_text(str(root), encoding="utf-8")
-    actions.append(f"wrote-marker:{marker_path}")
+    if dry_run:
+        actions.append(f"would-write-marker:{marker_path}")
+    else:
+        marker_path.write_text(str(root), encoding="utf-8")
+        actions.append(f"wrote-marker:{marker_path}")
 
     editable_python = _editable_runtime_python(home)
     if install_editable and editable_python is not None:
-        subprocess.run(
-            [str(editable_python), "-m", "pip", "install", "-e", str(root)],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        actions.append(f"editable-install:{editable_python}")
+        if dry_run:
+            actions.append(f"would-editable-install:{editable_python}")
+        else:
+            subprocess.run(
+                [str(editable_python), "-m", "pip", "install", "-e", str(root)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            actions.append(f"editable-install:{editable_python}")
 
     if configure_runtime:
-        subprocess.run([bin_path, "plugins", "enable", "cgm"], check=True, capture_output=True, text=True)
-        actions.append("enabled-plugin:cgm")
-        subprocess.run([bin_path, "memory", "setup", "cgm_memory"], check=True, capture_output=True, text=True)
-        actions.append("enabled-memory-provider:cgm_memory")
+        if dry_run:
+            actions.append("would-enable-plugin:cgm")
+            actions.append("would-enable-memory-provider:cgm_memory")
+        else:
+            subprocess.run([bin_path, "plugins", "enable", "cgm"], check=True, capture_output=True, text=True)
+            actions.append("enabled-plugin:cgm")
+            subprocess.run([bin_path, "memory", "setup", "cgm_memory"], check=True, capture_output=True, text=True)
+            actions.append("enabled-memory-provider:cgm_memory")
 
     return HermesInstallReport(
         project_root=str(root),

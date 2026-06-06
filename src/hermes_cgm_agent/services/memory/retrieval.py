@@ -25,6 +25,7 @@ from typing import Any, Protocol, Sequence
 logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+_CJK_RE = re.compile("[一-鿿]+")
 RRF_K = 60
 
 DEFAULT_EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
@@ -33,6 +34,8 @@ DEFAULT_RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 RERANK_MODEL_ENV = "CGM_AGENT_RERANK_MODEL"
 USE_HASHING_ENV = "CGM_AGENT_USE_HASHING_EMBEDDER"
 ENABLE_SEMANTIC_ENV = "CGM_AGENT_ENABLE_SEMANTIC_RETRIEVAL"
+PERSONAL_SEMANTIC_MIN_EPISODES_ENV = "CGM_AGENT_PERSONAL_SEMANTIC_MIN_EPISODES"
+DEFAULT_PERSONAL_SEMANTIC_MIN_EPISODES = 200
 
 _model_lock = threading.Lock()
 _st_model_cache: dict[str, object] = {}
@@ -62,7 +65,18 @@ class RetrievalResult:
 
 
 def tokenize(text: str) -> list[str]:
-    return _TOKEN_RE.findall(text.lower())
+    # ASCII words (lower-cased) + CJK character bigrams. Chinese has no
+    # whitespace word boundaries, so a segmenter-free BM25 indexes character
+    # bigrams (the standard approach); this gives the medical KB and personal
+    # memory cross-lingual lexical recall (D030) — a 中文 query like "目标范围"
+    # matches a card's Chinese text. Single-char CJK runs fall back to a unigram.
+    tokens = _TOKEN_RE.findall(text.lower())
+    for run in _CJK_RE.findall(text):
+        if len(run) == 1:
+            tokens.append(run)
+        else:
+            tokens.extend(run[i : i + 2] for i in range(len(run) - 1))
+    return tokens
 
 
 class Embedder(Protocol):
@@ -133,20 +147,27 @@ class CrossEncoderReranker:
         return scored
 
 
-def build_default_embedder() -> Embedder:
+def build_default_embedder() -> Embedder | None:
+    # P2 / D029+D030: HashingEmbedder is no longer an implicit "dense" default.
+    # A SHA1 token-hash bag is not semantic — it only gave the hybrid retriever a
+    # degenerate second lexical signal that collides and adds no cross-lingual
+    # recall. The dense path now activates ONLY when real semantic retrieval is
+    # configured (a cross-lingual sentence-transformer, D030). Otherwise we run
+    # sparse-only (BM25). HashingEmbedder stays available but is returned
+    # ONLY when explicitly forced (offline / deterministic tests via USE_HASHING_ENV).
     if _use_hashing_embedder_forced():
         return HashingEmbedder()
     if not _semantic_retrieval_enabled():
-        return HashingEmbedder()
+        return None
     if _sentence_transformers_available():
         return SentenceTransformerEmbedder()
     if not _warned["embed_fallback"]:
         logger.warning(
             "Semantic retrieval was explicitly enabled, but sentence-transformers "
-            "is not available; falling back to HashingEmbedder."
+            "is not available; running sparse-only (no dense path)."
         )
         _warned["embed_fallback"] = True
-    return HashingEmbedder()
+    return None
 
 
 def build_default_reranker() -> Reranker | None:
@@ -163,6 +184,42 @@ def build_default_reranker() -> Reranker | None:
         )
         _warned["rerank_fallback"] = True
     return None
+
+
+def build_authoritative_retriever() -> "HybridRetriever":
+    """Authoritative KB retriever: sparse-only by policy (D036).
+
+    The medical KB is a small, curated claim-card corpus. Keeping this path
+    BM25-only makes retrieval explainable and avoids accidental model loading in
+    Hermes plugin startup.
+    """
+
+    return HybridRetriever(embedder=None, reranker=None)
+
+
+def build_personal_retriever(*, episode_count: int = 0) -> "HybridRetriever":
+    """Personal L1 retriever: sparse at small scale, semantic when it matters.
+
+    L2/L3 are injected hot and never use this path. L1 grows over time and
+    becomes increasingly paraphrase-heavy, so semantic retrieval is enabled when
+    explicitly configured or when the episode count crosses the D036 threshold.
+    """
+
+    if _use_hashing_embedder_forced() or _semantic_retrieval_enabled():
+        return HybridRetriever()
+    if episode_count >= _personal_semantic_min_episodes():
+        if _sentence_transformers_available():
+            return HybridRetriever(
+                embedder=SentenceTransformerEmbedder(),
+                reranker=CrossEncoderReranker(),
+            )
+        if not _warned["embed_fallback"]:
+            logger.warning(
+                "Personal L1 semantic retrieval threshold was reached, but "
+                "sentence-transformers is not available; running sparse-only."
+            )
+            _warned["embed_fallback"] = True
+    return HybridRetriever(embedder=None, reranker=None)
 
 
 def cosine(a: Sequence[float], b: Sequence[float]) -> float:
@@ -211,7 +268,7 @@ class BM25Index:
 
 @dataclass
 class HybridRetriever:
-    embedder: Embedder = field(default_factory=build_default_embedder)
+    embedder: Embedder | None = field(default_factory=build_default_embedder)
     reranker: Reranker | None = field(default_factory=build_default_reranker)
     rrf_k: int = RRF_K
     rerank_candidates: int = 8
@@ -230,15 +287,20 @@ class HybridRetriever:
         sparse_ranked = bm25.search(query)
         sparse_rank = {doc.doc_id: rank for rank, (doc, _) in enumerate(sparse_ranked, start=1)}
 
-        q_vec = self.embedder.embed(query)
-        doc_vectors = self._embed_docs(docs)
-        dense_scored = [
-            (doc, cosine(q_vec, vector))
-            for doc, vector in zip(docs, doc_vectors, strict=True)
-        ]
-        dense_scored = [item for item in dense_scored if item[1] > 0]
-        dense_scored.sort(key=lambda item: item[1], reverse=True)
-        dense_rank = {doc.doc_id: rank for rank, (doc, _) in enumerate(dense_scored, start=1)}
+        # Dense path is optional (P2): runs only when a real (semantic) embedder
+        # is configured. With embedder=None the retriever is sparse-only and RRF
+        # degenerates to BM25 rank order.
+        dense_rank: dict[str, int] = {}
+        if self.embedder is not None:
+            q_vec = self.embedder.embed(query)
+            doc_vectors = self._embed_docs(docs)
+            dense_scored = [
+                (doc, cosine(q_vec, vector))
+                for doc, vector in zip(docs, doc_vectors, strict=True)
+            ]
+            dense_scored = [item for item in dense_scored if item[1] > 0]
+            dense_scored.sort(key=lambda item: item[1], reverse=True)
+            dense_rank = {doc.doc_id: rank for rank, (doc, _) in enumerate(dense_scored, start=1)}
 
         by_id = {doc.doc_id: doc for doc in docs}
         fused: dict[str, float] = {}
@@ -324,6 +386,17 @@ def _semantic_retrieval_enabled() -> bool:
         os.environ.get(EMBED_MODEL_ENV, "").strip()
         or os.environ.get(RERANK_MODEL_ENV, "").strip()
     )
+
+
+def _personal_semantic_min_episodes() -> int:
+    raw = os.environ.get(PERSONAL_SEMANTIC_MIN_EPISODES_ENV, "").strip()
+    if not raw:
+        return DEFAULT_PERSONAL_SEMANTIC_MIN_EPISODES
+    try:
+        threshold = int(raw)
+    except ValueError:
+        return DEFAULT_PERSONAL_SEMANTIC_MIN_EPISODES
+    return max(1, threshold)
 
 
 def _load_sentence_transformer(model_name: str) -> Any:

@@ -9,6 +9,8 @@ from hermes_cgm_agent.services.memory import (
     HashingEmbedder,
     HybridRetriever,
     MemoryDoc,
+    build_authoritative_retriever,
+    build_personal_retriever,
 )
 from hermes_cgm_agent.services.memory.retrieval import (
     CrossEncoderReranker,
@@ -28,14 +30,24 @@ DOCS = [
 
 
 class HybridRetrievalTests(unittest.TestCase):
-    def test_default_embedder_stays_hashing_without_explicit_opt_in(self) -> None:
+    def test_default_embedder_is_sparse_only_without_opt_in(self) -> None:
+        # P2 / D029+D030: no implicit HashingEmbedder. Without an explicit
+        # semantic opt-in the dense path is disabled (sparse-only BM25).
         with patch.dict(os.environ, {}, clear=True):
             with patch(
                 "hermes_cgm_agent.services.memory.retrieval._sentence_transformers_available",
                 return_value=True,
             ):
-                self.assertIsInstance(build_default_embedder(), HashingEmbedder)
+                self.assertIsNone(build_default_embedder())
                 self.assertIsNone(build_default_reranker())
+
+    def test_hashing_embedder_only_when_explicitly_forced(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"CGM_AGENT_USE_HASHING_EMBEDDER": "1"},
+            clear=True,
+        ):
+            self.assertIsInstance(build_default_embedder(), HashingEmbedder)
 
     def test_semantic_retrieval_can_be_explicitly_enabled(self) -> None:
         with patch.dict(
@@ -49,6 +61,32 @@ class HybridRetrievalTests(unittest.TestCase):
             ):
                 self.assertIsInstance(build_default_embedder(), SentenceTransformerEmbedder)
                 self.assertIsInstance(build_default_reranker(), CrossEncoderReranker)
+
+    def test_authoritative_retriever_is_sparse_only_even_when_semantic_enabled(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"CGM_AGENT_ENABLE_SEMANTIC_RETRIEVAL": "1"},
+            clear=True,
+        ):
+            with patch(
+                "hermes_cgm_agent.services.memory.retrieval._sentence_transformers_available",
+                return_value=True,
+            ):
+                retriever = build_authoritative_retriever()
+        self.assertIsNone(retriever.embedder)
+        self.assertIsNone(retriever.reranker)
+
+    def test_personal_retriever_enables_semantic_after_episode_threshold(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            with patch(
+                "hermes_cgm_agent.services.memory.retrieval._sentence_transformers_available",
+                return_value=True,
+            ):
+                small = build_personal_retriever(episode_count=10)
+                large = build_personal_retriever(episode_count=201)
+        self.assertIsNone(small.embedder)
+        self.assertIsInstance(large.embedder, SentenceTransformerEmbedder)
+        self.assertIsInstance(large.reranker, CrossEncoderReranker)
 
     def test_model_env_also_counts_as_explicit_opt_in(self) -> None:
         with patch.dict(
@@ -93,9 +131,9 @@ class HybridRetrievalTests(unittest.TestCase):
     def test_empty_docs_returns_empty(self) -> None:
         self.assertEqual(HybridRetriever().retrieve("anything", [], top_k=5), [])
 
-    def test_dense_recall_when_sparse_misses_exact_terms(self) -> None:
-        # Query shares no exact tokens with d3 except via overlap; ensure hybrid
-        # still returns candidates (dense channel contributes) without crashing.
+    def test_partial_token_overlap_still_recalls_sparse_only(self) -> None:
+        # Sparse-only default (P2): a query sharing only some exact tokens with a
+        # doc ("afternoon") still recalls it; full semantic matching is opt-in.
         retriever = HybridRetriever()
         results = retriever.retrieve("afternoon workout reduced sugar", DOCS, top_k=3)
         self.assertTrue(results)

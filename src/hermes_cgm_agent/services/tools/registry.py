@@ -216,6 +216,24 @@ def build_default_tool_registry() -> ToolRegistry:
     )
     registry.register(
         ToolSpec(
+            name="context.get_l0",
+            group="context",
+            owner_module="memory",
+            description="Build the deterministic L0 working-memory context for a user.",
+            input_schema=_object_schema(
+                required=["user_id"],
+                properties={
+                    "user_id": {"type": "string"},
+                    "anchor_at": {"type": ["string", "null"], "format": "date-time"},
+                    "source": {"type": ["string", "null"]},
+                },
+            ),
+            output_schema=_response_schema({"context": {"type": "object"}}),
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
             name="reports.generate",
             group="reports",
             owner_module="reports",
@@ -235,6 +253,7 @@ def build_default_tool_registry() -> ToolRegistry:
                     "authoritative_context": {"type": "object"},
                     "include_candidate_events": {"type": "boolean"},
                     "retrieve_context": {"type": "boolean"},
+                    "auto_ingest_memory": {"type": "boolean"},
                 },
             ),
             output_schema=_response_schema(
@@ -381,6 +400,7 @@ def build_default_tool_registry() -> ToolRegistry:
                 properties={
                     "query": {"type": "string", "minLength": 1},
                     "top_k": {"type": "integer", "minimum": 1, "maximum": 20},
+                    "population": {"type": ["string", "null"]},
                 },
             ),
             output_schema=_response_schema(

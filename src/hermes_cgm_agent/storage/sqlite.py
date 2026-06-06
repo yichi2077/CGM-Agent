@@ -241,6 +241,9 @@ class SQLiteStore:
                     evidence_count INTEGER NOT NULL DEFAULT 0,
                     last_verified TEXT NOT NULL,
                     supersedes_item_id TEXT,
+                    valid_from TEXT,
+                    valid_to TEXT,
+                    source_episode_ids_json TEXT NOT NULL DEFAULT '[]',
                     is_active INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -257,6 +260,9 @@ class SQLiteStore:
                     evidence_count INTEGER NOT NULL DEFAULT 0,
                     contra_count INTEGER NOT NULL DEFAULT 0,
                     evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+                    valid_from TEXT,
+                    valid_to TEXT,
+                    source_episode_ids_json TEXT NOT NULL DEFAULT '[]',
                     last_checked TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
@@ -283,6 +289,20 @@ class SQLiteStore:
 
                 CREATE INDEX IF NOT EXISTS idx_candidates_user_status
                     ON memory_candidates(user_id, status);
+
+                CREATE TABLE IF NOT EXISTS memory_summaries (
+                    summary_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    period TEXT NOT NULL,
+                    window_start TEXT NOT NULL,
+                    window_end TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    metrics_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_memory_summaries_user
+                    ON memory_summaries(user_id, created_at);
 
                 CREATE TABLE IF NOT EXISTS dexcom_tokens (
                     user_id TEXT PRIMARY KEY,
@@ -333,6 +353,13 @@ class SQLiteStore:
                 "safety_result_json",
                 "TEXT NOT NULL DEFAULT '{}'",
             )
+            # D032: bi-temporal validity + lineage on L2/L3 (migrate existing DBs).
+            for table in ("l2_profile_items", "l3_hypotheses"):
+                self._ensure_column(conn, table, "valid_from", "TEXT")
+                self._ensure_column(conn, table, "valid_to", "TEXT")
+                self._ensure_column(
+                    conn, table, "source_episode_ids_json", "TEXT NOT NULL DEFAULT '[]'"
+                )
             self._migrate_legacy_session_tables(conn)
         self._harden_permissions()
 

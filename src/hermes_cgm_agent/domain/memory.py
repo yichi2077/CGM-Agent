@@ -67,6 +67,12 @@ class L2ProfileItem(CGMBaseModel):
     evidence_count: int = Field(default=0, ge=0)
     last_verified: datetime = Field(default_factory=utc_now)
     supersedes_item_id: str | None = None
+    # Bi-temporal validity (D032): valid_to=None means currently valid; a
+    # superseding belief closes the old one's window instead of deleting it.
+    valid_from: datetime = Field(default_factory=utc_now)
+    valid_to: datetime | None = None
+    # Lineage (D032): the L1 episodes that support this belief.
+    source_episode_ids: list[str] = Field(default_factory=list)
     is_active: bool = True
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -80,6 +86,10 @@ class L3Hypothesis(CGMBaseModel):
     evidence_count: int = Field(default=0, ge=0)
     contra_count: int = Field(default=0, ge=0)
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+    # Bi-temporal validity + lineage (D032), mirroring L2.
+    valid_from: datetime = Field(default_factory=utc_now)
+    valid_to: datetime | None = None
+    source_episode_ids: list[str] = Field(default_factory=list)
     last_checked: datetime = Field(default_factory=utc_now)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
@@ -99,3 +109,21 @@ class MemoryCandidate(CGMBaseModel):
     confidence: float = Field(default=0.5, ge=0, le=1)
     created_at: datetime = Field(default_factory=utc_now)
     resolved_at: datetime | None = None
+
+
+class MemorySummary(CGMBaseModel):
+    """Warm-layer synthesized state ("dreaming", D034).
+
+    A periodically regenerated, structured digest of the user's recent state
+    (e.g., "本周 TIR 72%, 环比 +3%; 近期晚餐后偏高"). It is a derived product —
+    cheap to recompute from raw data + memory — and is injected at prefetch.
+    """
+
+    summary_id: str
+    user_id: str
+    period: str  # "daily" | "weekly" | "monthly"
+    window_start: datetime
+    window_end: datetime
+    content: str
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=utc_now)

@@ -1,0 +1,4 @@
+{"query":"昨晚睡觉时又低了","expected_layer":"L1","expected_terms":["overnight","low"],"note":"口语化 nocturnal low recall"}
+{"query":"火锅后血糖飙升","expected_layer":"L1","expected_terms":["dinner","high","meal"],"note":"餐后高血糖情节召回"}
+{"query":"最近午餐后运动有没有帮助","expected_layer":"L1","expected_terms":["exercise","lowered","glucose"],"note":"行为-血糖关系召回"}
+{"query":"我是不是对面条比较敏感","expected_layer":"L2","expected_terms":["noodle","post_meal_rise"],"note":"画像 Hot 注入应覆盖"}

@@ -11,10 +11,20 @@ from hermes_cgm_agent.services.memory.consolidation import (
     ConsolidationReport,
     ConsolidationService,
 )
-from hermes_cgm_agent.services.memory.provider import CGMMemoryProvider
+from hermes_cgm_agent.services.memory.l0_builder import L0BuildConfig, L0ContextBuilder
+from hermes_cgm_agent.services.memory.provider import (
+    CGMMemoryProvider,
+    ConversationMemoryExtractor,
+)
 from hermes_cgm_agent.services.memory.review import (
     IngestResult,
     MemoryReviewService,
+)
+from hermes_cgm_agent.services.memory.user_md_sync import (
+    CGM_USER_MD_END,
+    CGM_USER_MD_START,
+    UserMDSyncResult,
+    UserMDSyncService,
 )
 from hermes_cgm_agent.services.memory.retrieval import (
     BM25Index,
@@ -23,6 +33,8 @@ from hermes_cgm_agent.services.memory.retrieval import (
     HybridRetriever,
     MemoryDoc,
     RetrievalResult,
+    build_authoritative_retriever,
+    build_personal_retriever,
 )
 
 __all__ = [
@@ -33,13 +45,22 @@ __all__ = [
     "ConsolidationConfig",
     "ConsolidationReport",
     "ConsolidationService",
+    "L0BuildConfig",
+    "L0ContextBuilder",
+    "ConversationMemoryExtractor",
     "IngestResult",
     "MemoryContextAssembler",
     "MemoryReviewService",
+    "CGM_USER_MD_END",
+    "CGM_USER_MD_START",
+    "UserMDSyncResult",
+    "UserMDSyncService",
     "BM25Index",
     "Embedder",
     "HashingEmbedder",
     "HybridRetriever",
     "MemoryDoc",
     "RetrievalResult",
+    "build_authoritative_retriever",
+    "build_personal_retriever",
 ]

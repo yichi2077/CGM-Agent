@@ -13,6 +13,7 @@ from hermes_cgm_agent.domain import (
     MemoryCandidate,
     MemoryLayer,
 )
+from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.memory import (
     ConsolidationConfig,
     ConsolidationService,
@@ -27,9 +28,9 @@ NOW = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
 class ConsolidationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        store = SQLiteStore(Path(self.temp_dir.name) / "app.db")
-        store.initialize()
-        self.repo = SQLiteMemoryRepository(store)
+        self.store = SQLiteStore(Path(self.temp_dir.name) / "app.db")
+        self.store.initialize()
+        self.repo = SQLiteMemoryRepository(self.store)
         self.svc = ConsolidationService(repository=self.repo)
 
     def tearDown(self) -> None:
@@ -84,6 +85,29 @@ class ConsolidationTests(unittest.TestCase):
         self.assertEqual(report.profiles_updated, 0)
         self.assertEqual(report.hypotheses_updated, 0)
         self.assertEqual(self.repo.list_profile_items("u1"), [])
+
+    def test_consolidate_writes_audit_when_configured(self) -> None:
+        self._episode("hyper", NOW)
+        svc = ConsolidationService(
+            repository=self.repo,
+            audit_service=AuditService(self.store),
+        )
+
+        svc.consolidate("u1", now=NOW, session_id="session-1")
+
+        with self.store.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT payload_json
+                FROM audit_logs
+                WHERE event_type = 'memory_consolidation'
+                LIMIT 1
+                """
+            ).fetchone()
+        self.assertIsNotNone(row)
+        payload = self.store.unseal(row["payload_json"], legacy="json")
+        self.assertEqual(payload["user_id"], "u1")
+        self.assertEqual(payload["status"], "ok")
 
     def test_consolidate_archives_stale_l1(self) -> None:
         old = self._episode("note", NOW - timedelta(days=200))

@@ -22,6 +22,7 @@ from hermes_cgm_agent.domain import (
     L3Hypothesis,
     MemoryCandidate,
     MemoryLayer,
+    MemorySummary,
 )
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -30,6 +31,7 @@ MEMORY_TABLES = [
     "l2_profile_items",
     "l3_hypotheses",
     "memory_candidates",
+    "memory_summaries",
 ]
 
 
@@ -164,14 +166,18 @@ class SQLiteMemoryRepository:
                 """
                 INSERT INTO l2_profile_items (
                     item_id, user_id, key, value_json, confidence, evidence_count,
-                    last_verified, supersedes_item_id, is_active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    last_verified, supersedes_item_id, valid_from, valid_to,
+                    source_episode_ids_json, is_active, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(item_id) DO UPDATE SET
                     value_json = excluded.value_json,
                     confidence = excluded.confidence,
                     evidence_count = excluded.evidence_count,
                     last_verified = excluded.last_verified,
                     supersedes_item_id = excluded.supersedes_item_id,
+                    valid_from = excluded.valid_from,
+                    valid_to = excluded.valid_to,
+                    source_episode_ids_json = excluded.source_episode_ids_json,
                     is_active = excluded.is_active,
                     updated_at = excluded.updated_at
                 """,
@@ -184,6 +190,9 @@ class SQLiteMemoryRepository:
                     item.evidence_count,
                     _dt(item.last_verified),
                     item.supersedes_item_id,
+                    _dt(item.valid_from),
+                    _dt(item.valid_to) if item.valid_to else None,
+                    _json(item.source_episode_ids),
                     int(item.is_active),
                     _dt(item.created_at),
                     _dt(item.updated_at),
@@ -245,6 +254,45 @@ class SQLiteMemoryRepository:
                 changed += 1
         return changed
 
+    def supersede_profile_item(
+        self,
+        *,
+        old_item_id: str,
+        new_item: L2ProfileItem,
+        when: datetime | None = None,
+    ) -> L2ProfileItem:
+        """Bi-temporally retire the old belief and activate its replacement (D032).
+
+        The old item is not deleted: its validity window is closed (valid_to) and
+        it is deactivated, preserving history. The replacement records lineage via
+        supersedes_item_id and opens a fresh validity window.
+        """
+        ts = when or _now()
+        with self.store.connect() as conn:
+            conn.execute(
+                "UPDATE l2_profile_items SET valid_to = ?, is_active = 0, updated_at = ? "
+                "WHERE item_id = ? AND valid_to IS NULL",
+                (_dt(ts), _dt(ts), old_item_id),
+            )
+        replacement = new_item.model_copy(
+            update={"supersedes_item_id": old_item_id, "valid_from": ts}
+        )
+        return self.upsert_profile_item(replacement)
+
+    def list_valid_profile_items(
+        self,
+        user_id: str,
+        *,
+        as_of: datetime | None = None,
+    ) -> list[L2ProfileItem]:
+        """Profile items whose bi-temporal window covers `as_of` (default: now)."""
+        moment = as_of or _now()
+        return [
+            item
+            for item in self.list_profile_items(user_id, active_only=False)
+            if item.valid_from <= moment and (item.valid_to is None or item.valid_to > moment)
+        ]
+
     # -- L3 hypotheses -------------------------------------------------------
 
     def upsert_hypothesis(self, hypothesis: L3Hypothesis) -> L3Hypothesis:
@@ -253,14 +301,18 @@ class SQLiteMemoryRepository:
                 """
                 INSERT INTO l3_hypotheses (
                     hypothesis_id, user_id, statement, state, evidence_count,
-                    contra_count, evidence_refs_json, last_checked, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    contra_count, evidence_refs_json, valid_from, valid_to,
+                    source_episode_ids_json, last_checked, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(hypothesis_id) DO UPDATE SET
                     statement = excluded.statement,
                     state = excluded.state,
                     evidence_count = excluded.evidence_count,
                     contra_count = excluded.contra_count,
                     evidence_refs_json = excluded.evidence_refs_json,
+                    valid_from = excluded.valid_from,
+                    valid_to = excluded.valid_to,
+                    source_episode_ids_json = excluded.source_episode_ids_json,
                     last_checked = excluded.last_checked,
                     updated_at = excluded.updated_at
                 """,
@@ -272,6 +324,9 @@ class SQLiteMemoryRepository:
                     hypothesis.evidence_count,
                     hypothesis.contra_count,
                     self.store.seal([ref.model_dump(mode="json") for ref in hypothesis.evidence_refs]),
+                    _dt(hypothesis.valid_from),
+                    _dt(hypothesis.valid_to) if hypothesis.valid_to else None,
+                    _json(hypothesis.source_episode_ids),
                     _dt(hypothesis.last_checked),
                     _dt(hypothesis.created_at),
                     _dt(hypothesis.updated_at),
@@ -378,6 +433,63 @@ class SQLiteMemoryRepository:
             raise KeyError(f"Unknown candidate: {candidate_id}")
         return _row_to_candidate(row, self.store)
 
+    # -- Warm summaries ("dreaming", D034) -----------------------------------
+
+    def create_summary(self, summary: MemorySummary) -> MemorySummary:
+        with self.store.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO memory_summaries (
+                    summary_id, user_id, period, window_start, window_end,
+                    content, metrics_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    summary.summary_id,
+                    summary.user_id,
+                    summary.period,
+                    _dt(summary.window_start),
+                    _dt(summary.window_end),
+                    self.store.seal(summary.content),
+                    self.store.seal(summary.metrics),
+                    _dt(summary.created_at),
+                ),
+            )
+        return summary
+
+    def list_summaries(
+        self,
+        user_id: str,
+        *,
+        period: str | None = None,
+        limit: int | None = None,
+    ) -> list[MemorySummary]:
+        clauses = ["user_id = ?"]
+        values: list[Any] = [user_id]
+        if period is not None:
+            clauses.append("period = ?")
+            values.append(period)
+        sql = (
+            "SELECT * FROM memory_summaries WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY created_at DESC"
+        )
+        if limit is not None:
+            sql += " LIMIT ?"
+            values.append(limit)
+        with self.store.connect() as conn:
+            rows = conn.execute(sql, values).fetchall()
+        return [_row_to_summary(row, self.store) for row in rows]
+
+    def latest_summary(
+        self,
+        user_id: str,
+        *,
+        period: str | None = None,
+    ) -> MemorySummary | None:
+        rows = self.list_summaries(user_id, period=period, limit=1)
+        return rows[0] if rows else None
+
 
 # -- helpers ----------------------------------------------------------------
 
@@ -419,6 +531,19 @@ def _parse_refs(raw: object | None) -> list[EvidenceRef]:
     return [EvidenceRef.model_validate(item) for item in raw]
 
 
+def _parse_str_list(raw: object | None) -> list[str]:
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    return [str(item) for item in raw]
+
+
+def _opt_dt(raw: object | None, *, fallback: str | None = None) -> datetime | None:
+    value = raw or fallback
+    return datetime.fromisoformat(value) if value else None
+
+
 def _row_to_episode(row: Any, store: SQLiteStore) -> L1Episode:
     return L1Episode(
         episode_id=row["episode_id"],
@@ -447,6 +572,9 @@ def _row_to_profile(row: Any, store: SQLiteStore) -> L2ProfileItem:
         evidence_count=row["evidence_count"],
         last_verified=datetime.fromisoformat(row["last_verified"]),
         supersedes_item_id=row["supersedes_item_id"],
+        valid_from=_opt_dt(row["valid_from"], fallback=row["created_at"]),
+        valid_to=_opt_dt(row["valid_to"]),
+        source_episode_ids=_parse_str_list(row["source_episode_ids_json"]),
         is_active=bool(row["is_active"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
@@ -465,9 +593,25 @@ def _row_to_hypothesis(row: Any, store: SQLiteStore) -> L3Hypothesis:
         evidence_count=row["evidence_count"],
         contra_count=row["contra_count"],
         evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),
+        valid_from=_opt_dt(row["valid_from"], fallback=row["created_at"]),
+        valid_to=_opt_dt(row["valid_to"]),
+        source_episode_ids=_parse_str_list(row["source_episode_ids_json"]),
         last_checked=datetime.fromisoformat(row["last_checked"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _row_to_summary(row: Any, store: SQLiteStore) -> MemorySummary:
+    return MemorySummary(
+        summary_id=row["summary_id"],
+        user_id=row["user_id"],
+        period=row["period"],
+        window_start=datetime.fromisoformat(row["window_start"]),
+        window_end=datetime.fromisoformat(row["window_end"]),
+        content=store.unseal(row["content"]),
+        metrics=store.unseal(row["metrics_json"], legacy="json") or {},
+        created_at=datetime.fromisoformat(row["created_at"]),
     )
 
 

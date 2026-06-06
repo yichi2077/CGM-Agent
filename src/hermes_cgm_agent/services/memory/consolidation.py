@@ -19,8 +19,9 @@ events so the pipeline is testable offline. A real extractor can be injected.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from hermes_cgm_agent.domain import (
@@ -29,6 +30,7 @@ from hermes_cgm_agent.domain import (
     L2ProfileItem,
     L3Hypothesis,
     MemoryCandidate,
+    MemorySummary,
 )
 from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository, new_id
 
@@ -60,9 +62,11 @@ class ConsolidationService:
         *,
         repository: SQLiteMemoryRepository,
         config: ConsolidationConfig | None = None,
+        audit_service: Any | None = None,
     ) -> None:
         self.repository = repository
         self.config = config or ConsolidationConfig()
+        self.audit_service = audit_service
 
     def ingest_accepted_candidate(
         self,
@@ -100,7 +104,13 @@ class ConsolidationService:
         )
         return self.repository.create_episode(episode)
 
-    def consolidate(self, user_id: str, *, now: datetime | None = None) -> ConsolidationReport:
+    def consolidate(
+        self,
+        user_id: str,
+        *,
+        now: datetime | None = None,
+        session_id: str | None = None,
+    ) -> ConsolidationReport:
         """Run staged L1->L2->L3 consolidation + forgetting for a user."""
         now = now or _now()
         zone = ZoneInfo(self.config.timezone)
@@ -147,12 +157,87 @@ class ConsolidationService:
             decay=self.config.l2_decay,
             deactivate_below=self.config.l2_deactivate_below,
         )
-        return ConsolidationReport(
+        report = ConsolidationReport(
             profiles_updated=profiles_updated,
             hypotheses_updated=hypotheses_updated,
             episodes_archived=episodes_archived,
             profiles_decayed=profiles_decayed,
         )
+        if self.audit_service is not None:
+            self.audit_service.log(
+                session_id=session_id or "memory-consolidation",
+                event_type="memory_consolidation",
+                payload={
+                    "user_id": user_id,
+                    "status": "ok",
+                    **asdict(report),
+                },
+            )
+        return report
+
+    def synthesize_state(
+        self,
+        user_id: str,
+        *,
+        window_start: datetime,
+        window_end: datetime,
+        period: str = "weekly",
+        metrics_summary: dict | None = None,
+        now: datetime | None = None,
+    ) -> MemorySummary:
+        """Warm "dreaming" (D034): regenerate a structured state digest from
+        recent metrics + memory and persist it for prefetch injection.
+
+        Deterministic/templated here so it is testable offline; a lightweight
+        model can replace the templating in production. Metrics (TIR, mean, etc.)
+        are supplied by the caller (analytics) so this stays decoupled from CGM
+        storage.
+        """
+        now = now or _now()
+        label = {"daily": "日", "weekly": "周", "monthly": "月"}.get(period, period)
+        metrics = dict(metrics_summary or {})
+        if metrics.get("tir_pct") is not None and metrics.get("delta_tir_pct") is None:
+            previous = self.repository.latest_summary(user_id, period=period)
+            if previous is not None and previous.metrics.get("tir_pct") is not None:
+                metrics["delta_tir_pct"] = round(
+                    float(metrics["tir_pct"]) - float(previous.metrics["tir_pct"]),
+                    2,
+                )
+        parts: list[str] = []
+        if metrics.get("tir_pct") is not None:
+            line = f"本{label}目标范围内时间(TIR) {metrics['tir_pct']}%"
+            delta = metrics.get("delta_tir_pct")
+            if delta is not None:
+                line += f",环比{'+' if delta >= 0 else ''}{delta}%"
+            parts.append(line + "。")
+        if metrics.get("mean_mgdl") is not None:
+            parts.append(f"平均血糖约 {metrics['mean_mgdl']} mg/dL。")
+        active = [
+            h
+            for h in self.repository.list_hypotheses(user_id)
+            if h.state in (HypothesisState.OBSERVING, HypothesisState.STABLE)
+        ]
+        if active:
+            parts.append("近期模式:" + ";".join(h.statement for h in active[:3]) + "。")
+        recent = sorted(
+            self.repository.list_episodes(user_id),
+            key=lambda e: e.occurred_at,
+            reverse=True,
+        )[:3]
+        if recent:
+            parts.append("近期事件:" + ";".join(e.summary for e in recent) + "。")
+        content = " ".join(parts) or f"本{label}暂无足够数据形成状态摘要。"
+        summary = MemorySummary(
+            summary_id=new_id(),
+            user_id=user_id,
+            period=period,
+            window_start=window_start,
+            window_end=window_end,
+            content=content,
+            metrics=metrics,
+            created_at=now,
+        )
+        return self.repository.create_summary(summary)
 
     def _upsert_belief(
         self,

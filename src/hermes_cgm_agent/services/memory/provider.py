@@ -22,13 +22,17 @@ import copy
 import hashlib
 import json
 import os
-from typing import Any
+from typing import Any, Protocol
 
 from hermes_cgm_agent.domain import EvidenceRef, MemoryCandidate, MemoryLayer
 from hermes_cgm_agent.domain.cgm import utc_now
+from hermes_cgm_agent.services.audit import AuditService
+from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory.assembler import MemoryContextAssembler
 from hermes_cgm_agent.services.memory.consolidation import ConsolidationService
+from hermes_cgm_agent.services.memory.l0_builder import L0ContextBuilder
 from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository, new_id
+from hermes_cgm_agent.services.memory.user_md_sync import UserMDSyncService
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 
@@ -96,12 +100,22 @@ MEMORY_TOOL_SCHEMAS: list[dict[str, Any]] = [
 class CGMMemoryProvider:
     """Hermes-compatible provider (duck-typed). Carries L1 + L3."""
 
-    def __init__(self, store: SQLiteStore, *, user_id: str = "demo-user") -> None:
+    def __init__(
+        self,
+        store: SQLiteStore,
+        *,
+        user_id: str = "demo-user",
+        extractor: "ConversationMemoryExtractor | None" = None,
+    ) -> None:
         self._store = store
         self._user_id = user_id
         self._repository = SQLiteMemoryRepository(store)
         self._assembler = MemoryContextAssembler(repository=self._repository)
-        self._consolidation = ConsolidationService(repository=self._repository)
+        self._consolidation = ConsolidationService(
+            repository=self._repository,
+            audit_service=AuditService(store),
+        )
+        self._extractor = extractor
         self._session_id = ""
         self._hermes_home = ""
         self._platform = ""
@@ -136,14 +150,34 @@ class CGMMemoryProvider:
         return block
 
     def prefetch(self, query: str, *, session_id: str = "") -> str:
+        lines: list[str] = []
+        # Warm state summary ("dreaming", D034) injected first as background.
+        latest = self._repository.latest_summary(self._user_id)
+        if latest is not None:
+            lines.append(f"[CGM state summary] {latest.content}")
+        try:
+            l0 = L0ContextBuilder(
+                repository=SQLiteCGMRepository(self._store),
+            ).build(user_id=self._user_id)
+            if l0.window_summary.point_count or l0.key_glucose_events:
+                lines.append(
+                    "[CGM L0 context] "
+                    f"{l0.window.span_days}d points={l0.window_summary.point_count}, "
+                    f"recent_points={len(l0.high_res_recent)}, "
+                    f"hourly={len(l0.mid_far_hourly)}, "
+                    f"events={len(l0.key_glucose_events)}"
+                )
+        except Exception:
+            # Prefetch must remain best-effort; context.get_l0 is the auditable
+            # tool path when callers need the full structured object.
+            pass
         context = self._assembler.build_memory_context(
             user_id=self._user_id, query=query, top_k=5
         )
-        if not context.items:
-            return ""
-        lines = ["[CGM user-memory recall]"]
-        for item in context.items:
-            lines.append(f"- ({item['layer']}) {item['summary']}")
+        if context.items:
+            lines.append("[CGM user-memory recall]")
+            for item in context.items:
+                lines.append(f"- ({item['layer']}) {item['summary']}")
         return "\n".join(lines)
 
     def queue_prefetch(self, query: str, *, session_id: str = "") -> None:
@@ -164,27 +198,39 @@ class CGMMemoryProvider:
         if not active_session:
             return None
         user_text = user_content.strip()
-        if not user_text:
+        if len(user_text) < 8:
             return None
-        self._session_turns.setdefault(active_session, []).append(user_text[:240])
-        if not _looks_memory_relevant(user_text):
+        session_notes = self._session_turns.setdefault(active_session, [])
+        if _normalized_text(user_text) in {_normalized_text(note) for note in session_notes}:
             return None
-        candidate = MemoryCandidate(
-            candidate_id=_turn_candidate_id(active_session, user_text),
-            user_id=self._user_id,
-            target_layer=MemoryLayer.L1,
-            candidate_type="conversation_note",
-            summary=_candidate_summary(user_text),
-            requires_user_confirmation=True,
-            evidence_refs=[
-                EvidenceRef(
-                    kind="memory",
-                    ref_id=f"session:{active_session}",
-                    summary="Captured from Hermes conversation turn",
-                )
-            ],
-            created_at=utc_now(),
-        )
+        session_notes.append(user_text[:240])
+        if self._extractor is not None:
+            candidate = self._extractor.extract(
+                user_id=self._user_id,
+                session_id=active_session,
+                text=user_text,
+            )
+        else:
+            if not _looks_memory_relevant(user_text):
+                return None
+            candidate = MemoryCandidate(
+                candidate_id=_turn_candidate_id(active_session, user_text),
+                user_id=self._user_id,
+                target_layer=MemoryLayer.L1,
+                candidate_type="conversation_note",
+                summary=_candidate_summary(user_text),
+                requires_user_confirmation=True,
+                evidence_refs=[
+                    EvidenceRef(
+                        kind="memory",
+                        ref_id=f"session:{active_session}",
+                        summary="Captured from Hermes conversation turn",
+                    )
+                ],
+                created_at=utc_now(),
+            )
+        if candidate is None:
+            return None
         existing = {
             item.candidate_id
             for item in self._repository.list_candidates(self._user_id)
@@ -194,7 +240,12 @@ class CGMMemoryProvider:
 
     def on_session_end(self, messages: list[dict[str, Any]]) -> None:
         # End-of-session is a natural consolidation trigger (D026).
-        self._consolidation.consolidate(self._user_id)
+        self._consolidation.consolidate(self._user_id, session_id=self._session_id)
+        if self._hermes_home:
+            UserMDSyncService(repository=self._repository).sync(
+                user_id=self._user_id,
+                hermes_home=self._hermes_home,
+            )
         self._session_turns.pop(self._session_id, None)
 
     def on_session_switch(
@@ -290,6 +341,16 @@ class CGMMemoryProvider:
             self._session_turns.setdefault(self._session_id, []).append(note[:240])
 
 
+class ConversationMemoryExtractor(Protocol):
+    def extract(
+        self,
+        *,
+        user_id: str,
+        session_id: str,
+        text: str,
+    ) -> MemoryCandidate | None: ...
+
+
 def _looks_memory_relevant(text: str) -> bool:
     lowered = text.lower()
     keywords = (
@@ -355,6 +416,10 @@ def _looks_memory_relevant(text: str) -> bool:
 def _turn_candidate_id(session_id: str, text: str) -> str:
     digest = hashlib.sha1(f"{session_id}:{text}".encode("utf-8")).hexdigest()
     return f"turn-{digest[:16]}"
+
+
+def _normalized_text(text: str) -> str:
+    return " ".join(text.lower().split())
 
 
 def _candidate_summary(text: str) -> str:

@@ -59,6 +59,22 @@ class HermesInstallerTests(unittest.TestCase):
             self.assertIn(["hermes", "memory", "setup", "cgm_memory"], commands)
             self.assertIn("enabled-memory-provider:cgm_memory", report.actions)
 
+    def test_dry_run_reports_actions_without_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as hermes_home:
+            with patch("hermes_cgm_agent.hermes_plugins.installer.subprocess.run") as run:
+                report = install_hermes_integration(
+                    project_root=PROJECT_ROOT,
+                    hermes_home=Path(hermes_home),
+                    hermes_bin="hermes",
+                    dry_run=True,
+                )
+
+            self.assertFalse((Path(hermes_home) / "plugins").exists())
+            self.assertFalse((Path(hermes_home) / ROOT_MARKER_NAME).exists())
+            self.assertIn("would-enable-plugin:cgm", report.actions)
+            self.assertIn("would-enable-memory-provider:cgm_memory", report.actions)
+            run.assert_not_called()
+
     def test_project_root_can_resolve_from_environment(self) -> None:
         with patch.dict("os.environ", {"CGM_AGENT_PROJECT_ROOT": str(PROJECT_ROOT)}):
             self.assertEqual(_resolve_project_root(), PROJECT_ROOT.resolve())

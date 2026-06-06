@@ -11,6 +11,7 @@ class ToolRegistryTests(unittest.TestCase):
         names = {spec.name for spec in registry.list()}
 
         self.assertIn("timeseries.get_points", names)
+        self.assertIn("context.get_l0", names)
         self.assertIn("events.create", names)
         self.assertIn("reports.generate", names)
         self.assertIn("memory.list", names)
