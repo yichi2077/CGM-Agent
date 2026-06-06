@@ -1,0 +1,43 @@
+{"query": "目标范围内时间成人目标是多少", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "time in range target for pregnancy type 1 diabetes", "expected_any": ["battelino-2019-tir-pregnancy-t1d"], "track": "authoritative_kb"}
+{"query": "老年高风险糖尿病 TIR 目标", "expected_any": ["battelino-2019-tir-older-highrisk"], "track": "authoritative_kb"}
+{"query": "低血糖 15-15 法则", "expected_any": ["ada-2025-hypoglycemia-levels"], "track": "authoritative_kb"}
+{"query": "compression low false low sensor pressure", "expected_any": ["cgm-compression-low-artifact"], "track": "authoritative_kb"}
+{"query": "血糖变异系数 CV GMI 14 天佩戴时间", "expected_any": ["battelino-2019-cv-gmi"], "track": "authoritative_kb"}
+{"query": "TIR 70-180 mg/dL target adults", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "TBR below 70 mg/dL target", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "TAR above 180 mg/dL target", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "pregnancy CGM target range 63-140", "expected_any": ["battelino-2019-tir-pregnancy-t1d"], "track": "authoritative_kb"}
+{"query": "older high risk hypoglycemia avoidance TIR", "expected_any": ["battelino-2019-tir-older-highrisk"], "track": "authoritative_kb"}
+{"query": "coefficient of variation target 36 percent", "expected_any": ["battelino-2019-cv-gmi"], "track": "authoritative_kb"}
+{"query": "GMI glucose management indicator", "expected_any": ["battelino-2019-cv-gmi"], "track": "authoritative_kb"}
+{"query": "CGM report wear time 70 percent", "expected_any": ["battelino-2019-cv-gmi"], "track": "authoritative_kb"}
+{"query": "hypoglycemia level 1 54-70 mg/dL", "expected_any": ["ada-2025-hypoglycemia-levels"], "track": "authoritative_kb"}
+{"query": "hypoglycemia level 2 less than 54", "expected_any": ["ada-2025-hypoglycemia-levels"], "track": "authoritative_kb"}
+{"query": "severe hypoglycemia glucagon unconscious", "expected_any": ["ada-2025-hypoglycemia-levels"], "track": "authoritative_kb"}
+{"query": "压迫性低值 传感器 假性低血糖", "expected_any": ["cgm-compression-low-artifact"], "track": "authoritative_kb"}
+{"query": "nocturnal compression artifact CGM", "expected_any": ["cgm-compression-low-artifact"], "track": "authoritative_kb"}
+{"query": "成人 TIR 目标 70%", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "妊娠 1 型糖尿病 TIR", "expected_any": ["battelino-2019-tir-pregnancy-t1d"], "track": "authoritative_kb"}
+{"query": "time below range less than 4 percent adults", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "time above range less than 25 percent", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "15 gram fast acting carbohydrate hypoglycemia", "expected_any": ["ada-2025-hypoglycemia-levels"], "track": "authoritative_kb"}
+{"query": "fingerstick confirm compression low", "expected_any": ["cgm-compression-low-artifact"], "track": "authoritative_kb"}
+{"query": "ambulatory glucose profile standardized report", "expected_any": ["battelino-2019-cv-gmi", "auto-ishne-2023-agp-p1-ishne-agp-001", "auto-ishne-2023-agp-p4-agp-agp-percentile-bands", "auto-battelino-2019-tir-p9-battelino-2019-p09-agp"], "track": "authoritative_kb"}
+{"query": "血糖管理指标 GMI", "expected_any": ["battelino-2019-cv-gmi"], "track": "authoritative_kb"}
+{"query": "低血糖 一级 54 70", "expected_any": ["ada-2025-hypoglycemia-levels"], "track": "authoritative_kb"}
+{"query": "低血糖 二级 54 以下", "expected_any": ["ada-2025-hypoglycemia-levels"], "track": "authoritative_kb"}
+{"query": "international consensus time in range targets", "expected_any": ["battelino-2019-tir-adults"], "track": "authoritative_kb"}
+{"query": "high risk older adults TIR greater than 50", "expected_any": ["battelino-2019-tir-older-highrisk"], "track": "authoritative_kb"}
+{"query": "sensor pressure false low reading", "expected_any": ["cgm-compression-low-artifact"], "track": "authoritative_kb"}
+{"query": "儿童青少年使用CGM和AID时的HbA1c目标", "expected_any": ["auto-ispad-2024-glycemic-p1-ispad-2024-gt-p1-001", "auto-ispad-2024-glycemic-p2-ispad-2024-p002-01"], "track": "authoritative_kb"}
+{"query": "pediatric HbA1c target with CGM and automated insulin delivery", "expected_any": ["auto-ispad-2024-glycemic-p2-ispad-2024-p002-01", "auto-ispad-2024-glycemic-p1-ispad-2024-gt-p1-001"], "track": "authoritative_kb"}
+{"query": "ISPAD HbA1c target without access to advanced technology", "expected_any": ["auto-ispad-2024-glycemic-p1-ispad-2024-gt-p1-002"], "track": "authoritative_kb"}
+{"query": "time in tight range TITR emerging metric", "expected_any": ["auto-ispad-2024-glycemic-p5-ispad-2024-p005-007"], "track": "authoritative_kb"}
+{"query": "ADA universal screening for diabetes starting age 35", "expected_any": ["auto-ada-2025-updates-p3-ada2025-p03-screening-age"], "track": "authoritative_kb"}
+{"query": "teplizumab delay type 1 diabetes onset", "expected_any": ["auto-ada-2025-updates-p2-ada2025-p02-006"], "track": "authoritative_kb"}
+{"query": "AGP ambulatory glucose profile percentile curves 5th 95th", "expected_any": ["auto-ishne-2023-agp-p4-agp-agp-percentile-bands", "auto-ishne-2023-agp-p3-ishne-2023-agp-p003-07", "auto-ishne-2023-agp-p7-ishne-2023-agp-p007-t2-p5-p95"], "track": "authoritative_kb"}
+{"query": "老年糖尿病健康状态良好空腹血糖目标", "expected_any": ["auto-cds-2024-guideline-p6-cds2024-06-012", "auto-cds-2024-guideline-p26-cds2024-p26-001", "auto-cds-2024-guideline-p6-cds2024-06-006"], "track": "authoritative_kb"}
+{"query": "elderly diabetes ASCVD first-line GLP-1 RA SGLT2 inhibitor", "expected_any": ["auto-cds-2024-guideline-p13-cds2024-p13-f2-ascvd-firstline"], "track": "authoritative_kb"}
+{"query": "diabetes chronic kidney disease first-line SGLT2 metformin statin", "expected_any": ["auto-ada-2025-updates-p9-ada2025-p09-008", "auto-cds-2024-guideline-p13-cds2024-p13-f2-ckd-firstline"], "track": "authoritative_kb"}
+{"query": "长新冠糖尿病降糖药物SGLT2 GLP-1", "expected_any": ["auto-cds-2024-guideline-p27-cds-2024-p27-004"], "track": "authoritative_kb"}

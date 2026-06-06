@@ -5,6 +5,7 @@ import json
 import shutil
 import sqlite3
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 from hermes_cgm_agent.domain import (
@@ -20,12 +21,18 @@ from hermes_cgm_agent.domain import (
     UserEvent,
 )
 from hermes_cgm_agent.hermes_plugins import install_hermes_integration
+from hermes_cgm_agent.services.analytics import CGMAnalyticsService
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import (
     CGMImporter,
     CGMNormalizer,
     NormalizationConfig,
     SQLiteCGMRepository,
+)
+from hermes_cgm_agent.services.memory import (
+    ConsolidationService,
+    L0ContextBuilder,
+    SQLiteMemoryRepository,
 )
 from hermes_cgm_agent.services.tools import ToolExecutor, build_default_tool_registry
 from hermes_cgm_agent.config import AppConfig, default_hermes_exe
@@ -93,12 +100,98 @@ def build_parser() -> argparse.ArgumentParser:
     dexcom_sync.add_argument("--force", action="store_true")
     dexcom_sync.add_argument("--session-id", default="dexcom-cli-session")
 
+    synthesize = sub.add_parser(
+        "memory-synthesize",
+        help="Generate a Warm memory summary from the current CGM window and memory state",
+    )
+    synthesize.add_argument("--user-id", required=True)
+    synthesize.add_argument("--window-start", required=True, help="ISO 8601 datetime")
+    synthesize.add_argument("--window-end", required=True, help="ISO 8601 datetime")
+    synthesize.add_argument("--period", choices=["daily", "weekly", "monthly"], default="weekly")
+
+    context_build = sub.add_parser(
+        "context-build",
+        help="Build the deterministic L0 working-memory context as JSON",
+    )
+    context_build.add_argument("--user-id", required=True)
+    context_build.add_argument("--anchor-at", default=None, help="ISO 8601 datetime")
+    context_build.add_argument("--source", default=None)
+
+    sub.add_parser(
+        "kb-validate",
+        help="Validate the authoritative knowledge base (structure + verified sign-off provenance)",
+    )
+
+    kb_ingest = sub.add_parser(
+        "kb-ingest",
+        help="Extract candidate claim cards from a PDF into a review queue",
+    )
+    kb_ingest.add_argument("--pdf", required=True, help="Path to a source PDF")
+    kb_ingest.add_argument("--out-dir", required=True, help="Directory for candidate JSON and review markdown")
+    kb_ingest.add_argument("--kb-version", default="kb-candidate")
+
+    kb_ingest_llm = sub.add_parser(
+        "kb-ingest-llm",
+        help="Extract claim cards via Hermes CLI (text + vision) into a review queue",
+    )
+    kb_ingest_llm.add_argument("--pdf", required=True, help="Path to a source PDF")
+    kb_ingest_llm.add_argument("--out-dir", required=True, help="Directory for candidate JSON and review markdown")
+    kb_ingest_llm.add_argument("--kb-version", default="kb-2026-06-auto-v1")
+    kb_ingest_llm.add_argument("--pages", default=None, help="Optional page range, e.g. 1-10,15")
+    kb_ingest_llm.add_argument(
+        "--mode",
+        default="auto",
+        choices=["auto", "text", "vision", "hybrid"],
+        help="Page extraction routing mode",
+    )
+    kb_ingest_llm.add_argument(
+        "--engine",
+        default="hermes",
+        choices=["hermes", "sentence"],
+        help="Extraction engine: Hermes LLM or deterministic sentence heuristic",
+    )
+
+    kb_ingest_batch = sub.add_parser(
+        "kb-ingest-batch",
+        help="Batch ingest PDFs from pdf_manifest.json",
+    )
+    kb_ingest_batch.add_argument("--out-dir", required=True)
+    kb_ingest_batch.add_argument("--kb-version", default="kb-2026-06-auto-v1")
+    kb_ingest_batch.add_argument("--priority-min", type=int, default=1)
+    kb_ingest_batch.add_argument(
+        "--engine",
+        default="sentence",
+        choices=["hermes", "sentence"],
+        help="Default sentence engine is offline-safe; use hermes when available",
+    )
+    kb_ingest_batch.add_argument("--mode", default="auto", choices=["auto", "text", "vision", "hybrid"])
+
+    kb_merge = sub.add_parser(
+        "kb-merge",
+        help="Merge accepted candidate cards into authoritative_kb.json",
+    )
+    kb_merge.add_argument("--candidates", required=True, help="Candidate JSON file or directory")
+    kb_merge.add_argument("--into", default=None, help="Target authoritative_kb.json path")
+    kb_merge.add_argument("--dry-run", action="store_true")
+    kb_merge.add_argument("--kb-version", default=None)
+
+    eval_rag = sub.add_parser("eval-rag", help="Evaluate authoritative RAG hit@3")
+    eval_rag.add_argument("--queries", default="eval/rag/queries.jsonl")
+    eval_rag.add_argument("--kb", default=None)
+    eval_rag.add_argument(
+        "--min-hit3",
+        type=float,
+        default=None,
+        help="Fail (exit 1) if hit@3 is below this threshold, e.g. 0.95 (CI gate)",
+    )
+
     hermes_install = sub.add_parser("hermes-install", help="Install or refresh Hermes user-plugin integration")
     hermes_install.add_argument("--project-root", default=None)
     hermes_install.add_argument("--hermes-home", default=None)
     hermes_install.add_argument("--hermes-bin", default=None)
     hermes_install.add_argument("--skip-editable-install", action="store_true")
     hermes_install.add_argument("--skip-runtime-config", action="store_true")
+    hermes_install.add_argument("--dry-run", action="store_true")
 
     return parser
 
@@ -146,7 +239,21 @@ def main(argv: list[str] | None = None) -> int:
                   AND name IN ('l1_episodes', 'l2_profile_items', 'l3_hypotheses', 'memory_candidates')
                 """
             ).fetchall()
+            consolidation_row = conn.execute(
+                """
+                SELECT payload_json, created_at
+                FROM audit_logs
+                WHERE event_type = 'memory_consolidation'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
         memory_present = len(memory_tables) == 4
+        consolidation_payload = (
+            store.unseal(consolidation_row["payload_json"], legacy="json")
+            if consolidation_row
+            else None
+        )
 
         print("project: hermes-cgm-agent")
         print("architecture: Hermes-native plugins + CGM capability layer")
@@ -177,10 +284,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"report_count: {int(report_count['count'] if report_count else 0)}")
         print(f"memory_tables_present: {str(memory_present).lower()}")
         print("memory_layers: L0_context,L1_episode,L2_profile,L3_hypothesis")
-        print("memory_retrieval: hybrid_bm25_dense_rrf")
+        print("l0_context_builder_present: true")
+        print("memory_retrieval: hot_sql_direct + warm_summary + authoritative_bm25 + personal_l1_hybrid_threshold")
+        print("l2_user_md_sync_present: true")
+        print(f"memory_last_consolidation_at: {consolidation_row['created_at'] if consolidation_row else ''}")
+        print(
+            "memory_last_consolidation_profiles_updated: "
+            f"{consolidation_payload.get('profiles_updated', '') if consolidation_payload else ''}"
+        )
+        print(
+            "memory_last_consolidation_hypotheses_updated: "
+            f"{consolidation_payload.get('hypotheses_updated', '') if consolidation_payload else ''}"
+        )
         print("dual_track_rag_present: true")
-        print("current_phase: G8 memory/rag implemented")
-        print("prototype_limit: L2->USER.md sync and live Hermes provider install are spikes")
+        print("current_phase: memory/rag product loop implemented")
+        print("prototype_limit: authoritative KB verification and external delivery scheduling remain workflow-dependent")
         print("test_command: PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests")
         return 0 if status["available"] else 1
 
@@ -234,6 +352,76 @@ def main(argv: list[str] | None = None) -> int:
             session_id=args.session_id,
         )
 
+    if args.command == "memory-synthesize":
+        return _memory_synthesize(
+            db_path=config.database_path,
+            user_id=args.user_id,
+            window_start=args.window_start,
+            window_end=args.window_end,
+            period=args.period,
+        )
+
+    if args.command == "context-build":
+        return _context_build(
+            db_path=config.database_path,
+            user_id=args.user_id,
+            anchor_at=args.anchor_at,
+            source=args.source,
+        )
+
+    if args.command == "kb-validate":
+        from hermes_cgm_agent.services.rag import validate_knowledge_base
+
+        problems = validate_knowledge_base()
+        if problems:
+            print(json.dumps({"valid": False, "problems": problems}, ensure_ascii=False, indent=2))
+            return 1
+        print(json.dumps({"valid": True, "problems": []}, ensure_ascii=False))
+        return 0
+
+    if args.command == "kb-ingest":
+        return _kb_ingest(
+            pdf_path=Path(args.pdf),
+            out_dir=Path(args.out_dir),
+            kb_version=args.kb_version,
+        )
+
+    if args.command == "kb-ingest-llm":
+        return _kb_ingest_llm(
+            config=config,
+            pdf_path=Path(args.pdf),
+            out_dir=Path(args.out_dir),
+            kb_version=args.kb_version,
+            pages=args.pages,
+            mode=args.mode,
+            engine=args.engine,
+        )
+
+    if args.command == "kb-ingest-batch":
+        return _kb_ingest_batch(
+            config=config,
+            out_dir=Path(args.out_dir),
+            kb_version=args.kb_version,
+            priority_min=args.priority_min,
+            mode=args.mode,
+            engine=args.engine,
+        )
+
+    if args.command == "kb-merge":
+        return _kb_merge(
+            candidates_path=Path(args.candidates),
+            into_path=Path(args.into) if args.into else None,
+            dry_run=args.dry_run,
+            kb_version=args.kb_version,
+        )
+
+    if args.command == "eval-rag":
+        return _eval_rag(
+            queries_path=Path(args.queries),
+            kb_path=Path(args.kb) if args.kb else None,
+            min_hit3=args.min_hit3,
+        )
+
     if args.command == "hermes-install":
         report = install_hermes_integration(
             project_root=Path(args.project_root) if args.project_root else None,
@@ -241,6 +429,7 @@ def main(argv: list[str] | None = None) -> int:
             hermes_bin=args.hermes_bin,
             install_editable=not args.skip_editable_install,
             configure_runtime=not args.skip_runtime_config,
+            dry_run=args.dry_run,
         )
         print(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True))
         return 0
@@ -459,12 +648,333 @@ def _dexcom_sync(
     return 0 if response.status == "ok" else 1
 
 
+def _memory_synthesize(
+    *,
+    db_path: Path,
+    user_id: str,
+    window_start: str,
+    window_end: str,
+    period: str,
+) -> int:
+    store = SQLiteStore(db_path)
+    store.initialize()
+    repository = SQLiteCGMRepository(store)
+    memory_repository = SQLiteMemoryRepository(store)
+    scope = DataScope(
+        user_id=user_id,
+        window_start=_parse_iso_datetime(window_start),
+        window_end=_parse_iso_datetime(window_end),
+    )
+    aggregate = CGMAnalyticsService().compute_aggregate(
+        points=repository.list_glucose_points(scope),
+        scope=scope,
+        window_label=_period_to_window_label(period),
+    )
+    summary = ConsolidationService(repository=memory_repository).synthesize_state(
+        user_id=user_id,
+        window_start=scope.window_start,
+        window_end=scope.window_end,
+        period=period,
+        metrics_summary={
+            "tir_pct": aggregate.tir,
+            "mean_mgdl": aggregate.mbg,
+        },
+    )
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "summary_id": summary.summary_id,
+                "user_id": summary.user_id,
+                "period": summary.period,
+                "window_start": summary.window_start.isoformat(),
+                "window_end": summary.window_end.isoformat(),
+                "content": summary.content,
+                "metrics": summary.metrics,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _context_build(
+    *,
+    db_path: Path,
+    user_id: str,
+    anchor_at: str | None,
+    source: str | None,
+) -> int:
+    store = SQLiteStore(db_path)
+    store.initialize()
+    context = L0ContextBuilder(
+        repository=SQLiteCGMRepository(store),
+    ).build(
+        user_id=user_id,
+        anchor_at=_parse_iso_datetime(anchor_at) if anchor_at else None,
+        source=source,
+    )
+    print(json.dumps(context.model_dump(mode="json"), ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def _default_pdf_dir() -> Path:
+    return Path(__file__).resolve().parent / "knowledge" / "pdfs"
+
+
+def _kb_ingest_llm(
+    *,
+    config: AppConfig,
+    pdf_path: Path,
+    out_dir: Path,
+    kb_version: str,
+    pages: str | None,
+    mode: str,
+    engine: str,
+) -> int:
+    from hermes_cgm_agent.knowledge.ingest import (
+        HermesClaimExtractor,
+        PageChunk,
+        build_sentence_candidates,
+        extract_pdf_text,
+        filter_candidates,
+        find_manifest_entry,
+        load_pdf_pages,
+        parse_page_range,
+        write_candidate_json,
+        write_quality_markdown,
+        write_review_markdown,
+    )
+    from hermes_cgm_agent.knowledge.ingest.pipeline import IngestResult
+    from hermes_cgm_agent.services.rag import load_knowledge_base
+
+    manifest = find_manifest_entry(pdf_path)
+    page_filter = parse_page_range(pages)
+    image_dir = out_dir / "_page_images" / pdf_path.stem
+    audits: list[dict[str, object]] = []
+
+    if engine == "sentence":
+        page_texts = extract_pdf_text(pdf_path)
+        if page_filter is not None:
+            page_texts = [item for item in page_texts if item[0] in page_filter]
+        result = build_sentence_candidates(
+            source_path=pdf_path,
+            pages=page_texts,
+            kb_version=kb_version,
+            citation=manifest.citation,
+            doc_title=manifest.doc_title,
+            population=manifest.default_population,
+        )
+        raw_candidates = result.candidates
+        pages_by_no = {
+            page_no: PageChunk(page_no=page_no, text=text, extraction_mode="text")
+            for page_no, text in page_texts
+        }
+        chunks = []
+    else:
+        chunks = load_pdf_pages(
+            pdf_path,
+            manifest_entry=manifest,
+            pages=page_filter,
+            mode=mode,  # type: ignore[arg-type]
+            image_dir=image_dir,
+        )
+        extractor = HermesClaimExtractor(
+            hermes_exe=_resolve_hermes_bin(config.hermes_bin),
+            timeout_seconds=config.timeout_seconds,
+        )
+        raw_candidates, extraction_audits = extractor.extract_cards(
+            pdf_meta=manifest,
+            pages=chunks,
+            kb_version=kb_version,
+        )
+        audits = [
+            {
+                "page_no": item.page_no,
+                "extraction_mode": item.extraction_mode,
+                "status": item.status,
+                "candidate_count": item.candidate_count,
+                "error": item.error,
+            }
+            for item in extraction_audits
+        ]
+        pages_by_no = {chunk.page_no: chunk for chunk in chunks}
+
+    quality = filter_candidates(
+        raw_candidates,
+        pages_by_no=pages_by_no,
+        existing_cards=load_knowledge_base().cards,
+    )
+    ingest_result = IngestResult(
+        source_path=str(pdf_path),
+        page_count=len(chunks) if engine == "hermes" else len(page_texts),
+        candidate_count=quality.accepted_count,
+        candidates=quality.accepted,
+    )
+
+    base = pdf_path.stem
+    json_path = out_dir / f"{base}.candidates.json"
+    review_path = out_dir / f"{base}.review.md"
+    quality_path = out_dir / f"{base}.quality.md"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    write_candidate_json(ingest_result, json_path)
+    write_review_markdown(ingest_result, review_path)
+    write_quality_markdown(quality, quality_path)
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "engine": engine,
+                "source_path": str(pdf_path),
+                "page_count": ingest_result.page_count,
+                "raw_candidate_count": len(raw_candidates),
+                "accepted_candidate_count": quality.accepted_count,
+                "rejected_candidate_count": quality.rejected_count,
+                "candidate_json": str(json_path),
+                "review_markdown": str(review_path),
+                "quality_markdown": str(quality_path),
+                "audits": audits,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _kb_ingest_batch(
+    *,
+    config: AppConfig,
+    out_dir: Path,
+    kb_version: str,
+    priority_min: int,
+    mode: str,
+    engine: str,
+) -> int:
+    from hermes_cgm_agent.knowledge.ingest import load_pdf_manifest
+
+    pdf_dir = _default_pdf_dir()
+    entries = [entry for entry in load_pdf_manifest() if entry.priority <= priority_min]
+    results: list[dict[str, object]] = []
+    for entry in entries:
+        pdf_path = pdf_dir / entry.file_name
+        if not pdf_path.exists():
+            results.append({"file_name": entry.file_name, "status": "missing"})
+            continue
+        code = _kb_ingest_llm(
+            config=config,
+            pdf_path=pdf_path,
+            out_dir=out_dir,
+            kb_version=kb_version,
+            pages=None,
+            mode=mode,
+            engine=engine,
+        )
+        results.append({"file_name": entry.file_name, "status": "ok" if code == 0 else "error"})
+    print(json.dumps({"status": "ok", "processed": results}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _kb_merge(*, candidates_path: Path, into_path: Path | None, dry_run: bool, kb_version: str | None) -> int:
+    from hermes_cgm_agent.knowledge.ingest import merge_candidates_into_kb
+
+    files = (
+        [candidates_path]
+        if candidates_path.is_file()
+        else sorted(candidates_path.glob("*.candidates.json"))
+    )
+    aggregate = {"added": [], "skipped": [], "total_after": 0, "kb_version": ""}
+    target_kb = into_path
+    for file_path in files:
+        preview = merge_candidates_into_kb(
+            candidates_path=file_path,
+            kb_path=target_kb,
+            dry_run=dry_run,
+            kb_version=kb_version,
+        )
+        aggregate["added"].extend(preview.added)
+        aggregate["skipped"].extend(preview.skipped)
+        aggregate["total_after"] = preview.total_after
+        aggregate["kb_version"] = preview.kb_version
+        if not dry_run:
+            from hermes_cgm_agent.knowledge.ingest.merge import DEFAULT_KB_PATH
+
+            target_kb = into_path or DEFAULT_KB_PATH
+    print(json.dumps({"status": "ok", "dry_run": dry_run, **aggregate}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _eval_rag(*, queries_path: Path, kb_path: Path | None, min_hit3: float | None = None) -> int:
+    from hermes_cgm_agent.services.rag.eval_hit3 import evaluate_hit3
+
+    report = evaluate_hit3(queries_path=queries_path, kb_path=kb_path)
+    if min_hit3 is not None:
+        report["min_hit3"] = min_hit3
+        report["passed"] = report["hit_at_3"] >= min_hit3
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    if min_hit3 is not None and report["hit_at_3"] < min_hit3:
+        return 1
+    return 0
+
+
+def _kb_ingest(*, pdf_path: Path, out_dir: Path, kb_version: str) -> int:
+    from hermes_cgm_agent.knowledge.ingest import (
+        build_candidate_cards,
+        extract_pdf_text,
+        write_candidate_json,
+        write_review_markdown,
+    )
+
+    pages = extract_pdf_text(pdf_path)
+    result = build_candidate_cards(
+        source_path=pdf_path,
+        pages=pages,
+        kb_version=kb_version,
+    )
+    base = pdf_path.stem
+    json_path = out_dir / f"{base}.candidates.json"
+    review_path = out_dir / f"{base}.review.md"
+    write_candidate_json(result, json_path)
+    write_review_markdown(result, review_path)
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "source_path": str(pdf_path),
+                "page_count": result.page_count,
+                "candidate_count": result.candidate_count,
+                "candidate_json": str(json_path),
+                "review_markdown": str(review_path),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def _read_json_object(path: Path) -> dict[str, object]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, dict):
         raise ValueError("tool-call input must be a JSON object")
     return payload
+
+
+def _parse_iso_datetime(raw: str) -> datetime:
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(f"Invalid ISO 8601 datetime: {raw}") from exc
+
+
+def _period_to_window_label(period: str) -> str:
+    return {
+        "daily": "day",
+        "weekly": "week",
+        "monthly": "month",
+    }.get(period, period)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -11,7 +13,10 @@ from pydantic import ValidationError
 from hermes_cgm_agent.domain import (
     DataScope,
     EvidenceRef,
+    G8MemoryCandidate,
     HypothesisState,
+    MemoryCandidate,
+    MemoryLayer,
     ReportInput,
     UserEvent,
 )
@@ -25,12 +30,18 @@ from hermes_cgm_agent.services.dexcom import (
     build_dexcom_sync_service,
 )
 from hermes_cgm_agent.services.memory import (
+    L0ContextBuilder,
     MemoryContextAssembler,
     MemoryReviewService,
     SQLiteMemoryRepository,
+    UserMDSyncService,
 )
 from hermes_cgm_agent.services.rag import AuthoritativeRAGService
 from hermes_cgm_agent.services.reports import ReportService, SQLiteReportRepository
+from hermes_cgm_agent.services.safety import (
+    assert_track_isolation,
+    query_number_coverage,
+)
 from hermes_cgm_agent.services.tools.registry import ToolRegistry, build_default_tool_registry
 
 
@@ -102,6 +113,8 @@ class ToolExecutor:
             return self._create_event(arguments=arguments, session_id=session_id)
         if tool_name == "events.confirm":
             return self._confirm_event(arguments=arguments, session_id=session_id)
+        if tool_name == "context.get_l0":
+            return self._get_l0_context(arguments=arguments, session_id=session_id)
         if tool_name == "reports.generate":
             return self._generate_report(arguments=arguments, session_id=session_id)
         if tool_name == "memory.list":
@@ -283,6 +296,65 @@ class ToolExecutor:
             },
         )
 
+    def _get_l0_context(
+        self,
+        *,
+        arguments: dict[str, Any],
+        session_id: str,
+    ) -> ToolExecutionResponse:
+        spec = self.registry.get("context.get_l0")
+        try:
+            user_id = str(arguments["user_id"])
+            anchor_at = _optional_datetime(arguments.get("anchor_at"))
+            source = arguments.get("source")
+            if source is not None:
+                source = str(source)
+            context = L0ContextBuilder(repository=self.repository).build(
+                user_id=user_id,
+                anchor_at=anchor_at,
+                source=source,
+            )
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope={"user_id": arguments.get("user_id")},
+                message=str(exc),
+            )
+        evidence_refs = [
+            EvidenceRef(
+                kind="aggregate",
+                ref_id=(
+                    f"{context.window.user_id}:"
+                    f"{context.window.window_start.isoformat()}:"
+                    f"{context.window.window_end.isoformat()}:L0"
+                ),
+                summary=(
+                    f"L0 context with {len(context.high_res_recent)} recent points, "
+                    f"{len(context.mid_far_hourly)} hourly summaries"
+                ),
+            ).model_dump(mode="json")
+        ]
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": context.window.model_dump(mode="json"),
+                "risk_level": spec.risk_level,
+                "evidence_refs": evidence_refs,
+                "estimated_tokens": context.estimated_tokens,
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=evidence_refs,
+            audit_id=audit_id,
+            payload={"context": context.model_dump(mode="json")},
+        )
+
     def _confirm_event(
         self,
         *,
@@ -352,6 +424,8 @@ class ToolExecutor:
             # `retrieve_context` is a tool-level flag, not a ReportInput field.
             args = dict(arguments)
             retrieve_context = bool(args.pop("retrieve_context", False))
+            auto_ingest_memory = _auto_ingest_memory_enabled(args)
+            args.pop("auto_ingest_memory", None)
             if retrieve_context:
                 args = self._inject_retrieved_context(args)
             report_input = ReportInput.model_validate(args)
@@ -360,6 +434,10 @@ class ToolExecutor:
                 cgm_repository=self.repository,
                 report_repository=report_repository,
             ).generate(report_input)
+            memory_ingest = self._ingest_report_memory_candidates(
+                report=report,
+                enabled=auto_ingest_memory,
+            )
         except (TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -386,6 +464,7 @@ class ToolExecutor:
                 "route": report.route,
                 "safety_result": report.safety_result,
                 "section_count": len(report.sections),
+                "memory_ingest": memory_ingest,
                 "data_quality_warnings": [
                     warning.model_dump(mode="json")
                     for warning in report.data_quality_warnings
@@ -406,8 +485,39 @@ class ToolExecutor:
                     candidate.model_dump(mode="json")
                     for candidate in report.g8_memory_candidates
                 ],
+                "memory_ingest": memory_ingest,
             },
         )
+
+    def _ingest_report_memory_candidates(self, *, report: Any, enabled: bool) -> dict[str, Any]:
+        if not enabled:
+            return {
+                "enabled": False,
+                "enqueued": 0,
+                "auto_accepted": 0,
+                "pending": 0,
+            }
+        candidates = [
+            _report_candidate_to_memory_candidate(report, candidate, index)
+            for index, candidate in enumerate(report.g8_memory_candidates, start=1)
+        ]
+        if not candidates:
+            return {
+                "enabled": True,
+                "enqueued": 0,
+                "auto_accepted": 0,
+                "pending": 0,
+            }
+        review = MemoryReviewService(
+            repository=SQLiteMemoryRepository(self.repository.store)
+        )
+        result = review.ingest_report_candidates(candidates)
+        return {
+            "enabled": True,
+            "enqueued": result.enqueued,
+            "auto_accepted": result.auto_accepted,
+            "pending": result.pending,
+        }
 
     def _memory_confirm(
         self,
@@ -568,6 +678,11 @@ class ToolExecutor:
                 repository=SQLiteMemoryRepository(self.repository.store)
             )
             memory_id = review.correct(user_id=user_id, target=target, correction=correction)
+            hermes_home = os.environ.get("HERMES_HOME")
+            if memory_id and target.upper() == "L2" and hermes_home:
+                UserMDSyncService(
+                    repository=SQLiteMemoryRepository(self.repository.store)
+                ).sync(user_id=user_id, hermes_home=hermes_home)
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -617,6 +732,11 @@ class ToolExecutor:
             args["authoritative_context"] = assembler.build_authoritative_context(
                 query=query
             ).model_dump(mode="json")
+        # D031: fail loudly if the two memory tracks ever cross-contaminate.
+        assert_track_isolation(
+            memory_items=(args.get("memory_context") or {}).get("items", []),
+            authoritative_documents=(args.get("authoritative_context") or {}).get("documents", []),
+        )
         return args
 
     def _rag_search(
@@ -633,9 +753,16 @@ class ToolExecutor:
             top_k = int(arguments.get("top_k", 3))
             if top_k < 1 or top_k > 20:
                 raise ValueError("top_k must be between 1 and 20")
+            population = arguments.get("population")
+            if population is not None:
+                population = str(population).strip() or None
             if self._rag_service is None:
                 self._rag_service = AuthoritativeRAGService()
-            documents = self._rag_service.search(query, top_k=top_k)
+            documents = self._rag_service.search(
+                query,
+                top_k=top_k,
+                population=population,
+            )
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -659,11 +786,26 @@ class ToolExecutor:
                 "result_count": len(documents),
             },
         )
+        # NOTE: this is a retrieval-coverage hint (which numbers in the user's
+        # query are absent from the retrieved evidence), NOT anti-hallucination.
+        # Hallucination guarding runs over GENERATED text in the skill/generation
+        # layer via assert_authoritative_quotes (see skills/cgm-safety/SKILL.md).
+        coverage = query_number_coverage(documents, query)
+        payload = {
+            "documents": documents,
+            "kb_version": self._rag_service.kb_version,
+            "quote_instruction": "verbatim_only",
+        }
+        if coverage.violations:
+            payload["query_number_coverage"] = {
+                "mode": coverage.mode,
+                "uncovered": coverage.violations,
+            }
         return ToolExecutionResponse(
             status="ok",
             evidence_refs=evidence_refs,
             audit_id=audit_id,
-            payload={"documents": documents, "kb_version": self._rag_service.kb_version},
+            payload=payload,
         )
 
     def _hypothesis_update(
@@ -961,6 +1103,42 @@ def _require_bool(value: Any, field: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{field} must be a boolean")
     return value
+
+
+def _auto_ingest_memory_enabled(arguments: dict[str, Any]) -> bool:
+    value = arguments.get("auto_ingest_memory")
+    if value is not None:
+        return _require_bool(value, "auto_ingest_memory")
+    # Doctor-facing reports should not silently queue personal memory because
+    # their audience and wording are optimized for clinicians, not self-review.
+    return str(arguments.get("report_type", "")).lower() != "doctor"
+
+
+def _optional_datetime(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value))
+
+
+def _report_candidate_to_memory_candidate(
+    report: Any,
+    candidate: G8MemoryCandidate,
+    index: int,
+) -> MemoryCandidate:
+    return MemoryCandidate(
+        candidate_id=f"report-{report.report_id}-{index}",
+        user_id=report.user_id,
+        target_layer=MemoryLayer(candidate.target_layer),
+        candidate_type=candidate.candidate_type,
+        summary=candidate.summary,
+        requires_user_confirmation=candidate.requires_user_confirmation,
+        source_report_id=candidate.source_report_id or report.report_id,
+        source_section_id=candidate.source_section_id,
+        evidence_refs=candidate.evidence_refs,
+        confidence=candidate.confidence,
+    )
 
 
 def _parse_limit(value: Any) -> int | None:

@@ -17,7 +17,11 @@ PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent statu
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent dev-status
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent tools
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-version
-PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-install
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-install --dry-run
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent context-build --user-id user-1 --anchor-at 2026-06-15T00:00:00+00:00
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent memory-synthesize --user-id user-1 --window-start 2026-05-31T00:00:00+00:00 --window-end 2026-06-01T00:00:00+00:00 --period daily
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-validate
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-rag
 ```
 
 Run tests:
@@ -28,14 +32,23 @@ PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s t
 
 Memory retrieval runtime notes:
 
-- Default runtime is dependency-free hashing retrieval. This avoids Hermes
-  hanging on first-run `sentence-transformers` model downloads while loading
-  project memory.
-- To force hashing explicitly: `CGM_AGENT_USE_HASHING_EMBEDDER=1`
-- To enable real semantic retrieval intentionally:
-  `CGM_AGENT_ENABLE_SEMANTIC_RETRIEVAL=1`
+- Default authoritative medical RAG is sparse-only BM25 over curated claim cards
+  plus tags/synonyms/population metadata. It does not load embedding models by
+  default.
+- Personal memory uses a split path: L2/L3 profile and hypotheses are injected
+  directly from SQLite; L1 episodes use BM25 at small scale and can switch to
+  semantic hybrid retrieval when the episode count crosses the configured
+  threshold.
+- `CGM_AGENT_USE_HASHING_EMBEDDER=1` forces the deterministic hashing embedder
+  for offline/dev tests only.
+- `CGM_AGENT_ENABLE_SEMANTIC_RETRIEVAL=1` intentionally enables the real
+  sentence-transformer dense path.
+- `CGM_AGENT_PERSONAL_SEMANTIC_MIN_EPISODES=200` controls the personal L1
+  automatic semantic threshold.
 - Optional custom model override:
   `CGM_AGENT_EMBED_MODEL=paraphrase-multilingual-MiniLM-L12-v2`
+- Install optional semantic dependencies with:
+  `pip install -e ".[semantic]"`
 
 ## Structure
 
@@ -64,6 +77,9 @@ To install or refresh the Hermes-side user plugins and activate the provider/too
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-install
 ```
 
+Use `--dry-run` first to inspect target plugin paths and Hermes commands without
+writing into `~/.hermes`.
+
 This command:
 
 - installs `cgm` and `cgm_memory` into `~/.hermes/plugins/`
@@ -71,6 +87,32 @@ This command:
 - enables the `cgm` plugin in Hermes
 - activates `cgm_memory` as the external memory provider
 - installs this project into Hermes' own runtime venv when available
+
+Knowledge-base operations:
+
+```bash
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-ingest --pdf src/hermes_cgm_agent/knowledge/pdfs/battelino-2019-tir.pdf --out-dir src/hermes_cgm_agent/knowledge/review_queue --kb-version kb-2026-06-candidate
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-ingest-llm --pdf src/hermes_cgm_agent/knowledge/pdfs/battelino-2019-tir.pdf --out-dir src/hermes_cgm_agent/knowledge/review_queue --kb-version kb-2026-06-auto-v1 --mode auto
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-merge --candidates src/hermes_cgm_agent/knowledge/review_queue/battelino-2019-tir.candidates.json --dry-run
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-validate
+```
+
+`kb-ingest` is the lightweight keyword fallback. The default production path is
+`kb-ingest-llm`, which delegates claim-card extraction to Hermes CLI. Text-heavy
+pages use paged text prompts; table, figure, or low-text pages are rendered to
+PNG and passed with `hermes chat --image`.
+
+Non-medical operator workflow:
+
+1. Run `kb-ingest-llm --mode auto` for one PDF, or `kb-ingest-batch` for
+   manifest-prioritized PDFs.
+2. Preview with `kb-merge --dry-run`, then merge accepted candidates. Merge
+   always forces `verified=false`.
+3. Run `kb-validate` and `eval-rag`.
+
+Production cards in `authoritative_kb.json` may remain `verified=false` as
+machine-extracted guideline drafts. A card may only become `verified=true` after
+external review provenance (`reviewer` or `reviewed_at`) is recorded.
 
 Runtime data is stored under the project's `.runtime/` directory by default, for example:
 

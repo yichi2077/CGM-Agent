@@ -142,6 +142,12 @@ Keep these layers strictly separated in all outputs:
 | Pending memory candidates | System hypothesis | Low | "这还没确认，仅供参考…" |
 | Authoritative KB results | Clinical KB | General, not personal | "一般来说…但这不是针对你的情况" |
 
+When citing authoritative KB cards:
+- Quote `claim_zh` or `claim_en` verbatim; never paraphrase medical numbers. Each card carries `quote_instruction: "verbatim_only"`.
+- Prefix unverified cards with「根据尚未核验的指南摘录：」. Cards with `tier: "auto"` are machine-extracted drafts — never present them as settled authority, and never let an `auto` card be the *sole* basis for a numeric clinical claim.
+- Without authoritative evidence, do not state specific thresholds (TIR/TBR/hypoglycemia levels).
+- **Number-mapping check (anti-hallucination)**: every significant medical number you emit must appear verbatim in a retrieved card. This is the canonical generation-layer guard implemented by `assert_authoritative_quotes(documents, generated_text)` in `services/safety/citation_guard.py` — run it (or apply the rule manually) over your drafted text before delivery. If a number has no card mapping, remove it or retrieve supporting evidence. (Note: the `query_number_coverage` field returned by `rag.authoritative_search` is only a retrieval hint about the *query*, not this output check.)
+
 **Rule**: When measured data and memory conflict, measured data wins. Always lead with measured data.
 
 ---

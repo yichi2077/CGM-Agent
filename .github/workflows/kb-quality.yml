@@ -1,0 +1,30 @@
+name: kb-quality
+
+on:
+  push:
+    paths:
+      - "src/hermes_cgm_agent/knowledge/**"
+      - "eval/rag/**"
+      - "src/hermes_cgm_agent/services/rag/**"
+      - "scripts/**"
+  pull_request:
+    paths:
+      - "src/hermes_cgm_agent/knowledge/**"
+      - "eval/rag/**"
+      - "src/hermes_cgm_agent/services/rag/**"
+      - "scripts/**"
+
+jobs:
+  kb-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package
+        run: pip install -e ".[ingest]"
+      - name: Validate KB
+        run: bash scripts/kb_validate.sh
+      - name: Eval RAG hit@3
+        run: PYTHONPATH=src python3 -m hermes_cgm_agent.cli eval-rag --min-hit3 0.95

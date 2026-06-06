@@ -16,8 +16,10 @@ from hermes_cgm_agent.domain import (
     UserEvent,
 )
 from hermes_cgm_agent.domain.report import (
+    AuthoritativeDocument,
     AuthoritativeContext,
     DataQualityWarning,
+    DataQualitySeverity,
     G8MemoryCandidate,
     MemoryContext,
     Report,
@@ -425,6 +427,7 @@ class ReportService:
         audience: ReportAudience,
     ) -> ReportSection:
         observations = []
+        section_warnings: list[DataQualityWarning] = []
         if aggregate.point_count == 0:
             if audience == ReportAudience.CLINICIAN:
                 observations.append("本窗无有效 CGM 数据，暂不具备趋势判断基础。")
@@ -474,6 +477,7 @@ class ReportService:
                 if audience != ReportAudience.CLINICIAN
                 else "已合并参考资料线索，用于补充背景解释。"
             )
+            section_warnings.extend(_authoritative_context_warnings(authoritative_context.documents))
         if len(source_tracks) > 1:
             source_tracks.append(ReportSourceTrack.MIXED)
 
@@ -486,6 +490,7 @@ class ReportService:
             evidence_refs=evidence_refs,
             source_tracks=_unique_source_tracks(source_tracks),
             confidence=_coverage_confidence(aggregate.data_coverage),
+            warnings=section_warnings,
         )
 
     def _follow_up_section(
@@ -846,12 +851,46 @@ def _context_version(context: MemoryContext | AuthoritativeContext) -> str:
     return "supplied" if (context.items if isinstance(context, MemoryContext) else context.documents) else "empty"
 
 
-def _context_evidence_refs(items: list[dict[str, object]]) -> list[EvidenceRef]:
+def _context_evidence_refs(items: list[dict[str, object] | AuthoritativeDocument]) -> list[EvidenceRef]:
     refs: list[EvidenceRef] = []
     for item in items:
-        for ref in item.get("evidence_refs", []) if isinstance(item, dict) else []:
+        if isinstance(item, dict):
+            raw_refs = item.get("evidence_refs", [])
+        else:
+            raw_refs = item.evidence_refs
+        for ref in raw_refs:
             refs.append(EvidenceRef.model_validate(ref))
     return refs
+
+
+def _authoritative_context_warnings(
+    documents: list[AuthoritativeDocument],
+) -> list[DataQualityWarning]:
+    unverified = [doc for doc in documents if doc.verified is False]
+    if not unverified:
+        return []
+    details = "；".join(_authoritative_doc_label(doc) for doc in unverified)
+    return [
+        DataQualityWarning(
+            code="authoritative_unverified",
+            severity=DataQualitySeverity.WARNING,
+            message=(
+                "以下为指南摘录草稿，非医疗建议；以下医学参考仍待人工核验，"
+                "仅可作为背景线索，不能作为最终医学依据："
+                f"{details}"
+            ),
+            evidence_refs=_context_evidence_refs(unverified),
+        )
+    ]
+
+
+def _authoritative_doc_label(doc: AuthoritativeDocument) -> str:
+    label = doc.title
+    if doc.population:
+        label += f" [{doc.population}]"
+    if doc.source:
+        label += f" ({doc.source})"
+    return label
 
 
 def _unique_evidence_refs(refs: object) -> list[EvidenceRef]:

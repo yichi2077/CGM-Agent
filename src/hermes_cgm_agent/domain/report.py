@@ -85,9 +85,21 @@ class MemoryContext(CGMBaseModel):
     missing_reason: str | None = None
 
 
+class AuthoritativeDocument(CGMBaseModel):
+    title: str
+    text: str = ""
+    kb_version: str = ""
+    source: str | None = None
+    citation: dict[str, Any] = Field(default_factory=dict)
+    verified: bool | None = None
+    tier: str | None = None
+    population: str | None = None
+    evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+
+
 class AuthoritativeContext(CGMBaseModel):
     enabled: bool = True
-    documents: list[dict[str, Any]] = Field(default_factory=list)
+    documents: list[AuthoritativeDocument] = Field(default_factory=list)
     missing_reason: str | None = None
 
 

@@ -1,0 +1,319 @@
+{
+  "source_path": "src/hermes_cgm_agent/knowledge/pdfs/aace-2024-hypo.pdf",
+  "page_count": 1,
+  "candidate_count": 10,
+  "cards": [
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tir-general-pct",
+      "title": "TIR target for general T1/T2 diabetes: >70% of readings",
+      "claim_zh": "成人1型或2型糖尿病患者，目标范围内时间（TIR，70–180 mg/dL）目标为>70%的读数，即每天>16小时48分钟。",
+      "claim_en": "For adults with Type 1 or Type 2 Diabetes, Time in Range (TIR) target is >70% of readings in the range 70–180 mg/dL, equivalent to >16 hours 48 minutes per day.",
+      "population": "general",
+      "tags": [
+        "TIR",
+        "glycemic_targets",
+        "AACE"
+      ],
+      "synonyms": [
+        "time in range",
+        "目标范围内时间"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tir-elderly-pct",
+      "title": "TIR target for older/high-risk T1/T2 diabetes: >50% of readings",
+      "claim_zh": "老年或高危1型/2型糖尿病患者，目标范围内时间（TIR，70–180 mg/dL）目标为>50%的读数，即每天>12小时。",
+      "claim_en": "For older or high-risk individuals with Type 1 or Type 2 Diabetes, Time in Range (TIR) target is >50% of readings in the range 70–180 mg/dL, equivalent to >12 hours per day.",
+      "population": "older/high-risk",
+      "tags": [
+        "TIR",
+        "glycemic_targets",
+        "AACE",
+        "elderly"
+      ],
+      "synonyms": [
+        "time in range",
+        "目标范围内时间"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l1-general-pct",
+      "title": "Level 1 hypoglycemia TBR for general T1/T2: <4%",
+      "claim_zh": "成人1型或2型糖尿病患者，1级低血糖（<70 mg/dL）目标为<4%的读数，即每天<1小时。",
+      "claim_en": "For adults with Type 1 or Type 2 Diabetes, Level 1 Hypoglycemia (<70 mg/dL) target is <4% of readings, equivalent to <1 hour per day.",
+      "population": "general",
+      "tags": [
+        "TBR",
+        "hypoglycemia",
+        "Level1",
+        "AACE"
+      ],
+      "synonyms": [
+        "time below range",
+        "目标范围下时间",
+        "level 1 hypo"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l1-elderly-pct",
+      "title": "Level 1 hypoglycemia TBR for older/high-risk: <1%",
+      "claim_zh": "老年或高危1型/2型糖尿病患者，1级低血糖（<70 mg/dL）目标为<1%的读数，即每天<15分钟。",
+      "claim_en": "For older or high-risk individuals with Type 1 or Type 2 Diabetes, Level 1 Hypoglycemia (<70 mg/dL) target is <1% of readings, equivalent to <15 minutes per day.",
+      "population": "older/high-risk",
+      "tags": [
+        "TBR",
+        "hypoglycemia",
+        "Level1",
+        "AACE",
+        "elderly"
+      ],
+      "synonyms": [
+        "time below range",
+        "目标范围下时间",
+        "level 1 hypo"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l2-general-pct",
+      "title": "Level 2 hypoglycemia TBR for general T1/T2: <1%",
+      "claim_zh": "成人1型或2型糖尿病患者，2级低血糖（<54 mg/dL）目标为<1%的读数，即每天<15分钟。",
+      "claim_en": "For adults with Type 1 or Type 2 Diabetes, Level 2 Hypoglycemia (<54 mg/dL) target is <1% of readings, equivalent to <15 minutes per day.",
+      "population": "general",
+      "tags": [
+        "TBR",
+        "hypoglycemia",
+        "Level2",
+        "AACE"
+      ],
+      "synonyms": [
+        "time below range",
+        "目标范围下时间",
+        "level 2 hypo",
+        "clinically significant hypoglycemia"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l2-elderly-pct",
+      "title": "Level 2 hypoglycemia TBR for older/high-risk: 0%",
+      "claim_zh": "老年或高危1型/2型糖尿病患者，2级低血糖（<54 mg/dL）目标为0%的读数，即每天0分钟。",
+      "claim_en": "For older or high-risk individuals with Type 1 or Type 2 Diabetes, Level 2 Hypoglycemia (<54 mg/dL) target is 0% of readings, equivalent to 0 minutes per day.",
+      "population": "older/high-risk",
+      "tags": [
+        "TBR",
+        "hypoglycemia",
+        "Level2",
+        "AACE",
+        "elderly"
+      ],
+      "synonyms": [
+        "time below range",
+        "目标范围下时间",
+        "level 2 hypo"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l1-general-pct",
+      "title": "Level 1 hyperglycemia TAR for general T1/T2: <25%",
+      "claim_zh": "成人1型或2型糖尿病患者，1级高血糖（>180 mg/dL）目标为<25%的读数，即每天<6小时。",
+      "claim_en": "For adults with Type 1 or Type 2 Diabetes, Level 1 Hyperglycemia (>180 mg/dL) target is <25% of readings, equivalent to <6 hours per day.",
+      "population": "general",
+      "tags": [
+        "TAR",
+        "hyperglycemia",
+        "Level1",
+        "AACE"
+      ],
+      "synonyms": [
+        "time above range",
+        "目标范围上时间",
+        "level 1 hyper"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l1-elderly-pct",
+      "title": "Level 1 hyperglycemia TAR for older/high-risk: <50%",
+      "claim_zh": "老年或高危1型/2型糖尿病患者，1级高血糖（>180 mg/dL）目标为<50%的读数，即每天<12小时。",
+      "claim_en": "For older or high-risk individuals with Type 1 or Type 2 Diabetes, Level 1 Hyperglycemia (>180 mg/dL) target is <50% of readings, equivalent to <12 hours per day.",
+      "population": "older/high-risk",
+      "tags": [
+        "TAR",
+        "hyperglycemia",
+        "Level1",
+        "AACE",
+        "elderly"
+      ],
+      "synonyms": [
+        "time above range",
+        "目标范围上时间",
+        "level 1 hyper"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l2-general-pct",
+      "title": "Level 2 hyperglycemia TAR for general T1/T2: <5%",
+      "claim_zh": "成人1型或2型糖尿病患者，2级高血糖（>250 mg/dL）目标为<5%的读数，即每天<1小时12分钟。",
+      "claim_en": "For adults with Type 1 or Type 2 Diabetes, Level 2 Hyperglycemia (>250 mg/dL) target is <5% of readings, equivalent to <1 hour 12 minutes per day.",
+      "population": "general",
+      "tags": [
+        "TAR",
+        "hyperglycemia",
+        "Level2",
+        "AACE"
+      ],
+      "synonyms": [
+        "time above range",
+        "目标范围上时间",
+        "level 2 hyper"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l2-elderly-pct",
+      "title": "Level 2 hyperglycemia TAR for older/high-risk: <10%",
+      "claim_zh": "老年或高危1型/2型糖尿病患者，2级高血糖（>250 mg/dL）目标为<10%的读数，即每天<2小时24分钟。",
+      "claim_en": "For older or high-risk individuals with Type 1 or Type 2 Diabetes, Level 2 Hyperglycemia (>250 mg/dL) target is <10% of readings, equivalent to <2 hours 24 minutes per day.",
+      "population": "older/high-risk",
+      "tags": [
+        "TAR",
+        "hyperglycemia",
+        "Level2",
+        "AACE",
+        "elderly"
+      ],
+      "synonyms": [
+        "time above range",
+        "目标范围上时间",
+        "level 2 hyper"
+      ],
+      "source": {
+        "page": 1,
+        "citation": "AACE 2024",
+        "doc": "AACE 2024 hypoglycemia guidance",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    }
+  ]
+}

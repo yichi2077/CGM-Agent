@@ -205,6 +205,11 @@ class ReportServiceTests(unittest.TestCase):
                     "documents": [
                         {
                             "title": "CGM FAQ",
+                            "text": "Draft clinical reference",
+                            "source": "Diabetes Care 2025;48(Suppl 1)",
+                            "citation": {"page": 12, "section": "Hypoglycemia"},
+                            "population": "general",
+                            "verified": False,
                             "evidence_refs": [
                                 {
                                     "kind": "authoritative_kb",
@@ -224,6 +229,11 @@ class ReportServiceTests(unittest.TestCase):
         self.assertIn("mixed", observations.source_tracks)
         self.assertTrue(any(ref.kind == "user_memory" for ref in observations.evidence_refs))
         self.assertTrue(any(ref.kind == "authoritative_kb" for ref in observations.evidence_refs))
+        self.assertTrue(any(warning.code == "authoritative_unverified" for warning in observations.warnings))
+        self.assertIn("指南摘录草稿", observations.warnings[0].message)
+        self.assertIn("待人工核验", observations.warnings[0].message)
+        self.assertIn("general", observations.warnings[0].message)
+        self.assertIn("Diabetes Care 2025;48(Suppl 1)", report.rendered_markdown)
 
     def test_report_includes_detected_glucose_events_section(self) -> None:
         # A sustained hypo episode (four points below 70) should be detected and

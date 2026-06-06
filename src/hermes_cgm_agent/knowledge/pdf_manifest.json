@@ -1,0 +1,110 @@
+{
+  "pdfs": [
+    {
+      "file_name": "battelino-2019-tir.pdf",
+      "doc_title": "International consensus on time in range",
+      "citation": "Diabetes Care 2019;42(8):1593-1603",
+      "priority": 1,
+      "vision_pages": [16],
+      "default_population": "general",
+      "default_tags": ["TIR", "targets", "consensus"]
+    },
+    {
+      "file_name": "tir-consensus-summary.pdf",
+      "doc_title": "Time in Range consensus summary",
+      "citation": "TIR consensus summary",
+      "priority": 1,
+      "default_population": "general",
+      "default_tags": ["TIR", "summary"]
+    },
+    {
+      "file_name": "ada-2025-updates.pdf",
+      "doc_title": "ADA Standards of Care 2025 updates",
+      "citation": "Diabetes Care 2025;48(Suppl 1)",
+      "priority": 1,
+      "vision_pages": [8, 9, 10, 12],
+      "default_population": "general",
+      "default_tags": ["ADA", "hypoglycemia", "updates"]
+    },
+    {
+      "file_name": "ishne-2023-agp.pdf",
+      "doc_title": "ISHNE ambulatory glucose profile report",
+      "citation": "ISHNE 2023 AGP",
+      "priority": 1,
+      "default_population": "general",
+      "default_tags": ["AGP", "CGM report"]
+    },
+    {
+      "file_name": "cds-2024-guideline.pdf",
+      "doc_title": "CDS 2024 guideline",
+      "citation": "CDS 2024",
+      "priority": 1,
+      "default_population": "general",
+      "default_tags": ["CDS", "guideline"]
+    },
+    {
+      "file_name": "aace-2024-hypo.pdf",
+      "doc_title": "AACE 2024 hypoglycemia guidance",
+      "citation": "AACE 2024",
+      "priority": 1,
+      "default_population": "general",
+      "default_tags": ["hypoglycemia", "AACE"]
+    },
+    {
+      "file_name": "ispad-2024-glycemic.pdf",
+      "doc_title": "ISPAD 2024 glycemic targets",
+      "citation": "ISPAD 2024",
+      "priority": 1,
+      "default_population": "pediatric",
+      "default_tags": ["ISPAD", "glycemic", "pediatric"]
+    },
+    {
+      "file_name": "ada-2025-abridged.pdf",
+      "doc_title": "ADA Standards of Care 2025 abridged",
+      "citation": "Diabetes Care 2025;48(Suppl 1)",
+      "priority": 2,
+      "default_population": "general",
+      "default_tags": ["ADA", "abridged"]
+    },
+    {
+      "file_name": "ada-2025-full.pdf",
+      "doc_title": "ADA Standards of Care 2025 full",
+      "citation": "Diabetes Care 2025;48(Suppl 1)",
+      "priority": 2,
+      "default_population": "general",
+      "default_tags": ["ADA", "full"]
+    },
+    {
+      "file_name": "esc-2023-brainsides.pdf",
+      "doc_title": "ESC 2023 brainsides",
+      "citation": "ESC 2023",
+      "priority": 3,
+      "default_population": "general",
+      "default_tags": ["ESC"]
+    },
+    {
+      "file_name": "esc-easd-2023-cvd-diabetes.pdf",
+      "doc_title": "ESC/EASD 2023 CVD in diabetes",
+      "citation": "ESC/EASD 2023",
+      "priority": 3,
+      "default_population": "general",
+      "default_tags": ["ESC", "EASD", "CVD"]
+    },
+    {
+      "file_name": "ispad-2024-full-3.pdf",
+      "doc_title": "ISPAD 2024 full volume 3",
+      "citation": "ISPAD 2024",
+      "priority": 3,
+      "default_population": "pediatric",
+      "default_tags": ["ISPAD"]
+    },
+    {
+      "file_name": "ispad-2024-full-4.pdf",
+      "doc_title": "ISPAD 2024 full volume 4",
+      "citation": "ISPAD 2024",
+      "priority": 3,
+      "default_population": "pediatric",
+      "default_tags": ["ISPAD"]
+    }
+  ]
+}

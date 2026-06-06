@@ -5,18 +5,57 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import os
+
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.rag import AuthoritativeRAGService, load_knowledge_base
+from hermes_cgm_agent.services.rag.authoritative import ClaimCard, KnowledgeBase
 from hermes_cgm_agent.services.tools import ToolExecutor
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
+
+
+def _kb_with_one_curated_and_noisy_autos() -> KnowledgeBase:
+    """A curated card plus several lexically-dominant auto cards on the same topic.
+
+    The auto cards repeat the query terms so plain BM25 would rank them above the
+    curated card — the trusted-first guard must still surface the curated card.
+    """
+    curated = ClaimCard(
+        card_id="curated-tir-adults",
+        title="TIR adults",
+        claim_zh="成人目标范围内时间应高于70%",
+        claim_en="For most adults the time in range target is above 70 percent.",
+        tags=["TIR", "targets"],
+        synonyms=["time in range"],
+        source={"citation": "DC 2019", "page": 16},
+        verified=False,
+        tier="curated",
+    )
+    autos = [
+        ClaimCard(
+            card_id=f"auto-noise-{i}",
+            title=f"auto {i}",
+            claim_zh="",
+            claim_en=(
+                "time in range time in range target adults time in range "
+                f"fragment {i} time in range adults target"
+            ),
+            tags=["auto-sentence"],
+            source={"citation": "noise", "page": i},
+            verified=False,
+            tier="auto",
+        )
+        for i in range(1, 8)
+    ]
+    return KnowledgeBase(kb_version="kb-guard-test", cards=[curated, *autos])
 
 
 class AuthoritativeRAGTests(unittest.TestCase):
     def test_knowledge_base_loads_with_version(self) -> None:
         kb = load_knowledge_base()
         self.assertTrue(kb.kb_version)
-        self.assertTrue(kb.documents)
+        self.assertTrue(kb.cards)
 
     def test_env_var_override_loads_custom_kb(self) -> None:
         # C7: an operator can point the loader at an explicit KB file, and the
@@ -25,8 +64,15 @@ class AuthoritativeRAGTests(unittest.TestCase):
 
         custom = {
             "kb_version": "custom-kb-9",
-            "documents": [
-                {"doc_id": "x", "title": "Custom", "text": "custom entry", "tags": []}
+            "cards": [
+                {
+                    "card_id": "x",
+                    "title": "Custom",
+                    "claim_zh": "自定义条目",
+                    "claim_en": "custom entry",
+                    "tags": [],
+                    "synonyms": ["bespoke"],
+                }
             ],
         }
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -43,17 +89,90 @@ class AuthoritativeRAGTests(unittest.TestCase):
                     os.environ["CGM_AGENT_KB_PATH"] = previous
 
         self.assertEqual(kb.kb_version, "custom-kb-9")
-        self.assertEqual(kb.documents[0].doc_id, "x")
+        self.assertEqual(kb.cards[0].card_id, "x")
+        self.assertEqual(kb.cards[0].synonyms, ["bespoke"])
 
     def test_search_returns_authoritative_evidence_track(self) -> None:
         svc = AuthoritativeRAGService()
         results = svc.search("time in range target", top_k=2)
         self.assertTrue(results)
-        self.assertEqual(results[0]["doc_id"], "tir-consensus")
+        self.assertIn("tir", results[0]["doc_id"])
+        # cards carry verification state; seed cards are unverified pending review
+        self.assertIn("verified", results[0])
+        self.assertIn("citation", results[0])
+        self.assertIn("population", results[0])
         for r in results:
             # every result is tagged authoritative_kb, never user_memory
             self.assertEqual(r["evidence_ref"]["kind"], "authoritative_kb")
             self.assertEqual(r["kb_version"], svc.kb_version)
+            self.assertEqual(r["quote_instruction"], "verbatim_only")
+
+    def test_chinese_query_recalls_bilingual_card(self) -> None:
+        # D030: a Chinese query recalls an English-sourced card because cards are
+        # bilingual and the tokenizer indexes CJK bigrams.
+        svc = AuthoritativeRAGService()
+        results = svc.search("目标范围内时间", top_k=3)
+        self.assertTrue(results)
+        self.assertTrue(any("tir" in r["doc_id"] for r in results))
+
+    def test_search_can_filter_by_population(self) -> None:
+        svc = AuthoritativeRAGService()
+        results = svc.search(
+            "time in range target",
+            top_k=3,
+            population="pregnancy-t1d",
+        )
+        self.assertTrue(results)
+        populations = {r["population"] for r in results}
+        self.assertTrue(populations <= {"pregnancy-t1d", "general"})
+
+    def test_trusted_card_is_not_crowded_out_by_auto_cards(self) -> None:
+        # D041 correction: noisy auto cards must never push a curated card out of
+        # the top-k, even when they lexically dominate the BM25 score.
+        svc = AuthoritativeRAGService(knowledge_base=_kb_with_one_curated_and_noisy_autos())
+        results = svc.search("time in range target adults", top_k=3)
+        self.assertTrue(results)
+        self.assertEqual(results[0]["doc_id"], "curated-tir-adults")
+        self.assertEqual(results[0]["tier"], "curated")
+        # Any auto card may only appear AFTER the curated one.
+        first_auto = next((i for i, r in enumerate(results) if r["tier"] == "auto"), None)
+        if first_auto is not None:
+            self.assertGreater(first_auto, 0)
+
+    def test_chinese_query_prefers_curated_over_auto(self) -> None:
+        svc = AuthoritativeRAGService(knowledge_base=_kb_with_one_curated_and_noisy_autos())
+        results = svc.search("成人目标范围内时间", top_k=3)
+        self.assertTrue(results)
+        self.assertEqual(results[0]["doc_id"], "curated-tir-adults")
+
+    def test_overlap_gate_drops_weakly_matching_auto_cards(self) -> None:
+        # With a high overlap threshold, an auto card sharing only one query term
+        # is dropped rather than surfaced as a background clue.
+        kb = KnowledgeBase(
+            kb_version="kb-overlap-test",
+            cards=[
+                ClaimCard(
+                    card_id="auto-weak",
+                    title="weak",
+                    claim_zh="",
+                    claim_en="range",
+                    source={"citation": "x", "page": 1},
+                    verified=False,
+                    tier="auto",
+                ),
+            ],
+        )
+        svc = AuthoritativeRAGService(knowledge_base=kb)
+        previous = os.environ.get("CGM_AGENT_KB_MIN_UNTRUSTED_OVERLAP")
+        os.environ["CGM_AGENT_KB_MIN_UNTRUSTED_OVERLAP"] = "5"
+        try:
+            results = svc.search("time in range adults target percent value", top_k=3)
+        finally:
+            if previous is None:
+                os.environ.pop("CGM_AGENT_KB_MIN_UNTRUSTED_OVERLAP", None)
+            else:
+                os.environ["CGM_AGENT_KB_MIN_UNTRUSTED_OVERLAP"] = previous
+        self.assertEqual(results, [])
 
 
 class RAGToolTests(unittest.TestCase):
@@ -82,6 +201,9 @@ class RAGToolTests(unittest.TestCase):
         self.assertTrue(body["kb_version"])
         self.assertIsNotNone(body["audit_id"])
         self.assertTrue(all(ref["kind"] == "authoritative_kb" for ref in body["evidence_refs"]))
+        self.assertIn("verified", body["documents"][0])
+        self.assertIn("citation", body["documents"][0])
+        self.assertEqual(body["quote_instruction"], "verbatim_only")
 
     def test_rag_tool_rejects_empty_query(self) -> None:
         body = self.executor.execute(

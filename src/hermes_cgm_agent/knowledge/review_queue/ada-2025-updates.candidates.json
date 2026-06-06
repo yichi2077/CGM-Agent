@@ -1,0 +1,3958 @@
+{
+  "source_path": "src/hermes_cgm_agent/knowledge/pdfs/ada-2025-updates.pdf",
+  "page_count": 11,
+  "candidate_count": 125,
+  "cards": [
+    {
+      "card_id": "auto-ada-2025-updates-p2-ada2025-p02-001",
+      "title": "Diabetes diagnosis: A1C threshold",
+      "claim_zh": "非妊娠个体糖尿病诊断标准：A1C ≥ 6.5%（≥ 48 mmol/mol）。通常需要同一检测两次异常结果或两项不同检测各一次异常方可诊断。",
+      "claim_en": "Diabetes diagnosis in nonpregnant individuals: A1C ≥ 6.5% (≥ 48 mmol/mol). Diagnosis usually requires two abnormal results from the same test at two different times, or two different tests.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "diagnosis",
+        "A1C",
+        "screening",
+        "updates"
+      ],
+      "synonyms": [
+        "HbA1c",
+        "glycated hemoglobin",
+        "glycohemoglobin",
+        "糖化血红蛋白"
+      ],
+      "source": {
+        "page": 2,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p2-ada2025-p02-002",
+      "title": "Diabetes diagnosis: fasting plasma glucose threshold",
+      "claim_zh": "非妊娠个体糖尿病诊断标准：空腹血浆葡萄糖（FPG）≥ 126 mg/dL（≥ 7.0 mmol/L），空腹定义为 ≥ 8 小时无热量摄入。",
+      "claim_en": "Diabetes diagnosis in nonpregnant individuals: fasting plasma glucose (FPG) ≥ 126 mg/dL (≥ 7.0 mmol/L), with fasting defined as ≥ 8 hours with no caloric intake.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "diagnosis",
+        "FPG",
+        "fasting glucose",
+        "updates"
+      ],
+      "synonyms": [
+        "fasting blood glucose",
+        "FBG",
+        "空腹血糖"
+      ],
+      "source": {
+        "page": 2,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p2-ada2025-p02-003",
+      "title": "Diabetes diagnosis: 2-hour OGTT threshold",
+      "claim_zh": "非妊娠个体糖尿病诊断标准：口服葡萄糖耐量试验（OGTT，75g无水葡萄糖负荷）2小时血浆葡萄糖 ≥ 200 mg/dL（≥ 11.1 mmol/L）。",
+      "claim_en": "Diabetes diagnosis in nonpregnant individuals: 2-hour plasma glucose ≥ 200 mg/dL (≥ 11.1 mmol/L) during OGTT with 75g anhydrous glucose load.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "diagnosis",
+        "OGTT",
+        "2hPG",
+        "updates"
+      ],
+      "synonyms": [
+        "oral glucose tolerance test",
+        "糖耐量试验"
+      ],
+      "source": {
+        "page": 2,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p2-ada2025-p02-004",
+      "title": "Diabetes diagnosis: random plasma glucose in symptomatic persons",
+      "claim_zh": "非妊娠个体糖尿病诊断标准：经典高血糖症状或高血糖危象 + 随机血浆葡萄糖 ≥ 200 mg/dL（≥ 11.1 mmol/L）。此为2025年新增标准。",
+      "claim_en": "Diabetes diagnosis in nonpregnant individuals: classic symptoms of hyperglycemia or hyperglycemic crisis PLUS random plasma glucose ≥ 200 mg/dL (≥ 11.1 mmol/L). This is a NEW addition for 2025.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "diagnosis",
+        "random glucose",
+        "hyperglycemia",
+        "updates",
+        "new"
+      ],
+      "synonyms": [
+        "casual plasma glucose",
+        "random blood sugar",
+        "随机血糖"
+      ],
+      "source": {
+        "page": 2,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p2-ada2025-p02-005",
+      "title": "PAD screening in diabetes",
+      "claim_zh": "对有外周动脉疾病（PAD）风险的无症状人群或糖尿病病程 > 10 年且心血管风险高的患者，使用踝肱指数筛查PAD。",
+      "claim_en": "Screen for peripheral artery disease (PAD) using ankle-brachial index testing in asymptomatic persons at risk for PAD, or any person with diabetes mellitus > 10 years duration and high cardiovascular risk.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "PAD",
+        "screening",
+        "cardiovascular",
+        "updates"
+      ],
+      "synonyms": [
+        "peripheral vascular disease",
+        "PVD",
+        "ABI",
+        "ankle-brachial index",
+        "外周动脉疾病",
+        "踝肱指数"
+      ],
+      "source": {
+        "page": 2,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p2-ada2025-p02-006",
+      "title": "Teplizumab for delaying Type 1 diabetes onset",
+      "claim_zh": "Teplizumab-mzwv输注可用于延缓 ≥ 8 岁2期1型糖尿病患者的1型糖尿病发病。新增强调：对有家族史或遗传风险升高者进行基于抗体的1型糖尿病症状前筛查。",
+      "claim_en": "Teplizumab-mzwv infusion is available to delay onset of Type 1 diabetes in persons ≥ 8 years of age with stage 2 Type 1 diabetes. NEW emphasis on antibody-based screening for pre-symptomatic Type 1 in persons with family history or elevated genetic risk.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "Type 1",
+        "teplizumab",
+        "screening",
+        "autoantibody",
+        "updates",
+        "new"
+      ],
+      "synonyms": [
+        "Tzield",
+        "anti-CD3 monoclonal antibody",
+        "1型糖尿病"
+      ],
+      "source": {
+        "page": 2,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p2-ada2025-p02-008",
+      "title": "Pioglitazone/GLP-1 RA combination for MASH",
+      "claim_zh": "对经活检证实的MASH（代谢功能障碍相关脂肪性肝炎）成人患者或纤维化高风险者，使用吡格列酮/GLP-1受体激动剂联合治疗。",
+      "claim_en": "Use combination pioglitazone/GLP-1 receptor agonist in adults with biopsy-proven MASH (metabolic dysfunction-associated steatohepatitis) or at higher risk of fibrosis.",
+      "population": "adults",
+      "tags": [
+        "ADA",
+        "MASH",
+        "pioglitazone",
+        "GLP-1",
+        "liver",
+        "updates"
+      ],
+      "synonyms": [
+        "NASH",
+        "nonalcoholic steatohepatitis",
+        "MASLD",
+        "fatty liver",
+        "脂肪性肝炎"
+      ],
+      "source": {
+        "page": 2,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-screening-age",
+      "title": "Universal screening starting age 35",
+      "claim_zh": "所有成年人应从35岁开始筛查糖尿病。",
+      "claim_en": "All adults should be screened for diabetes starting at age 35.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "screening",
+        "updates"
+      ],
+      "synonyms": [
+        "diabetes screening age",
+        "universal screening threshold"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-screening-overweight-risk",
+      "title": "Screening for overweight/obese with risk factors",
+      "claim_zh": "所有超重/肥胖成人（BMI > 25 kg/m²）伴有危险因素（家族史、高风险种族、ASCVD、高血压、高脂血症、PCOS、缺乏运动）应进行筛查。",
+      "claim_en": "All overweight/obese adults (BMI > 25 kg/m²) with risk factors (family history, high-risk race, ASCVD, HTN, HLD, PCOS, inactivity) should be screened.",
+      "population": "overweight/obese adults",
+      "tags": [
+        "ADA",
+        "screening",
+        "risk factors"
+      ],
+      "synonyms": [
+        "risk-based screening",
+        "BMI threshold screening"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-screening-normal-rescreen",
+      "title": "Rescreening interval when normal results",
+      "claim_zh": "若筛查结果正常，每3年重新筛查。",
+      "claim_en": "If screening results are normal, rescreen every 3 years.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "screening",
+        "updates"
+      ],
+      "synonyms": [
+        "rescreen interval",
+        "screening frequency normal"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-screening-predm-annual",
+      "title": "Annual retesting for pre-diabetes range",
+      "claim_zh": "若处于糖尿病前期水平（A1C 5.7–6.4%），每年复查。",
+      "claim_en": "If pre-diabetes level (A1C 5.7–6.4%), re-test yearly.",
+      "population": "pre-diabetes",
+      "tags": [
+        "ADA",
+        "screening",
+        "pre-diabetes",
+        "A1C"
+      ],
+      "synonyms": [
+        "pre-DM screening",
+        "A1C 5.7-6.4% follow-up"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-screening-youth",
+      "title": "Youth screening criteria",
+      "claim_zh": "筛查所有超重且伴有1个或以上额外危险因素的青少年。",
+      "claim_en": "Screen all overweight youth with 1 or more additional risk factors for diabetes.",
+      "population": "youth",
+      "tags": [
+        "ADA",
+        "screening",
+        "youth",
+        "pediatric"
+      ],
+      "synonyms": [
+        "pediatric diabetes screening",
+        "youth risk screening"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-screening-medications",
+      "title": "Screening for medication-induced hyperglycemia risk",
+      "claim_zh": "对使用具有高血糖风险药物的人群进行筛查：糖皮质激素、他汀类、噻嗪类、HIV药物（基线及每3-6个月）、第二代抗精神病药（基线及12-16周后）。",
+      "claim_en": "Screen people on medications with hyperglycemia risks: glucocorticoids, statins, thiazides, HIV meds (baseline and every 3–6 months), 2nd generation anti-psychotics (baseline and 12–16 weeks later).",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "screening",
+        "medications",
+        "hyperglycemia"
+      ],
+      "synonyms": [
+        "drug-induced hyperglycemia screening",
+        "glucocorticoid screening",
+        "antipsychotic glucose monitoring"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-sleep-new",
+      "title": "NEW: Sleep as central component of diabetes prevention",
+      "claim_zh": "睡眠被强调为糖尿病预防管理的核心组成部分（与饮食模式和体力活动同等重要）。",
+      "claim_en": "Sleep is highlighted as a central component (equal to eating patterns and physical activity) for diabetes prevention management.",
+      "population": "pre-diabetes",
+      "tags": [
+        "ADA",
+        "prevention",
+        "sleep",
+        "NEW"
+      ],
+      "synonyms": [
+        "sleep and diabetes prevention",
+        "sleep lifestyle intervention"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-prevention-weight-loss",
+      "title": "Weight loss goal for pre-diabetes prevention",
+      "claim_zh": "护理目标包括减轻体重3–7%或防止体重增加，并关注心血管风险。",
+      "claim_en": "Care goals include 3–7% weight loss or prevention of weight gain with attention to cardiovascular risk.",
+      "population": "overweight/obese adults",
+      "tags": [
+        "ADA",
+        "prevention",
+        "weight loss",
+        "lifestyle"
+      ],
+      "synonyms": [
+        "weight loss target",
+        "pre-diabetes weight management"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-intensive-goals",
+      "title": "Intensive lifestyle goals for high-risk pre-diabetes",
+      "claim_zh": "若BMI > 35 kg/m²、A1C > 6%或有GDM病史，推荐强化目标。",
+      "claim_en": "INTENSIVE goals are recommended if BMI > 35 kg/m², A1C > 6%, or history of GDM.",
+      "population": "high-risk pre-diabetes",
+      "tags": [
+        "ADA",
+        "prevention",
+        "intensive",
+        "GDM",
+        "A1C"
+      ],
+      "synonyms": [
+        "intensive lifestyle intervention criteria",
+        "high-risk pre-DM goals"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-vitamind-new",
+      "title": "NEW: Vitamin D for Type 2 DM prevention",
+      "claim_zh": "讨论使用维生素D预防2型糖尿病（由美国内分泌学会倡导）。剂量尚不明确，需更多研究。",
+      "claim_en": "Discussion on the use of Vitamin D to prevent Type 2 DM (advocated by the US Endocrine Society). Dose is not clear and more research is needed.",
+      "population": "pre-diabetes",
+      "tags": [
+        "ADA",
+        "prevention",
+        "vitamin D",
+        "NEW"
+      ],
+      "synonyms": [
+        "vitamin D diabetes prevention",
+        "vitamin D T2DM"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-metformin-prevention",
+      "title": "Metformin for pre-diabetes drug therapy",
+      "claim_zh": "考虑对25-59岁、BMI ≥ 35 kg/m²、空腹血糖 > 110 mg/dL、A1C > 6%或有GDM病史的女性使用二甲双胍。",
+      "claim_en": "Consider Metformin in patients 25–59 years with BMI ≥ 35 kg/m², fasting plasma glucose > 110 mg/dL, A1C > 6%, or women with history of GDM.",
+      "population": "pre-diabetes",
+      "tags": [
+        "ADA",
+        "prevention",
+        "metformin",
+        "drug therapy"
+      ],
+      "synonyms": [
+        "metformin pre-diabetes",
+        "metformin GDM"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-pioglitazone-stroke",
+      "title": "Pioglitazone for stroke/MI risk reduction in pre-diabetes",
+      "claim_zh": "推荐吡格列酮降低有卒中病史且处于糖尿病前期人群的卒中/心梗风险，需权衡体重增加、水肿和骨折风险（使用较低剂量）。",
+      "claim_en": "Recommend Pioglitazone to reduce risk of stroke/MI in people with stroke history and pre-diabetes, balancing the risk of weight gain, edema, and fractures (use lower dose).",
+      "population": "pre-diabetes with stroke history",
+      "tags": [
+        "ADA",
+        "prevention",
+        "pioglitazone",
+        "stroke",
+        "ASCVD"
+      ],
+      "synonyms": [
+        "pioglitazone pre-DM",
+        "pioglitazone cerebrovascular protection"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-immunization-update",
+      "title": "Immunization updates for diabetes patients",
+      "claim_zh": "表4.3包括考虑接种：COVID-19、乙型肝炎、流感、肺炎球菌、RSV、Tdap、带状疱疹疫苗。",
+      "claim_en": "Table 4.3 includes consideration for: COVID-19, Hepatitis B, Influenza, Pneumococcal, RSV, Tdap, Zoster.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "immunization",
+        "updates",
+        "comorbidities"
+      ],
+      "synonyms": [
+        "diabetes vaccination schedule",
+        "immunization Table 4.3"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-bmd-testing",
+      "title": "Bone Mineral Density testing recommendations",
+      "claim_zh": "初始骨密度检测：所有老年人（≥65岁）及有多个危险因素的较年轻人群。每2-3年复查。",
+      "claim_en": "Initial BMD testing: all older adults (≥65 years) and younger persons with multiple risk factors. Repeat every 2–3 years.",
+      "population": "older adults",
+      "tags": [
+        "ADA",
+        "bone health",
+        "BMD",
+        "comorbidities"
+      ],
+      "synonyms": [
+        "DXA screening diabetes",
+        "bone density testing"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-calcium-intake",
+      "title": "Calcium and Vitamin D intake for bone health",
+      "claim_zh": "推荐钙摄入量1000-1200 mg/天，同时补充维生素D，用于有骨病风险的糖尿病患者。",
+      "claim_en": "Recommended Calcium intake 1000–1200 mg/day with Vitamin D for diabetes patients at bone risk.",
+      "population": "diabetes with bone risk",
+      "tags": [
+        "ADA",
+        "bone health",
+        "calcium",
+        "vitamin D"
+      ],
+      "synonyms": [
+        "calcium supplementation diabetes",
+        "bone health calcium dose"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-fracture-high-risk",
+      "title": "High fracture risk thresholds for antiresorptive therapy",
+      "claim_zh": "高骨折风险定义为：FRAX风险评估工具评分≥3%（髋部）或≥20%（骨质疏松性骨折）、骨密度T值≤2、或有骨折史（髋/骨盆、椎体、前臂）。",
+      "claim_en": "High fracture risk defined as: FRAX Risk Assessment Tool score ≥3% for hip or ≥20% for osteoporotic fracture, BMD T-score ≤ 2, or history of fracture (hip/pelvis, vertebral, forearm).",
+      "population": "older adults",
+      "tags": [
+        "ADA",
+        "bone health",
+        "fracture",
+        "FRAX",
+        "T-score"
+      ],
+      "synonyms": [
+        "FRAX threshold",
+        "osteoporosis treatment criteria"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-dental-care-new",
+      "title": "NEW: Annual dental exam for diabetes patients",
+      "claim_zh": "糖尿病患者每年至少进行一次牙科检查。",
+      "claim_en": "Dental exam at least once per year for diabetes patients.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "dental care",
+        "comorbidities",
+        "NEW"
+      ],
+      "synonyms": [
+        "dental screening diabetes",
+        "oral health diabetes"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-liver-masld-new",
+      "title": "NEW: NAFLD renamed to MASLD",
+      "claim_zh": "非酒精性脂肪肝病（NAFLD）现更名为代谢功能障碍相关脂肪性肝病（MASLD）。",
+      "claim_en": "Nonalcoholic fatty liver disease (NAFLD) is now renamed to metabolic dysfunction–associated steatotic liver disease (MASLD).",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "liver",
+        "MASLD",
+        "NAFLD",
+        "terminology",
+        "NEW"
+      ],
+      "synonyms": [
+        "NAFLD MASLD rename",
+        "fatty liver new terminology"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p3-ada2025-p03-liver-mash-new",
+      "title": "NEW: NASH renamed to MASH",
+      "claim_zh": "非酒精性脂肪性肝炎（NASH）现更名为代谢功能障碍相关脂肪性肝炎（MASH）。",
+      "claim_en": "Nonalcoholic steatohepatitis (NASH) is now renamed to metabolic dysfunction–associated steatohepatitis (MASH).",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "liver",
+        "MASH",
+        "NASH",
+        "terminology",
+        "NEW"
+      ],
+      "synonyms": [
+        "NASH MASH rename",
+        "steatohepatitis new terminology"
+      ],
+      "source": {
+        "page": 3,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-001",
+      "title": "Liver risk stratification with FIB-4 threshold",
+      "claim_zh": "使用纤维化-4指数(FIB-4)评估肝脏风险；FIB-4 > 1.3时转诊至消化科或肝病专家。",
+      "claim_en": "Use Fibrosis-4 Index (FIB-4) to assess liver risk; if FIB-4 > 1.3, refer to GI or hepatologist.",
+      "population": "adults with diabetes",
+      "tags": [
+        "ADA",
+        "MASLD",
+        "liver",
+        "screening",
+        "FIB-4",
+        "referral"
+      ],
+      "synonyms": [
+        "Fibrosis-4 Index",
+        "FIB-4 score",
+        "NAFLD fibrosis score",
+        "代谢相关脂肪性肝病"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-002",
+      "title": "MASLD treatment algorithm medications",
+      "claim_zh": "新增MASLD治疗算法：通过减重和有循证证据的药物管理，包括GLP-1受体激动剂、双重GLP/GIP激动剂和吡格列酮。",
+      "claim_en": "NEW MASLD Treatment Algorithm: manage with weight loss and medications with evidence including GLP1-RA, dual GLP/GIP agonists, and Pioglitazone.",
+      "population": "adults with MASLD and diabetes",
+      "tags": [
+        "ADA",
+        "MASLD",
+        "GLP1-RA",
+        "GLP/GIP",
+        "pioglitazone",
+        "treatment",
+        "NEW"
+      ],
+      "synonyms": [
+        "GLP-1受体激动剂",
+        "双重肠促胰素",
+        "吡格列酮",
+        "代谢相关脂肪性肝病"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-003",
+      "title": "Resmetirom for MASLD with liver fibrosis",
+      "claim_zh": "新增：甲状腺激素受体β激动剂(Resmetirom)用于合并糖尿病前期、2型糖尿病和中度或重度肝纤维化的MASLD成人患者。该药物需由专科医生剂量调整和监测。",
+      "claim_en": "NEW: treatment with a thyroid hormone receptor beta agonist (resmetirom) in adults with prediabetes, type 2 diabetes and MASLD with moderate or advanced liver fibrosis. Medication to be dosed and monitored by specialty.",
+      "population": "adults with prediabetes or T2DM and MASLD with moderate/advanced fibrosis",
+      "tags": [
+        "ADA",
+        "MASLD",
+        "resmetirom",
+        "liver fibrosis",
+        "NEW",
+        "specialty medication"
+      ],
+      "synonyms": [
+        "甲状腺激素受体β激动剂",
+        "肝纤维化"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-004",
+      "title": "DSMES at 5 critical times",
+      "claim_zh": "2024更新：所有糖尿病患者应在至少5个关键时间点接受糖尿病自我管理教育与支持(DSMES)：诊断时、每年、未达标/出现并发症时、生活和照护过渡期。",
+      "claim_en": "UPDATED 2024: DSMES should be provided to ALL persons with diabetes at least 5 critical times: at diagnosis, annually, when not meeting targets/complication factors arise, during transitions of life and care.",
+      "population": "all persons with diabetes",
+      "tags": [
+        "ADA",
+        "DSMES",
+        "education",
+        "self-management",
+        "UPDATED"
+      ],
+      "synonyms": [
+        "糖尿病自我管理教育与支持",
+        "患者教育"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-005",
+      "title": "Weight loss goal for glycemic improvement",
+      "claim_zh": "减重目标：基于营养、体力活动和行为治疗，减重3-7%。",
+      "claim_en": "Weight loss goal: 3-7% based on nutrition, physical activity, and behavior therapy.",
+      "population": "adults with diabetes or prediabetes",
+      "tags": [
+        "ADA",
+        "weight loss",
+        "lifestyle",
+        "nutrition"
+      ],
+      "synonyms": [
+        "体重管理",
+        "减重目标"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-006",
+      "title": "Weight loss up to 15% for diabetes remission",
+      "claim_zh": "减重达15%可能支持糖尿病缓解(REMISSION)。",
+      "claim_en": "Up to 15% weight loss may support possible REMISSION of diabetes.",
+      "population": "adults with type 2 diabetes",
+      "tags": [
+        "ADA",
+        "weight loss",
+        "remission",
+        "T2DM"
+      ],
+      "synonyms": [
+        "糖尿病缓解",
+        "2型糖尿病逆转",
+        "体重减轻"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-007",
+      "title": "Sarcopenia prevention during weight loss",
+      "claim_zh": "新增建议：指导正在减重的患者加入肌肉强化运动以预防肌少症。",
+      "claim_en": "NEW recommendation: counsel patients who are losing weight to include muscle-strengthening exercise in order to avoid sarcopenia.",
+      "population": "adults with diabetes undergoing weight loss",
+      "tags": [
+        "ADA",
+        "weight loss",
+        "sarcopenia",
+        "exercise",
+        "NEW"
+      ],
+      "synonyms": [
+        "肌少症",
+        "肌肉强化运动",
+        "抗阻训练"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-008",
+      "title": "Non-nutritive sweeteners short-term use only",
+      "claim_zh": "非营养性甜味剂：有条件推荐——仍优于含糖产品，但仅建议短期适度使用。",
+      "claim_en": "Non-nutritive sweeteners: conditional recommendation — still recommended over sugar-sweetened products, but in moderation for SHORT TERM only.",
+      "population": "persons with diabetes",
+      "tags": [
+        "ADA",
+        "nutrition",
+        "sweeteners",
+        "diet",
+        "conditional"
+      ],
+      "synonyms": [
+        "人工甜味剂",
+        "代糖",
+        "无糖饮料"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-009",
+      "title": "Water preferred over sweetened beverages",
+      "claim_zh": "水优于营养性和非营养性甜味饮料(包括无糖/DIET饮料)。",
+      "claim_en": "WATER is preferred over nutritive and non-nutritive sweetened beverages (DIET).",
+      "population": "persons with diabetes",
+      "tags": [
+        "ADA",
+        "nutrition",
+        "hydration",
+        "beverages",
+        "diet"
+      ],
+      "synonyms": [
+        "饮水建议",
+        "无糖饮料"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-010",
+      "title": "Religious fasting risk stratification before fasting",
+      "claim_zh": "新增：宗教斋戒前建议进行风险分层，依据糖尿病与斋戒国际联盟指南。",
+      "claim_en": "NEW: Risk Stratification is recommended BEFORE religious fasting, per guidance from Diabetes and Ramadan International Alliance.",
+      "population": "persons with diabetes who observe religious fasting",
+      "tags": [
+        "ADA",
+        "fasting",
+        "Ramadan",
+        "risk stratification",
+        "NEW"
+      ],
+      "synonyms": [
+        "斋戒",
+        "间歇性禁食",
+        "宗教禁食"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-011",
+      "title": "Avoid cannabis in diabetes",
+      "claim_zh": "新增：建议避免使用大麻，因其有大麻剧吐综合征风险及可能诱发糖尿病酮症酸中毒(DKA)。",
+      "claim_en": "NEW: recommendation to AVOID cannabis due to risk of cannabis hyperemesis syndrome and potential diabetic ketoacidosis (DKA).",
+      "population": "persons with diabetes",
+      "tags": [
+        "ADA",
+        "cannabis",
+        "DKA",
+        "cannabis hyperemesis syndrome",
+        "smoking cessation",
+        "NEW"
+      ],
+      "synonyms": [
+        "大麻",
+        "大麻剧吐综合征",
+        "糖尿病酮症酸中毒"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-013",
+      "title": "DKA and HHS outpatient prevention subsection",
+      "claim_zh": "新增关于DKA和HHS流行病学、诊断标准及门诊预防的子章节，包含危险因素和临床表现的新表格。",
+      "claim_en": "NEW subsection on epidemiology, diagnostic criteria, and outpatient prevention of DKA and HHS, including new tables on risk factors and clinical presentation.",
+      "population": "persons with diabetes",
+      "tags": [
+        "ADA",
+        "DKA",
+        "HHS",
+        "prevention",
+        "NEW"
+      ],
+      "synonyms": [
+        "糖尿病酮症酸中毒",
+        "高渗性高血糖状态",
+        "酮症酸中毒预防"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p4-ada2025-p04-014",
+      "title": "Deintensifying medications when harms outweigh benefits",
+      "claim_zh": "新增A1C个体化目标图：支持在治疗危害(低血糖)可能大于获益时降级药物治疗，尤其适用于预期寿命缩短或合并症较多的患者。",
+      "claim_en": "NEW graphic for individualization of A1C goals: supports DEINTENSIFYING medications when the harms of treatment (hypoglycemia) may be greater than the benefits, particularly in patients with decreased life expectancy or co-morbidities.",
+      "population": "older adults with diabetes, patients with comorbidities",
+      "tags": [
+        "ADA",
+        "A1C",
+        "deintensification",
+        "hypoglycemia",
+        "individualization",
+        "NEW"
+      ],
+      "synonyms": [
+        "药物降级",
+        "去强化治疗",
+        "A1C目标个体化",
+        "低血糖风险"
+      ],
+      "source": {
+        "page": 4,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-001",
+      "title": "A1C <6.5% for healthy adults with low treatment burden",
+      "claim_zh": "A1C目标<6.5%适用于健康状况良好、功能正常、治疗风险和负担低的成人。",
+      "claim_en": "A1C target <6.5% is recommended for adults with good health and function, low treatment risks and burdens.",
+      "population": "adults with good health and low treatment burden",
+      "tags": [
+        "ADA",
+        "A1C",
+        "glycemic-targets",
+        "updates"
+      ],
+      "synonyms": [
+        "A1C goal",
+        "HbA1c target",
+        "glycemic control"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-002",
+      "title": "A1C <7.0% for most adults",
+      "claim_zh": "A1C目标<7.0%适用于大多数成人糖尿病患者。",
+      "claim_en": "A1C target <7.0% is recommended for most adults with diabetes.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "A1C",
+        "glycemic-targets",
+        "updates"
+      ],
+      "synonyms": [
+        "A1C goal",
+        "HbA1c target",
+        "glycemic control"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-003",
+      "title": "A1C <7.5% for healthy older adults",
+      "claim_zh": "A1C目标<7.5%适用于健康的老年人。",
+      "claim_en": "A1C target <7.5% is recommended for healthy older adults.",
+      "population": "healthy older adults",
+      "tags": [
+        "ADA",
+        "A1C",
+        "glycemic-targets",
+        "older-adults",
+        "updates"
+      ],
+      "synonyms": [
+        "A1C goal",
+        "HbA1c target",
+        "glycemic control"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-004",
+      "title": "A1C <8.0% for older adults with complex/intermediate health",
+      "claim_zh": "A1C目标<8.0%适用于健康状况复杂或中等的老年人。",
+      "claim_en": "A1C target <8.0% is recommended for older adults with complex or intermediate health.",
+      "population": "older adults with complex/intermediate health",
+      "tags": [
+        "ADA",
+        "A1C",
+        "glycemic-targets",
+        "older-adults",
+        "updates"
+      ],
+      "synonyms": [
+        "A1C goal",
+        "HbA1c target",
+        "glycemic control"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-005",
+      "title": "No A1C goal for very complex/poor health or limited life expectancy",
+      "claim_zh": "对于健康状况极差/非常复杂的老年人或预期寿命有限的成人，不设定A1C目标。",
+      "claim_en": "No A1C goal is set for older adults with very complex/poor health or any adults with limited life expectancy.",
+      "population": "older adults with very complex/poor health; adults with limited life expectancy",
+      "tags": [
+        "ADA",
+        "A1C",
+        "glycemic-targets",
+        "older-adults",
+        "life-expectancy",
+        "updates"
+      ],
+      "synonyms": [
+        "A1C goal",
+        "HbA1c target",
+        "glycemic control"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-007",
+      "title": "Weight monitoring every 3 months during active weight loss",
+      "claim_zh": "在积极减重期间，至少每3个月监测一次人体测量指标。",
+      "claim_en": "Monitor anthropometric measurements at least every 3 months during active weight loss.",
+      "population": "adults with type 2 diabetes and obesity",
+      "tags": [
+        "ADA",
+        "obesity",
+        "weight-management",
+        "T2D",
+        "updates"
+      ],
+      "synonyms": [
+        "weight monitoring frequency",
+        "anthropometric monitoring"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-008",
+      "title": ">90% of persons with T2D are obese",
+      "claim_zh": "超过90%的2型糖尿病患者合并肥胖。",
+      "claim_en": "More than 90% of persons with type 2 diabetes are obese.",
+      "population": "type 2 diabetes",
+      "tags": [
+        "ADA",
+        "obesity",
+        "T2D",
+        "epidemiology",
+        "updates"
+      ],
+      "synonyms": [
+        "T2D obesity prevalence"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-010",
+      "title": "Decreased oral contraceptive efficacy with GLP-1 RA or GIP drugs",
+      "claim_zh": "使用GLP-1受体激动剂或GIP类药物时，口服避孕药的疗效降低。",
+      "claim_en": "Decreased efficacy of oral contraception when using GLP-1 receptor agonist or GIP drugs.",
+      "population": "persons of childbearing potential using GLP-1 RA or GIP",
+      "tags": [
+        "ADA",
+        "GLP-1",
+        "GIP",
+        "contraception",
+        "drug-interaction",
+        "updates"
+      ],
+      "synonyms": [
+        "oral contraceptive interaction",
+        "GLP-1 drug interaction"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p5-ada2025-p05-011",
+      "title": "Metformin preferred for chemo-induced insulin resistance",
+      "claim_zh": "对于化疗引起的糖尿病（特定化疗药物增加胰岛素抵抗），二甲双胍是首选治疗，其次是吡格列酮或SGLT2抑制剂。",
+      "claim_en": "For persons with diabetes secondary to chemotherapy where specific chemo agents increase insulin resistance, metformin is the treatment of choice, followed by pioglitazone or SGLT2 inhibitor.",
+      "population": "persons with diabetes secondary to chemotherapy",
+      "tags": [
+        "ADA",
+        "metformin",
+        "pioglitazone",
+        "SGLT2i",
+        "chemotherapy",
+        "insulin-resistance",
+        "updates"
+      ],
+      "synonyms": [
+        "chemotherapy-induced diabetes treatment"
+      ],
+      "source": {
+        "page": 5,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-02",
+      "title": "GLP-1RA recommended for HFpEF with obesity irrespective of A1C",
+      "claim_zh": "对于合并症状性射血分数保留型心力衰竭(HFpEF)且肥胖的糖尿病患者，无论A1C水平如何，推荐使用GLP-1RA。",
+      "claim_en": "GLP-1RA recommended for people with diabetes and symptomatic heart failure with preserved ejection fraction (HFpEF) and obesity, irrespective of A1C.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "GLP-1RA",
+        "heart-failure",
+        "HFpEF",
+        "obesity",
+        "updates"
+      ],
+      "synonyms": [
+        "HFpEF",
+        "射血分数保留型心衰",
+        "preserved EF"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-03",
+      "title": "AVOID DPP-4 inhibitors with GLP-1RA",
+      "claim_zh": "避免将DPP-4抑制剂与GLP-1RA联用（无额外获益）。",
+      "claim_en": "AVOID using DPP-4 inhibitors with GLP-1RA (lack of benefit).",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "DPP-4i",
+        "GLP-1RA",
+        "drug-interaction",
+        "updates"
+      ],
+      "synonyms": [
+        "DPP4 inhibitors",
+        "DPP-4抑制剂"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-05",
+      "title": "ASCVD/high risk: GLP-1RA or SGLT2i independent of A1C",
+      "claim_zh": "对于ASCVD或心血管高风险患者（无论A1C水平）：使用GLP-1RA（度拉糖肽/利拉鲁肽/司美格鲁肽）或SGLT2抑制剂（达格列净/恩格列净/卡格列净），或联合使用。",
+      "claim_en": "For ASCVD or high cardiovascular risk independent of A1C: GLP-1RAs (dulaglutide/liraglutide/semaglutide) or SGLT2 inhibitors (canagliflozin/dapagliflozin/empagliflozin), or combination.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "ASCVD",
+        "GLP-1RA",
+        "SGLT2i",
+        "cardiovascular",
+        "updates"
+      ],
+      "synonyms": [
+        "atherosclerotic cardiovascular disease",
+        "动脉粥样硬化性心血管疾病"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-06",
+      "title": "Heart failure: SGLT2i first-line; GLP-1RA (sema) for symptomatic HFpEF with obesity",
+      "claim_zh": "对于心力衰竭患者：首选SGLT2抑制剂（卡格列净/达格列净/恩格列净/艾托格列净）。若为症状性HFpEF且肥胖，加用GLP-1RA（司美格鲁肽）。",
+      "claim_en": "For heart failure: SGLT2 inhibitors (canagliflozin/dapagliflozin/empagliflozin/ertugliflozin). GLP-1RA (semaglutide) if symptomatic and HFpEF with obesity.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "heart-failure",
+        "SGLT2i",
+        "GLP-1RA",
+        "semaglutide",
+        "HFpEF",
+        "obesity",
+        "updates"
+      ],
+      "synonyms": [
+        "HF",
+        "心力衰竭"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-07",
+      "title": "CKD eGFR 20-60: GLP-1RA or SGLT2i (or combo) as first-line",
+      "claim_zh": "对于CKD患者（eGFR 20–60 ml/min/1.73m²和/或白蛋白尿ACR>30，已使用最大耐受剂量ACEi或ARB）：首选GLP-1RA（司美格鲁肽>利拉鲁肽>度拉糖肽）或SGLT2抑制剂（eGFR>20时可用），或联合使用。",
+      "claim_en": "For CKD with eGFR 20–60 ml/min/1.73m² and/or albuminuria (ACR > 30) on max tolerated ACEi or ARB: EITHER GLP-1RA (semaglutide > liraglutide > dulaglutide) OR SGLT2 inhibitor (canagliflozin/dapagliflozin/empagliflozin) with eGFR > 20, or combination.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "eGFR",
+        "albuminuria",
+        "GLP-1RA",
+        "SGLT2i",
+        "updates"
+      ],
+      "synonyms": [
+        "chronic kidney disease",
+        "慢性肾脏病"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-08",
+      "title": "MASLD/MASH: GLP-1RA or GIP/GLP-1RA (esp if obese); pioglitazone (NOT if obese)",
+      "claim_zh": "对于MASLD或MASH患者：使用GLP-1RA或GIP/GLP-1RA（尤其合并肥胖时）。吡格列酮（肥胖者不适用）。或GLP-1RA/吡格列酮联合。",
+      "claim_en": "For MASLD or MASH: GLP-1RA or GIP/GLP-1RA (especially if obese). Pioglitazone (NOT if obese). Or combination of GLP-1RA/pioglitazone.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "MASLD",
+        "MASH",
+        "liver",
+        "GLP-1RA",
+        "pioglitazone",
+        "obesity",
+        "updates"
+      ],
+      "synonyms": [
+        "NAFLD",
+        "代谢相关脂肪性肝病",
+        "代谢相关脂肪性肝炎"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-09",
+      "title": "SGLT2i for CKD progression; reduced glycemic benefit at eGFR < 45",
+      "claim_zh": "推荐使用SGLT2抑制剂预防CKD进展，但在eGFR < 45 ml/min/1.73m²时降糖获益减少。",
+      "claim_en": "SGLT2 inhibitor is recommended to prevent CKD progression, although glycemic benefit is reduced at eGFR < 45 ml/min/1.73m².",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "SGLT2i",
+        "eGFR",
+        "updates"
+      ],
+      "synonyms": [
+        "SGLT2 inhibitor",
+        "SGLT2抑制剂"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-10",
+      "title": "CKD eGFR < 30: GLP-1RA preferred",
+      "claim_zh": "若eGFR < 30 ml/min/1.73m²，优先选择GLP-1RA。",
+      "claim_en": "If eGFR < 30 ml/min/1.73m², GLP-1RA is preferred.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "GLP-1RA",
+        "eGFR",
+        "updates"
+      ],
+      "synonyms": [
+        "severe CKD",
+        "重度CKD"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-11",
+      "title": "GLP-1RA/GLP/GIP preferred over insulin when no insulin deficiency",
+      "claim_zh": "在无胰岛素缺乏证据时，GLP-1RA或GLP/GIP双激动剂优先于胰岛素。",
+      "claim_en": "GLP-1RA or GLP/GIP dual agonist is PREFERRED to insulin when there is NO evidence of insulin deficiency.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "GLP-1RA",
+        "insulin",
+        "treatment-selection",
+        "updates"
+      ],
+      "synonyms": [
+        "GLP/GIP dual agonist",
+        "tirzepatide"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-12",
+      "title": "Insulin indicated for A1C > 10% or symptomatic hyperglycemia",
+      "claim_zh": "当A1C > 10%或出现高血糖症状（多尿/多饮、体重减轻、高甘油三酯血症、酮症）时推荐使用胰岛素。",
+      "claim_en": "INSULIN is recommended for A1C > 10% or symptomatic hyperglycemia (polyuria/polydipsia, weight loss, hypertriglyceridemia, ketosis).",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "insulin",
+        "A1C",
+        "hyperglycemia",
+        "updates"
+      ],
+      "synonyms": [
+        "symptomatic diabetes",
+        "症状性高血糖"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-13",
+      "title": "If insulin used, combine with GLP-1RA or GLP/GIP",
+      "claim_zh": "若使用胰岛素，推荐与GLP-1RA或GLP/GIP联合使用。",
+      "claim_en": "If insulin IS used, combination with GLP-1RA or GLP/GIP is recommended.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "insulin",
+        "GLP-1RA",
+        "combination-therapy",
+        "updates"
+      ],
+      "synonyms": [
+        "insulin combination",
+        "胰岛素联合治疗"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-14",
+      "title": "Switching basal insulins: unit-to-unit, cut 10-20% if high hypo risk",
+      "claim_zh": "基础胰岛素换药时：通常按等单位转换。对于血糖管理严格或低血糖高风险者，换药时减量10-20%。",
+      "claim_en": "When switching between basal insulins: usually unit-to-unit. In persons on tight management or high risk of hypoglycemia, cut dose 10–20% when switching.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "basal-insulin",
+        "insulin-switching",
+        "hypoglycemia",
+        "updates"
+      ],
+      "synonyms": [
+        "basal insulin switch",
+        "基础胰岛素转换"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-15",
+      "title": "Over-basalization: >0.5 U/kg/day threshold REMOVED; assess by glucose patterns",
+      "claim_zh": "评估基础胰岛素过量时，已移除基础剂量 > 0.5 U/kg/day的标准。改为通过以下指标评估：睡前至晨起血糖显著差异、餐前至餐后差异(> 50 mg/dL)、低血糖发生及高血糖变异性。",
+      "claim_en": "When assessing for over-basalization, the basal dose > 0.5 U/kg/day threshold has been REMOVED. Instead, assess by: significant bedtime-to-morning differences, pre-to-postprandial differences (> 50 mg/dL), hypoglycemia occurrence, and high glycemic variability.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "basal-insulin",
+        "over-basalization",
+        "glucose-variability",
+        "hypoglycemia",
+        "50-mg-dL",
+        "updates"
+      ],
+      "synonyms": [
+        "过度基础化",
+        "basal insulin dose assessment"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-16",
+      "title": "Initiating insulin: CONTINUE metformin/SGLT2i/GLP-1RA; STOP SFU/meglitinides/DPP-4i",
+      "claim_zh": "启用胰岛素时：继续使用二甲双胍、SGLT2抑制剂和GLP-1RA。停用磺脲类、格列奈类和DPP-4抑制剂——这些药物对心血管/肾脏/体重/肝脏无额外获益，且增加低血糖和体重增加风险。",
+      "claim_en": "When initiating insulin: CONTINUE metformin, SGLT2 inhibitor, and GLP-1RA. STOP sulfonylureas, meglitinides, and DPP-4 inhibitors — they have no additional beneficial effects on CV/kidney/weight/liver and increase risk of hypoglycemia and weight gain.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "insulin",
+        "metformin",
+        "SGLT2i",
+        "GLP-1RA",
+        "SFU",
+        "meglitinides",
+        "DPP-4i",
+        "medication-adjustment",
+        "updates"
+      ],
+      "synonyms": [
+        "insulin initiation",
+        "胰岛素启用"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p6-ada2025-p06-17",
+      "title": "CV risk reduction: include glycemic, BP, lipid management plus CV/kidney-protective agents",
+      "claim_zh": "为减少心血管并发症，需包含全部4项：(a)血糖管理，(b)血压管理，(c)血脂管理，(d)使用具有心血管和肾脏获益的药物（GLP-1RA和SGLT2抑制剂）。经ACC和AHA认可。",
+      "claim_en": "To reduce cardiovascular complications, include all 4: (a) Glycemic Management, (b) BP Management, (c) Lipid Management, (d) Use agents with CV and kidney benefit (GLP-1RA and SGLT2 inhibitors). Endorsed by ACC and AHA.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "cardiovascular",
+        "BP",
+        "lipids",
+        "GLP-1RA",
+        "SGLT2i",
+        "ACC",
+        "AHA",
+        "updates"
+      ],
+      "synonyms": [
+        "CV risk reduction",
+        "心血管风险管理"
+      ],
+      "source": {
+        "page": 6,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-diagnosis",
+      "title": "Hypertension diagnosis criteria in diabetes",
+      "claim_zh": "血压升高定义为收缩压>130 mmHg或舒张压>80 mmHg，或单次血压读数>180/110 mmHg",
+      "claim_en": "Elevated BP is defined as >130 mmHg systolic OR >80 mmHg diastolic, or a single BP reading >180/110 mmHg",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "diagnosis",
+        "blood pressure"
+      ],
+      "synonyms": [
+        "elevated blood pressure",
+        "hypertension diagnosis"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-goal",
+      "title": "Blood pressure goal in diabetes",
+      "claim_zh": "血压目标为<130/80 mmHg（如果可以安全达到）",
+      "claim_en": "BP goal is <130/80 mmHg if it can be done safely",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "blood pressure goal"
+      ],
+      "synonyms": [
+        "BP target"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-lifestyle",
+      "title": "Lifestyle interventions for elevated BP",
+      "claim_zh": "如果血压>120/80 mmHg，启动生活方式干预",
+      "claim_en": "Initiate lifestyle interventions if BP >120/80 mmHg",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "lifestyle",
+        "blood pressure"
+      ],
+      "synonyms": [
+        "lifestyle modification"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-acei-arb-firstline",
+      "title": "ACE-I/ARB as first-line for CAD or albuminuria",
+      "claim_zh": "如果有冠心病或UACR>30 mg/g，ACE-I或ARB是一线选择",
+      "claim_en": "ACE-I or ARB is FIRST LINE if CAD or UACR >30 mg/g",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "ACE-I",
+        "ARB",
+        "albuminuria",
+        "CAD"
+      ],
+      "synonyms": [
+        "ACE inhibitor",
+        "angiotensin receptor blocker"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-acei-arb-monitor",
+      "title": "Monitor SCr and potassium with ACE-I/ARB",
+      "claim_zh": "使用ACE-I或ARB时需监测血清肌酐和钾",
+      "claim_en": "MONITOR SCr and Potassium when using ACE-I or ARB",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "ACE-I",
+        "ARB",
+        "monitoring"
+      ],
+      "synonyms": [
+        "serum creatinine",
+        "potassium monitoring"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-acei-arb-avoid",
+      "title": "Avoid ACE-I/ARB in pregnancy without contraception",
+      "claim_zh": "如果有生育能力且未避孕，避免使用ACE-I、ARB、MRA、脑啡肽酶抑制剂",
+      "claim_en": "AVOID ACE-I, ARB, MRAs, neprilysin inhibitors if childbearing potential without contraception",
+      "population": "female",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "pregnancy",
+        "contraception",
+        "ACE-I",
+        "ARB"
+      ],
+      "synonyms": [
+        "pregnancy contraindication"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-diuretics-monitor",
+      "title": "Monitor with diuretics initiation",
+      "claim_zh": "利尿剂：启动后7-14天监测血清肌酐/钾",
+      "claim_en": "DIURETICS: monitor Scr/potassium 7-14 days after initiation",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "diuretics",
+        "monitoring"
+      ],
+      "synonyms": [
+        "diuretic monitoring"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-mra-resistant",
+      "title": "MRA for resistant hypertension",
+      "claim_zh": "MRA（螺内酯/依普利酮）– 用于顽固性高血压（如果已在使用3种推荐药物类别，且排除继发性原因）",
+      "claim_en": "MRA (spironolactone/eplerenone) – use for resistant HTN (if already on 3 recommended classes, and secondary causes ruled out)",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "MRA",
+        "resistant hypertension"
+      ],
+      "synonyms": [
+        "mineralocorticoid receptor antagonist"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-beta-blocker",
+      "title": "Beta-blocker indications",
+      "claim_zh": "β受体阻滞剂 – 仅用于既往心肌梗死、活动性心绞痛或射血分数降低的心力衰竭",
+      "claim_en": "Beta-blockers – only if prior MI, active angina, or HFrEF",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "beta-blocker",
+        "MI",
+        "angina",
+        "HFrEF"
+      ],
+      "synonyms": [
+        "beta blocker"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-pregnancy",
+      "title": "BP threshold for pregnancy treatment",
+      "claim_zh": "妊娠期：如果血压>140/90 mmHg，启动治疗",
+      "claim_en": "In Pregnancy: Initiate therapy if BP >140/90 mmHg",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "pregnancy",
+        "blood pressure"
+      ],
+      "synonyms": [
+        "gestational hypertension"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-htn-pregnancy-drugs",
+      "title": "Safe antihypertensives in pregnancy",
+      "claim_zh": "妊娠期被认为有效且安全的药物：甲基多巴、拉贝洛尔、缓释硝苯地平",
+      "claim_en": "Drugs considered effective and safe in pregnancy: methyldopa, labetalol, nifedipine ER",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "hypertension",
+        "pregnancy",
+        "medication safety"
+      ],
+      "synonyms": [
+        "methyldopa",
+        "labetalol",
+        "nifedipine"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p7-ada2025-p7-statin-pregnancy",
+      "title": "Statin contraindication in pregnancy",
+      "claim_zh": "新 – 避免在有生育能力且未使用可靠避孕措施的人群中使用他汀类药物",
+      "claim_en": "NEW – avoid statins in childbearing potential persons not using reliable contraception",
+      "population": "female",
+      "tags": [
+        "ADA",
+        "statin",
+        "pregnancy",
+        "contraception",
+        "contraindication"
+      ],
+      "synonyms": [
+        "statin pregnancy risk"
+      ],
+      "source": {
+        "page": 7,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-001",
+      "title": "Hypertriglyceridemia Fasting Threshold",
+      "claim_zh": "高甘油三酯血症定义为空腹甘油三酯 >150 mg/dL 或非空腹甘油三酯 >175 mg/dL。",
+      "claim_en": "Hypertriglyceridemia is defined as fasting triglycerides >150 mg/dL or non-fasting triglycerides >175 mg/dL.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertriglyceridemia",
+        "lipid",
+        "thresholds",
+        "updates"
+      ],
+      "synonyms": [
+        "TG threshold",
+        "triglyceride cutoff"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-002",
+      "title": "Hypertriglyceridemia Pancreatitis Risk",
+      "claim_zh": "空腹甘油三酯 >500 mg/dL：评估继发性病因，考虑使用贝特类或鱼油以降低胰腺炎风险。",
+      "claim_en": "Fasting triglycerides >500 mg/dL: evaluate for secondary causes and consider fibrates or fish oil to reduce pancreatitis risk.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypertriglyceridemia",
+        "pancreatitis",
+        "fibrates",
+        "fish oil",
+        "updates"
+      ],
+      "synonyms": [
+        "very high TG",
+        "severe hypertriglyceridemia"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-003",
+      "title": "Icosapent Ethyl for ASCVD with Elevated TG",
+      "claim_zh": "对于合并ASCVD的患者，若甘油三酯为150-499 mg/dL，可考虑加用二十碳五烯酸乙酯（icosapent ethyl）。",
+      "claim_en": "In patients with ASCVD, addition of icosapent ethyl can be considered if triglycerides are 150–499 mg/dL.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "ASCVD",
+        "hypertriglyceridemia",
+        "icosapent ethyl",
+        "updates"
+      ],
+      "synonyms": [
+        "IPE",
+        "Vascepa",
+        "EPA ethyl ester"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-004",
+      "title": "Secondary ASCVD Prevention LDL Goal",
+      "claim_zh": "糖尿病ASCVD二级预防：使用生活方式干预+高强度他汀治疗，将LDL-C从基线降低≥50%，目标<55 mg/dL（<1.4 mmol/L）。未达标者加用依折麦布或PCSK9靶向治疗。",
+      "claim_en": "For secondary prevention of ASCVD in diabetes: use lifestyle and high-intensity statin therapy to reduce LDL cholesterol by ≥50% from baseline to a goal of <55 mg/dL (<1.4 mmol/L). If not met, add ezetimibe or PCSK9-directed therapy.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "ASCVD",
+        "LDL",
+        "statin",
+        "PCSK9",
+        "ezetimibe",
+        "updates"
+      ],
+      "synonyms": [
+        "LDL-C goal",
+        "statin therapy target"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-005",
+      "title": "Statin Intolerance Alternative Lipid-Lowering",
+      "claim_zh": "对他汀不耐受的糖尿病ASCVD患者，使用替代降脂治疗：PCSK9抑制剂单克隆抗体、贝培多酸（bempedoic acid）或PCSK9抑制剂siRNA英克司兰（inclisiran）。",
+      "claim_en": "For statin-intolerant patients with diabetes and ASCVD, use alternative lipid-lowering treatment: PCSK9 inhibitor monoclonal antibody, bempedoic acid, or PCSK9 inhibitor siRNA inclisiran.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "ASCVD",
+        "statin intolerance",
+        "PCSK9",
+        "bempedoic acid",
+        "inclisiran",
+        "updates"
+      ],
+      "synonyms": [
+        "statin alternatives",
+        "non-statin lipid lowering"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-006",
+      "title": "Heart Failure Prevention in Diabetes",
+      "claim_zh": "降低糖尿病患者有症状性心衰风险：对高血压、近期MI/ACS或LVEF≤40%者使用ACEi/ARB+β受体阻滞剂。高心血管风险或已确诊CVD者加用SGLT2抑制剂。合并CKD者使用SGLT2或SGLT1/2抑制剂+非奈利酮（finerenone）。",
+      "claim_en": "To reduce risk of symptomatic heart failure in diabetes: use ACEi or ARB and β-blocker for hypertension, recent MI/ACS, or reduced LVEF ≤40%. If high risk for or established CVD, add SGLT2 inhibitor. If CKD, use SGLT2 or SGLT1/2 inhibitor and finerenone.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "heart failure",
+        "SGLT2",
+        "finerenone",
+        "ACEi",
+        "ARB",
+        "beta blocker",
+        "updates"
+      ],
+      "synonyms": [
+        "HF prevention",
+        "symptomatic HF risk reduction"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-007",
+      "title": "SGLT2i DKA Education",
+      "claim_zh": "对所有使用SGLT2抑制剂并采用生酮饮食的患者，教育其糖尿病酮症酸中毒（DKA）的症状和管理方法，包括生病时停药。",
+      "claim_en": "Educate all patients on SGLT2 inhibitors and ketogenic diets about DKA signs/symptoms and management, including holding the medication when ill.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "SGLT2",
+        "DKA",
+        "ketogenic diet",
+        "patient education",
+        "updates"
+      ],
+      "synonyms": [
+        "DKA risk with SGLT2i",
+        "sick day rules SGLT2i"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-008",
+      "title": "DKD Diagnosis Criteria",
+      "claim_zh": "通过同时测量eGFR和白蛋白尿对糖尿病肾病（DKD）患者进行分类。需要3次尿白蛋白/肌酐比值（UACR）中2次异常才能确诊。",
+      "claim_en": "Categorize patients with diabetic kidney disease (DKD) by measuring BOTH eGFR and albuminuria. Require 2 of 3 urine albumin-to-creatinine ratio (UACR) results abnormal to confirm diagnosis.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "DKD",
+        "eGFR",
+        "UACR",
+        "diagnosis"
+      ],
+      "synonyms": [
+        "diabetic nephropathy diagnosis",
+        "DKD staging"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-009",
+      "title": "Albuminuria Reduction Goal in CKD",
+      "claim_zh": "对于CKD且尿白蛋白>300 mg/天的患者，目标是将白蛋白尿降低≥30%并减缓CKD进展。",
+      "claim_en": "In patients with CKD and >300 mg/day urine albumin, the goal is to reduce albuminuria by ≥30% and to slow progression of CKD.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "albuminuria",
+        "treatment goal"
+      ],
+      "synonyms": [
+        "albuminuria target",
+        "UACR reduction goal"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-010",
+      "title": "ACE-I/ARB for Albuminuria in CKD",
+      "claim_zh": "CKD合并白蛋白尿（UACR >30 mg/g）患者应使用ACE-I或ARB。血压正常、UACR正常且eGFR正常者无需使用ACEI或ARB。",
+      "claim_en": "ACE-I or ARB is indicated for CKD patients with albuminuria (UACR >30 mg/g). There is NO NEED for ACEI or ARB in people with normal blood pressure, normal UACR, and normal eGFR.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "ACEi",
+        "ARB",
+        "albuminuria",
+        "UACR"
+      ],
+      "synonyms": [
+        "RAAS blockade indication",
+        "ACE inhibitor for nephropathy"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-011",
+      "title": "Finerenone Addition for CKD with eGFR >25",
+      "claim_zh": "若已使用最大耐受剂量ACEI或ARB，且eGFR >25 ml/min，加用非奈利酮（finerenone，NSMRA）以改善心血管结局并减缓CKD进展。",
+      "claim_en": "If already on maximum tolerated ACEI or ARB, add finerenone (NSMRA) if eGFR >25 ml/min to improve cardiovascular outcomes and reduce progression of CKD.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "finerenone",
+        "NSMRA",
+        "eGFR",
+        "updates"
+      ],
+      "synonyms": [
+        "Kerendia",
+        "mineralocorticoid receptor antagonist",
+        "non-steroidal MRA"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-012",
+      "title": "Monitor SCr and Potassium on RAAS/NSMRA",
+      "claim_zh": "使用ACE-I、ARB或NSMRA（非奈利酮）的患者：监测血清肌酐（SCr）和血钾。",
+      "claim_en": "For patients on ACE-I or ARB or NSMRA (finerenone): monitor serum creatinine (SCr) and potassium.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "monitoring",
+        "potassium",
+        "creatinine",
+        "ACEi",
+        "ARB",
+        "finerenone",
+        "updates"
+      ],
+      "synonyms": [
+        "renal function monitoring",
+        "hyperkalemia monitoring"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-013",
+      "title": "SGLT2i for CKD with eGFR and UACR Criteria",
+      "claim_zh": "推荐eGFR <60 ml/min且UACR ≥200 mg/g（或任何白蛋白尿水平）的患者使用SGLT2抑制剂。eGFR <20 ml/min时禁止启用。",
+      "claim_en": "SGLT2 inhibitor is recommended for patients with eGFR <60 ml/min and UACR ≥200 mg/g (or any albuminuria level). Do NOT initiate if eGFR <20 ml/min.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "SGLT2",
+        "eGFR",
+        "UACR",
+        "updates"
+      ],
+      "synonyms": [
+        "SGLT2i for diabetic kidney disease",
+        "SGLT2i eGFR threshold"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-014",
+      "title": "GLP-1 RA for Glycemia in CKD",
+      "claim_zh": "CKD患者的血糖管理应使用经证实有效的GLP-1受体激动剂（目前为司美格鲁肽/semaglutide）。",
+      "claim_en": "A GLP-1 receptor agonist with demonstrated benefit (semaglutide at this time) should be used for glycemia management in patients with CKD.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "GLP-1",
+        "semaglutide",
+        "glycemia",
+        "updates"
+      ],
+      "synonyms": [
+        "GLP-1 RA for diabetic kidney disease",
+        "Ozempic for CKD"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p8-ada2025-p08-015",
+      "title": "Nephrology Referral Criteria in CKD",
+      "claim_zh": "以下情况转诊肾内科：尿白蛋白持续升高或eGFR持续下降，或eGFR <30 ml/min。",
+      "claim_en": "Refer to nephrology if there is continuous increase in urinary albumin or decrease in eGFR, or if eGFR <30 ml/min.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "nephrology",
+        "referral",
+        "eGFR"
+      ],
+      "synonyms": [
+        "kidney specialist referral",
+        "nephrology consult criteria"
+      ],
+      "source": {
+        "page": 8,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-001",
+      "title": "Retinopathy screening interval",
+      "claim_zh": "诊断时进行首次散瞳全面眼科检查，若无视网膜病变证据且血糖达标，则每1至2年复查一次。",
+      "claim_en": "Initial dilated and comprehensive eye exam at diagnosis, then every 1 to 2 years if no evidence of retinopathy and glycemia is within goal range.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "retinopathy",
+        "screening",
+        "eye exam",
+        "updates"
+      ],
+      "synonyms": [
+        "diabetic retinopathy screening",
+        "dilated eye exam frequency"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-002",
+      "title": "Autonomic neuropathy screening criteria",
+      "claim_zh": "建议增加自主神经病变筛查标准：询问直立性头晕、晕厥、早饱、勃起功能障碍、出汗模式改变、四肢皮肤干裂、静息心动过速；通过足部筛查评估外周动脉疾病。",
+      "claim_en": "Additional screening criteria for autonomic neuropathy recommended: ask about orthostatic dizziness, syncope, early satiety, ED, changes in sweating patterns, dry cracked skin in extremities, resting tachycardia; assess for PAD via foot screening.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "neuropathy",
+        "autonomic neuropathy",
+        "screening",
+        "PAD",
+        "updates"
+      ],
+      "synonyms": [
+        "autonomic neuropathy assessment",
+        "diabetic autonomic neuropathy screening"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-003",
+      "title": "Neuropathy pharmacotherapy — avoid opioids",
+      "claim_zh": "神经病变治疗药物包括加巴喷丁类、SNRIs、三环类抗抑郁药、钠通道阻滞剂。新建议：避免使用阿片类药物。",
+      "claim_en": "Neuropathy treatment medications include gabapentinoids, SNRIs, TCA, and sodium channel blockers. NEW recommendation: AVOID opioids.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "neuropathy",
+        "pain management",
+        "opioids",
+        "gabapentinoids",
+        "SNRI",
+        "updates"
+      ],
+      "synonyms": [
+        "diabetic neuropathy pharmacotherapy",
+        "neuropathic pain treatment"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-004",
+      "title": "Annual neuropathy foot assessment — inspect every visit if sensory loss",
+      "claim_zh": "每年进行远端对称性多发性神经病变评估：单丝试验、振动觉和血管评估。若存在任何感觉缺失，建议每次就诊时检查足部。",
+      "claim_en": "Annual distal symmetric polyneuropathy assessment with monofilament, vibration, and vascular assessment. If ANY sensory loss, recommend feet inspection at EVERY VISIT.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "neuropathy",
+        "foot care",
+        "monofilament",
+        "screening",
+        "updates"
+      ],
+      "synonyms": [
+        "diabetic foot assessment",
+        "peripheral neuropathy screening"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-005",
+      "title": "Smoking cessation for PAD prevention re-enforced",
+      "claim_zh": "再次强调：戒烟对预防外周动脉疾病的重要性。",
+      "claim_en": "Re-enforced: The importance of smoking cessation for PAD prevention.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "smoking cessation",
+        "PAD",
+        "foot care",
+        "updates"
+      ],
+      "synonyms": [
+        "tobacco cessation peripheral artery disease"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-006",
+      "title": "Older adults glycemic targets — A1C and TIR",
+      "claim_zh": "健康状况良好且合并症少的老年人可采用成人血糖目标：A1C < 7-7.5%，TIR ~ 70%。使用4Ms框架进行个体化管理。",
+      "claim_en": "Older adults who are otherwise healthy with few coexisting chronic conditions can have adult glycemic goals of A1C < 7-7.5% and TIR ~ 70%. Individualize using the 4Ms framework.",
+      "population": "older adults",
+      "tags": [
+        "ADA",
+        "older adults",
+        "A1C",
+        "TIR",
+        "glycemic targets",
+        "4Ms",
+        "updates"
+      ],
+      "synonyms": [
+        "geriatric diabetes glycemic goals",
+        "elderly A1C target"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-007",
+      "title": "4Ms framework for older adults with diabetes",
+      "claim_zh": "对老年糖尿病患者采用老年友好健康系统的4Ms框架：认知（Mentation）、用药（Medications）、活动能力（Mobility）、最重要的事（what Matters Most）。",
+      "claim_en": "Use the 4Ms Framework of Age-Friendly Health Systems for older adults with diabetes: Mentation, Medications, Mobility, and what Matters Most.",
+      "population": "older adults",
+      "tags": [
+        "ADA",
+        "older adults",
+        "4Ms",
+        "age-friendly",
+        "geriatrics",
+        "updates"
+      ],
+      "synonyms": [
+        "Age-Friendly Health Systems 4Ms",
+        "geriatric diabetes framework"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-008",
+      "title": "CKD + diabetes holistic drug therapy — SGLT2i and metformin first-line for T2D",
+      "claim_zh": "糖尿病合并CKD的一线药物治疗包括SGLT2抑制剂和二甲双胍（仅T2D）、RAS抑制剂、中高强度他汀。每3-6个月定期重新评估危险因素。",
+      "claim_en": "First-line drug therapy for people with diabetes and CKD includes SGLT2 inhibitor and metformin (T2D only), RAS inhibitor, and moderate- or high-intensity statin. Regular risk factor reassessment every 3-6 months.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "SGLT2i",
+        "metformin",
+        "RAS inhibitor",
+        "statin",
+        "T2D",
+        "updates"
+      ],
+      "synonyms": [
+        "diabetic kidney disease pharmacotherapy",
+        "CKD diabetes treatment algorithm"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p9-ada2025-p09-009",
+      "title": "CKD + diabetes risk-based escalation therapy",
+      "claim_zh": "糖尿病合并CKD的基于风险的附加治疗包括GLP-1 RA（仅T2D）、非甾体MRA（仅T2D）、二氢吡啶类CCB、抗血栓/抗血小板药物、依折麦布/PCSK9i。",
+      "claim_en": "Additional risk-based therapy for diabetes and CKD includes GLP-1 RA (T2D only), nonsteroidal MRA (T2D only), dihydropyridine CCB, antithrombotic/antiplatelet agents, and ezetimibe/PCSK9i.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "CKD",
+        "GLP-1 RA",
+        "MRA",
+        "CCB",
+        "PCSK9i",
+        "ASCVD",
+        "updates"
+      ],
+      "synonyms": [
+        "CKD diabetes escalation therapy",
+        "cardiorenal risk-based treatment"
+      ],
+      "source": {
+        "page": 9,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-001",
+      "title": "A1C goal for children and adolescents",
+      "claim_zh": "大多数儿童和青少年糖尿病患者的A1C目标 < 6.5%（新增）。",
+      "claim_en": "A1C goal < 6.5% for most children and adolescents with diabetes (NEW).",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "A1C",
+        "pediatric",
+        "targets"
+      ],
+      "synonyms": [
+        "HbA1c",
+        "glycated hemoglobin"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-002",
+      "title": "Deintensification A1C targets to reduce hypoglycemia",
+      "claim_zh": "减量目标：将A1C目标提高至 < 7.5% 或 < 8% 以降低低血糖风险。避免使用导致低血糖的药物，改用低风险药物。",
+      "claim_en": "Deintensification goals: increase A1C target to < 7.5% or < 8% to reduce risk of hypoglycemia. AVOID hypoglycemia-causing medications; switch to those with lower risks.",
+      "population": "general",
+      "tags": [
+        "ADA",
+        "hypoglycemia",
+        "deintensification",
+        "A1C"
+      ],
+      "synonyms": [
+        "de-escalation",
+        "HbA1c targets"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-003",
+      "title": "New-onset youth T2D with A1C < 8.5%: start metformin",
+      "claim_zh": "对于超重/肥胖青少年新发糖尿病疑诊T2D：若A1C < 8.5%（无酸中毒/酮症），开始二甲双胍治疗，滴定至2,000 mg/天。",
+      "claim_en": "For new-onset diabetes in youth with overweight/obesity and clinical suspicion of type 2 diabetes: if A1C < 8.5% (no acidosis/ketosis), start metformin titrating up to 2,000 mg/day.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "metformin",
+        "T2D",
+        "pediatric",
+        "flowchart"
+      ],
+      "synonyms": [
+        "Glucophage",
+        "Figure 14.1"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-004",
+      "title": "New-onset youth T2D with A1C >= 8.5%: metformin + basal insulin",
+      "claim_zh": "对于超重/肥胖青少年新发糖尿病，A1C >= 8.5%（无酸中毒/酮症）：开始二甲双胍（最高2,000 mg/天）联合长效胰岛素0.5单位/kg/天，每2-3天根据血糖监测结果滴定。",
+      "claim_en": "For new-onset diabetes in youth with overweight/obesity and A1C >= 8.5% (no acidosis/ketosis): start metformin (up to 2,000 mg/day) AND long-acting insulin at 0.5 units/kg/day, titrate every 2-3 days based on BGM.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "insulin",
+        "metformin",
+        "T2D",
+        "pediatric",
+        "flowchart"
+      ],
+      "synonyms": [
+        "basal insulin",
+        "Figure 14.1"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-005",
+      "title": "Pancreatic autoantibody testing to distinguish T1D vs T2D",
+      "claim_zh": "所有疑诊T2D的青少年新发糖尿病患者均应检测胰岛自身抗体。若阳性，按T1D治疗（多针注射或胰岛素泵），停用二甲双胍。",
+      "claim_en": "For all new-onset youth with suspected type 2 diabetes, test pancreatic autoantibodies. If positive, treat as type 1 diabetes (MDI or pump) and discontinue metformin.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "autoantibodies",
+        "T1D",
+        "T2D",
+        "differential diagnosis"
+      ],
+      "synonyms": [
+        "islet autoantibodies",
+        "GAD",
+        "IA-2",
+        "Figure 14.1"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-006",
+      "title": "Escalated total daily insulin can exceed 1 unit/kg/day",
+      "claim_zh": "若仅使用长效胰岛素且A1C目标未达标，可加用餐时胰岛素；每日总胰岛素量可超过1单位/kg/天。",
+      "claim_en": "If using long-acting insulin only and A1C goals are not met, add prandial insulin if needed; total daily insulin may exceed 1 unit/kg/day.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "insulin",
+        "escalation",
+        "T2D",
+        "pediatric"
+      ],
+      "synonyms": [
+        "total daily dose",
+        "TDD"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "figure"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-007",
+      "title": "LDL goal for youth with diabetes",
+      "claim_zh": "儿童和青少年糖尿病患者LDL目标 < 100 mg/dL。使用年龄批准的他汀类药物（> 6岁可用瑞舒伐他汀）联合生活方式干预。",
+      "claim_en": "For children and adolescents with diabetes, LDL goal is < 100 mg/dL. Use age-approved statins (rosuvastatin for patients > 6 years old) with lifestyle changes.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "lipids",
+        "LDL",
+        "statins",
+        "pediatric"
+      ],
+      "synonyms": [
+        "LDL-C",
+        "low-density lipoprotein",
+        "Crestor"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-008",
+      "title": "GLP-1 RAs for adolescents >= 12 years old",
+      "claim_zh": "GLP-1受体激动剂批准用于> 12岁青少年（联合二甲双胍）：利拉鲁肽（诺和力）、艾塞那肽（百达达）、司美格鲁肽（诺和盈）。",
+      "claim_en": "GLP-1 receptor agonists approved for adolescents > 12 years old (in addition to metformin): liraglutide (Victoza), exenatide (Bydureon), and semaglutide (Wegovy).",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "GLP-1 RA",
+        "liraglutide",
+        "exenatide",
+        "semaglutide",
+        "pediatric"
+      ],
+      "synonyms": [
+        "Victoza",
+        "Bydureon",
+        "Wegovy",
+        "GLP-1"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-009",
+      "title": "Dulaglutide approved for adolescents >= 10 years old",
+      "claim_zh": "度拉糖肽（度易达）批准用于> 10岁青少年，作为二甲双胍的联合用药。",
+      "claim_en": "Dulaglutide (Trulicity) is approved for adolescents > 10 years old as add-on to metformin.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "GLP-1 RA",
+        "dulaglutide",
+        "pediatric"
+      ],
+      "synonyms": [
+        "Trulicity",
+        "度易达"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-010",
+      "title": "SGLT2 inhibitor empagliflozin for adolescents >= 10 years",
+      "claim_zh": "SGLT2抑制剂恩格列净（欧唐静）可用于>= 10岁青少年。在强化胰岛素治疗前优先考虑非胰岛素药物（GLP-1 RA或SGLT2i）以减少体重增加。",
+      "claim_en": "SGLT2 inhibitor empagliflozin (Jardiance) is available for youth >= 10 years old. Consider non-insulin agents (GLP-1 RAs or SGLT2i) before intensifying insulin to minimize weight gain.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "SGLT2i",
+        "empagliflozin",
+        "Jardiance",
+        "pediatric"
+      ],
+      "synonyms": [
+        "Jardiance",
+        "欧唐静",
+        "恩格列净"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p10-ada2025-p10-012",
+      "title": "Avoid vaping and cannabis in youth with diabetes",
+      "claim_zh": "新增建议：儿童和青少年糖尿病患者应避免电子烟和大麻。",
+      "claim_en": "NEW recommendation: children and adolescents with diabetes should avoid vaping and avoid cannabis.",
+      "population": "children and adolescents",
+      "tags": [
+        "ADA",
+        "vaping",
+        "cannabis",
+        "lifestyle",
+        "pediatric"
+      ],
+      "synonyms": [
+        "e-cigarettes",
+        "marijuana",
+        "THC"
+      ],
+      "source": {
+        "page": 10,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "mixed"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-001",
+      "title": "Pregnancy glycemic goal: fasting glucose",
+      "claim_zh": "所有合并糖尿病的孕妇（1型、2型、GDM），空腹血糖目标 <95 mg/dL（范围 70–95 mg/dL）。",
+      "claim_en": "For all pregnant persons with diabetes (T1, T2, GDM), fasting glucose goal is <95 mg/dL (range 70–95 mg/dL).",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "glycemic-goal",
+        "fasting-glucose",
+        "updates"
+      ],
+      "synonyms": [
+        "fasting BG target pregnancy",
+        "孕期空腹血糖目标"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-002",
+      "title": "Pregnancy glycemic goal: 1-hour postprandial glucose",
+      "claim_zh": "所有合并糖尿病的孕妇，餐后1小时血糖目标 <140 mg/dL（范围 110–140 mg/dL）。",
+      "claim_en": "For all pregnant persons with diabetes, 1-hour postprandial glucose goal is <140 mg/dL (range 110–140 mg/dL).",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "glycemic-goal",
+        "postprandial-glucose",
+        "updates"
+      ],
+      "synonyms": [
+        "1h postprandial target pregnancy",
+        "孕期餐后1小时血糖目标"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-003",
+      "title": "Pregnancy glycemic goal: 2-hour postprandial glucose",
+      "claim_zh": "所有合并糖尿病的孕妇，餐后2小时血糖目标 <120 mg/dL（范围 100–120 mg/dL）。",
+      "claim_en": "For all pregnant persons with diabetes, 2-hour postprandial glucose goal is <120 mg/dL (range 100–120 mg/dL).",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "glycemic-goal",
+        "postprandial-glucose",
+        "updates"
+      ],
+      "synonyms": [
+        "2h postprandial target pregnancy",
+        "孕期餐后2小时血糖目标"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-004",
+      "title": "Pregnancy CGM target range",
+      "claim_zh": "使用CGM的糖尿病孕妇，目标葡萄糖范围为 63–140 mg/dL。",
+      "claim_en": "For pregnant persons with diabetes using CGM, the target glucose range is 63–140 mg/dL.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "CGM",
+        "target-range",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy CGM TIR range",
+        "孕期CGM目标范围"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-005",
+      "title": "Pregnancy CGM time below range",
+      "claim_zh": "使用CGM的糖尿病孕妇，低于范围时间目标 <4%，其中低于54 mg/dL的时间 <1%。",
+      "claim_en": "For pregnant persons with diabetes using CGM, time below range goal is <4%, with <1% below 54 mg/dL.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "CGM",
+        "TBR",
+        "hypoglycemia",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy CGM TBR",
+        "孕期CGM低于范围时间"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-006",
+      "title": "Pregnancy CGM time above range",
+      "claim_zh": "使用CGM的糖尿病孕妇，高于范围时间目标 <25%。",
+      "claim_en": "For pregnant persons with diabetes using CGM, time above range goal is <25%.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "CGM",
+        "TAR",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy CGM TAR",
+        "孕期CGM高于范围时间"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-007",
+      "title": "Pregnancy A1C goal",
+      "claim_zh": "糖尿病孕妇A1C目标 <6%，因红细胞更新加快导致A1C偏低。",
+      "claim_en": "For pregnant persons with diabetes, A1C goal is <6% due to increased RBC turnover lowering A1C.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "A1C",
+        "glycemic-goal",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy HbA1c target",
+        "孕期糖化血红蛋白目标"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-008",
+      "title": "Pregnancy blood pressure goal",
+      "claim_zh": "糖尿病孕妇血压目标 110–135/85 mmHg。",
+      "claim_en": "For pregnant persons with diabetes, blood pressure goal is 110–135/85 mmHg.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "blood-pressure",
+        "hypertension",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy BP target",
+        "孕期血压目标"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-009",
+      "title": "Pregnancy blood pressure treatment threshold",
+      "claim_zh": "糖尿病孕妇血压 >140/90 mmHg 时需启动治疗。",
+      "claim_en": "For pregnant persons with diabetes, treat blood pressure if >140/90 mmHg.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "blood-pressure",
+        "hypertension",
+        "treatment-threshold",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy BP treatment threshold",
+        "孕期血压治疗阈值"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-010",
+      "title": "Metformin/glyburide not first-line in pregnancy",
+      "claim_zh": "妊娠期高血糖不应将二甲双胍和格列本脲作为一线治疗；推荐生活方式干预和胰岛素。",
+      "claim_en": "Hyperglycemia in pregnancy should NOT be treated with metformin and glyburide as first-line agents; lifestyle intervention and insulin are recommended.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "metformin",
+        "glyburide",
+        "insulin",
+        "treatment",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy hyperglycemia first-line therapy",
+        "孕期高血糖一线治疗"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-011",
+      "title": "Stop metformin for PCOS after first trimester",
+      "claim_zh": "因PCOS服用二甲双胍的孕妇，应在妊娠第一孕期后停用二甲双胍。",
+      "claim_en": "For pregnant persons with PCOS on metformin, metformin should be stopped after the 1st trimester.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "PCOS",
+        "metformin",
+        "updates"
+      ],
+      "synonyms": [
+        "PCOS metformin pregnancy discontinuation",
+        "PCOS二甲双胍孕期停药"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-012",
+      "title": "Pregnancy folic acid supplementation",
+      "claim_zh": "糖尿病孕妇推荐补充叶酸 400–800 mcg/天。",
+      "claim_en": "Folic acid supplementation of 400–800 mcg/day is recommended for pregnant persons with diabetes.",
+      "population": "pregnant",
+      "tags": [
+        "ADA",
+        "pregnancy",
+        "folic-acid",
+        "supplementation",
+        "updates"
+      ],
+      "synonyms": [
+        "pregnancy folate supplementation",
+        "孕期叶酸补充"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-013",
+      "title": "Hospital glucose treatment threshold",
+      "claim_zh": "住院糖尿病患者，血糖 >180 mg/dL 时应启动治疗。",
+      "claim_en": "In hospitalized patients with diabetes, treatment should start at a glucose threshold of >180 mg/dL.",
+      "population": "hospitalized",
+      "tags": [
+        "ADA",
+        "hospital",
+        "glucose-threshold",
+        "treatment",
+        "updates"
+      ],
+      "synonyms": [
+        "hospital glucose initiation threshold",
+        "住院血糖治疗阈值"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-014",
+      "title": "Critically ill hospital glucose target",
+      "claim_zh": "危重症住院糖尿病患者血糖目标范围 140–180 mg/dL，推荐持续静脉胰岛素输注。",
+      "claim_en": "For critically ill hospitalized patients with diabetes, the glucose target range is 140–180 mg/dL, with continuous IV insulin infusion recommended.",
+      "population": "hospitalized-critically-ill",
+      "tags": [
+        "ADA",
+        "hospital",
+        "ICU",
+        "glycemic-goal",
+        "IV-insulin",
+        "updates"
+      ],
+      "synonyms": [
+        "ICU glucose target",
+        "危重症血糖目标"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    },
+    {
+      "card_id": "auto-ada-2025-updates-p11-ada2025-p11-015",
+      "title": "Non-critically ill hospital glucose target",
+      "claim_zh": "非危重症住院糖尿病患者血糖目标范围 100–180 mg/dL。首选方案为基础胰岛素+餐时胰岛素+校正剂量。",
+      "claim_en": "For non-critically ill hospitalized patients with diabetes, the glucose target range is 100–180 mg/dL. Preferred regimen is basal, prandial, with correction insulin doses.",
+      "population": "hospitalized-non-critically-ill",
+      "tags": [
+        "ADA",
+        "hospital",
+        "glycemic-goal",
+        "insulin-regimen",
+        "updates"
+      ],
+      "synonyms": [
+        "ward glucose target",
+        "非危重症住院血糖目标"
+      ],
+      "source": {
+        "page": 11,
+        "citation": "Diabetes Care 2025;48(Suppl 1)",
+        "doc": "ADA Standards of Care 2025 updates",
+        "kb_version": "kb-2026-06-auto-v2"
+      },
+      "verified": false,
+      "reviewer": null,
+      "reviewed_at": null,
+      "metadata": {
+        "extraction_mode": "vision",
+        "source_evidence": "table"
+      }
+    }
+  ]
+}

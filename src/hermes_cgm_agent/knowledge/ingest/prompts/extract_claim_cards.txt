@@ -1,0 +1,22 @@
+You extract authoritative clinical claim cards from ONE PDF page of text.
+
+Document:
+- title: {doc_title}
+- citation: {citation}
+- file: {file_name}
+- page: {page_no}
+- default population: {default_population}
+- default tags: {default_tags}
+
+Rules:
+1. Return ONLY a JSON array. No prose, no markdown fences.
+2. Each item must include: card_id, title, claim_en, claim_zh, population, tags, synonyms, source.
+3. One card = one atomic clinical claim. Do not merge multiple thresholds into one card unless they are inseparable in the source sentence.
+4. claim_en must be faithful to the page text below. Do not invent numbers, units, or populations.
+5. claim_zh must be a faithful translation of claim_en, not a paraphrase with different numbers.
+6. source must include page={page_no}, citation="{citation}", doc="{doc_title}".
+7. Skip author lists, abbreviations tables, references, table of contents, copyright pages.
+8. If the page has no clinical claim, return [].
+
+Page text:
+{page_text}

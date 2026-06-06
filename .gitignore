@@ -7,3 +7,6 @@ dist/
 build/
 .venv/
 venv/
+
+# Transient page renders produced by `kb-ingest-llm --mode vision` (regenerable)
+src/hermes_cgm_agent/knowledge/review_queue/_page_images/

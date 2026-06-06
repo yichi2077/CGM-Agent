@@ -20,3 +20,6 @@ Engineering rules:
 - The local project `CLI` and `API` are support surfaces, not the current main product shell.
 - Next real product modules are `CGM` data, analytics, events, reports, memory and `RAG`.
 - Keep outputs and docs recoverable on disk.
+- Memory & knowledge-retrieval architecture is specified in `docs/`: start at `docs/adr/ADR-0001-memory-and-knowledge-architecture.md`, then `docs/MEM-ARCH.md` and `docs/DECISION_LOG.md`. Any code comment citing a design doc/decision (`Dxxx`, `MEM-ARCH §...`) MUST resolve to a file under `docs/` (no phantom docs).
+
+## Imported Claude Cowork project instructions

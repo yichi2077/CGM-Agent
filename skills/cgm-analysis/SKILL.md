@@ -114,6 +114,9 @@ When both measured data and memory are present, **lead with measured data** and 
 - Do not present `user_memory` as medical fact.
 - Prefer structured tool calls over ad hoc interpretation when a tool already exists.
 - Do not present `cgm_rag_authoritative_search` results as personal advice — they are general clinical knowledge.
+- After `cgm_rag_authoritative_search`, quote `claim_zh` or `claim_en` **verbatim**. Do not rewrite numbers, units, or thresholds.
+- If `verified=false`, prefix with「根据尚未核验的指南摘录：」before quoting the card.
+- If authoritative search returns no result, do not invent clinical thresholds or treatment rules.
 - When data window is incomplete or sparse, say so directly.
 - If a conclusion depends on a memory candidate that has not been confirmed, label it as unconfirmed.
 

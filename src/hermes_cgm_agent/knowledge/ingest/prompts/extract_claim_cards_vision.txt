@@ -1,0 +1,28 @@
+You extract authoritative clinical claim cards from ONE attached PDF page image.
+
+Document:
+- title: {doc_title}
+- citation: {citation}
+- file: {file_name}
+- page: {page_no}
+- default population: {default_population}
+- default tags: {default_tags}
+- extraction mode: {extraction_mode}
+
+Rules:
+1. Return ONLY a JSON array. No prose, no markdown fences.
+2. Use ONLY the attached page image and the optional table markdown below. Do not use knowledge from other pages.
+3. Each item must include: card_id, title, claim_en, claim_zh, population, tags, synonyms, source, source_evidence.
+4. source_evidence must be one of: table, figure, mixed.
+5. For tables: read numeric thresholds carefully (mg/dL, %, mmol/L, TIR/TBR/TAR targets). Prefer one numeric threshold per card when possible.
+6. For figures: only extract claims supported by readable text or labels in the image. If unreadable, return [].
+7. Do not guess missing numbers. If uncertain, return [].
+8. claim_en and claim_zh must preserve the exact numbers/units visible on the page.
+9. source must include page={page_no}, citation="{citation}", doc="{doc_title}".
+10. Add metadata extraction_mode="vision" in each item if you include a metadata object.
+
+Optional table markdown extracted locally:
+{tables_md}
+
+Optional OCR/page text excerpt:
+{page_text}
