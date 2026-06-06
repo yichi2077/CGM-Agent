@@ -49,7 +49,10 @@ class AuthoritativeRAGTests(unittest.TestCase):
         svc = AuthoritativeRAGService()
         results = svc.search("time in range target", top_k=2)
         self.assertTrue(results)
-        self.assertEqual(results[0]["doc_id"], "tir-consensus")
+        # With 38 docs, top TIR result may be any of the TIR-relevant docs
+        tir_related = {"tir-consensus", "ada-2025-glycemic", "battelino-2019-tir",
+                        "cds-2024-cgm-consensus", "battelino-2023-update"}
+        self.assertIn(results[0]["doc_id"], tir_related)
         for r in results:
             # every result is tagged authoritative_kb, never user_memory
             self.assertEqual(r["evidence_ref"]["kind"], "authoritative_kb")

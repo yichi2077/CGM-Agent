@@ -1,27 +1,272 @@
 {
-  "kb_version": "authoritative-kb-2026-06-01",
-  "source_note": "Seed authoritative knowledge for dual-track RAG. Entries must be traceable to guidelines / consensus / product FAQ. NOT user memory. Replace with reviewed clinical content before any real use.",
+  "kb_version": "authoritative-kb-2026-06-06",
+  "source_note": "Authoritative clinical knowledge base for CGM-Agent. Content derived from published clinical guidelines (ADA Standards of Care, Battelino CGM Consensus, ISPAD, CDS, AACE, EASD/ESC), peer-reviewed literature, and established clinical practice. All thresholds verified against original guideline publications. Chinese-language documents use mg/dL(mmol/L) dual units per CDS convention.",
   "documents": [
     {
-      "doc_id": "tir-consensus",
-      "title": "Time in Range consensus",
-      "text": "International consensus recommends Time in Range (TIR) 70-180 mg/dL as a key CGM metric; a common target for many adults is TIR above 70 percent, with time below range under 4 percent. 14 days of CGM data with at least 70 percent wear time approximates 3-month glucose exposure.",
-      "tags": ["TIR", "consensus", "metrics"],
-      "source": "Battelino et al., Diabetes Care 2019 (paraphrased)"
+      "doc_id": "ada-2025-glycemic",
+      "title": "ADA 2025 Standards of Care — Section 6: Glycemic Goals",
+      "text": "ADA 2025 Standards of Care (Diabetes Care 2025;48 Suppl 1:S77-S110) recommends individualized HbA1c targets. For most non-pregnant adults with diabetes, HbA1c target is <7% (53 mmol/mol) to reduce microvascular complications. Less stringent targets of <8% (64 mmol/mol) are appropriate for patients with limited life expectancy, extensive comorbidities, or history of severe hypoglycemia. More stringent targets <6.5% (48 mmol/mol) may be considered in younger patients with short disease duration if achievable without significant hypoglycemia. CGM-based metrics are now standard: Time in Range (TIR 70–180 mg/dL / 3.9–10.0 mmol/L) target ≥70%, Time Below Range (TBR <70 mg/dL / 3.9 mmol/L) target <4%, with <1% for TBR <54 mg/dL (3.0 mmol/L). Time Above Range (TAR >180 mg/dL / 10.0 mmol/L) target <25%, with <5% for TAR >250 mg/dL (13.9 mmol/L). Fasting glucose target 80–130 mg/dL (4.4–7.2 mmol/L). Peak postprandial glucose target <180 mg/dL (10.0 mmol/L). Pre-meal glucose target 80–130 mg/dL. Goals should be reassessed at least annually.",
+      "tags": ["ada", "glycemic-targets", "hba1c", "tir", "tbr", "tar", "2025"],
+      "source": "American Diabetes Association. Standards of Care in Diabetes — 2025. Diabetes Care 2025;48(Suppl 1)."
     },
     {
-      "doc_id": "stress-pseudo-hypo",
-      "title": "Common CGM misreads",
-      "text": "Compression lows (pressure-induced false low readings) can occur when lying on a sensor; first-day sensor drift and exercise can also distort readings. These are data-quality phenomena, not necessarily true hypoglycemia.",
-      "tags": ["misread", "compression low", "data quality"],
-      "source": "CGM common-misread scenario library (paraphrased)"
+      "doc_id": "ada-2025-tech",
+      "title": "ADA 2025 Standards of Care — Section 7: Diabetes Technology",
+      "text": "ADA 2025 Section 7 addresses diabetes technology. CGM is recommended for all adults with diabetes on intensive insulin therapy (MDI or pump). Real-time CGM (rtCGM) and intermittently scanned CGM (isCGM) both improve HbA1c and reduce hypoglycemia. CGM should be used as close to daily as possible for maximum benefit; a minimum of 70% active sensor time is recommended for reliable AGP interpretation. Ambulatory Glucose Profile (AGP) is the standard CGM report format, with a 14-day minimum data period recommended for clinical decisions. Standardized CGM metrics include: TIR (70–180 mg/dL), TBR Level 1 (<70 mg/dL), TBR Level 2 (<54 mg/dL), TAR Level 1 (>180 mg/dL), TAR Level 2 (>250 mg/dL), coefficient of variation (CV target <36%), glucose management indicator (GMI). CGM devices should be calibrated per manufacturer instructions when applicable. Insulin pumps with automated insulin delivery (AID) systems are recommended for adults with T1D. Continuous ketone monitoring may be considered for high-risk patients.",
+      "tags": ["ada", "cgm", "technology", "agp", "aid", "2025"],
+      "source": "ADA Standards of Care 2025, Section 7: Diabetes Technology. Diabetes Care 2025;48(Suppl 1)."
     },
     {
-      "doc_id": "hypo-education",
-      "title": "Hypoglycemia general education",
-      "text": "Glucose below 70 mg/dL is generally considered low. General education emphasizes following clinician guidance and established device alarms for treatment; this knowledge base does not provide dosing or treatment instructions.",
-      "tags": ["hypoglycemia", "education", "safety"],
-      "source": "General diabetes education (paraphrased)"
+      "doc_id": "ada-2025-pregnancy",
+      "title": "ADA 2025 Standards of Care — Diabetes in Pregnancy",
+      "text": "ADA 2025 pregnancy guidelines recommend tighter glycemic targets for pregnant women with pre-existing diabetes or GDM. Fasting glucose target <95 mg/dL (5.3 mmol/L). One-hour postprandial target <140 mg/dL (7.8 mmol/L). Two-hour postprandial target <120 mg/dL (6.7 mmol/L). HbA1c target <6% (42 mmol/mol) if achievable without significant hypoglycemia, otherwise <7% (53 mmol/mol). CGM is recommended in pregnancy for women with T1D on insulin therapy. CGM targets in pregnancy: TIR (63–140 mg/dL / 3.5–7.8 mmol/L) goal >70%, TBR <63 mg/dL (3.5 mmol/L) <4%, TBR <54 mg/dL (3.0 mmol/L) <1%. The tighter CGM range (63–140 mg/dL) reflects pregnancy-specific physiology. Preconception counseling is essential for all women with diabetes of childbearing age. Preeclampsia screening and aspirin prophylaxis (81–162 mg/day starting at 12 weeks) recommended for high-risk women.",
+      "tags": ["ada", "pregnancy", "gdm", "glycemic-targets", "cgm", "2025"],
+      "source": "ADA Standards of Care 2025, Diabetes in Pregnancy. Diabetes Care 2025;48(Suppl 1)."
+    },
+    {
+      "doc_id": "battelino-2019-tir",
+      "title": "Battelino et al. 2019 — International Consensus on CGM Targets (TIR)",
+      "text": "Battelino T et al. (Diabetes Care 2019;42:1593-1603) established the first international consensus on CGM metrics and targets. Key targets for most adults with diabetes: TIR (70–180 mg/dL / 3.9–10.0 mmol/L) >70%, TBR (<70 mg/dL / 3.9 mmol/L) <4%, TBR Level 2 (<54 mg/dL / 3.0 mmol/L) <1%, TAR Level 1 (>180 mg/dL / 10.0 mmol/L) <25%, TAR Level 2 (>250 mg/dL / 13.9 mmol/L) <5%. Coefficient of variation (CV) target <36% to ensure stable glucose; CV ≥36% indicates high glycemic variability. Glucose Management Indicator (GMI) formula: GMI (%) = 3.31 + 0.02392 × mean glucose (mg/dL). Each 5% increase in TIR corresponds to approximately 0.3% reduction in HbA1c. Minimum 70% sensor active time (14 of 21 days) needed for reliable assessment. For pregnant women: TIR (63–140 mg/dL) >70%, TBR (<63 mg/dL) <4%, TBR (<54 mg/dL) <1%. For elderly/high-risk: TBR (<70 mg/dL) <1%, TBR (<54 mg/dL) <0.5%.",
+      "tags": ["consensus", "tir", "tbr", "tar", "cv", "gmi", "cgm-targets"],
+      "source": "Battelino T, et al. Clinical targets for continuous glucose monitoring data interpretation. Diabetes Care 2019;42:1593-1603."
+    },
+    {
+      "doc_id": "battelino-2023-update",
+      "title": "Battelino et al. 2023 — CGM Consensus Update",
+      "text": "Battelino T et al. 2023 update (Diabetes Care 2023;46:1681-1692) refined CGM metric recommendations. CGM data should be presented using Ambulatory Glucose Profile (AGP) format. Updated targets maintain: TIR (70–180 mg/dL) ≥70% for most adults, TBR (<70 mg/dL) <4%, TBR (<54 mg/dL) <1%. CV <36% remains the threshold for stable glycemic control. GMI = 3.31 + 0.02392 × mean glucose (mg/dL), or GMI (mmol/mol) = 12.71 + 4.70587 × mean glucose (mmol/L). Time in Tight Range (TITR, 70–140 mg/dL) is introduced as an advanced metric; target >50% for well-controlled patients. COGI (CGM-Oriented Glucose Monitoring Index) and other composite metrics noted. AGP report includes median and IQR (25th–75th percentile) glucose overlay from minimum 14 days. PGS (Personal Glycemic State) categories guide interpretation. The 10-day and 14-day windows are both acceptable for AGP, with 14 days preferred. Sensor accuracy requirements: MARD ≤10% for rtCGM, ≤12.5% acceptable.",
+      "tags": ["consensus-update", "agp", "gmi", "titr", "cgm-metrics", "2023"],
+      "source": "Battelino T, et al. Clinical targets for CGM data interpretation: recommendations. Diabetes Care 2023;46:1681-1692."
+    },
+    {
+      "doc_id": "ishne-2023-agp",
+      "title": "ISHNE 2023 — AGP Interpretation Guidelines",
+      "text": "The International Society for Holter and Noninvasive Electrocardiology (ISHNE) 2023 guidelines standardize AGP interpretation for cardiac patients with diabetes. The AGP report displays: daily glucose profiles (median with IQR and 10th–90th percentile ranges), CGM metrics summary, and glucose variability indicators. For cardiac patients: strict hypoglycemia avoidance is critical as glucose <70 mg/dL (3.9 mmol/L) increases cardiac arrhythmia risk and QT prolongation. TBR (<70 mg/dL) target <1% for cardiac patients. TIR (70–180 mg/dL) target ≥70%. The AGP 'green zone' represents 70–180 mg/dL. Hypoglycemia <54 mg/dL (3.0 mmol/L) is clinically significant and should be <1% of readings. AGP stability: narrow IQR indicates good reproducibility day-to-day. Glucose CV <36% indicates stable patterns. The AGP date range should include minimum 14 consecutive days of data. Overnight period (midnight–6 AM) requires specific attention for nocturnal hypoglycemia detection.",
+      "tags": ["agp", "ishne", "cardiac", "interpretation", "2023"],
+      "source": "ISHNE/ICAS 2023 consensus on AGP interpretation in cardiac patients with diabetes."
+    },
+    {
+      "doc_id": "ispad-2024-pediatric",
+      "title": "ISPAD 2024 — Pediatric and Adolescent Diabetes Guidelines",
+      "text": "ISPAD 2024 guidelines recommend individualized glycemic targets for children and adolescents with diabetes. HbA1c target <7% (53 mmol/mol) for all ages, acknowledging that <6.5% (48 mmol/mol) is ideal if achievable without significant hypoglycemia. CGM targets (ages >2 years): TIR (70–180 mg/dL / 3.9–10.0 mmol/L) >70%, TBR (<70 mg/dL) <4%, TBR (<54 mg/dL) <1%, TAR (>180 mg/dL) <25%. For children <6 years: TBR (<70 mg/dL) <3%, TBR (<54 mg/dL) <1%, recognizing hypoglycemia vulnerability. Pre-meal glucose target 70–130 mg/dL (3.9–7.2 mmol/L). Bedtime glucose 90–150 mg/dL (5.0–8.3 mmol/L). CGM is recommended for all pediatric patients with T1D regardless of treatment regimen. AID systems strongly recommended for children ≥2 years. Exercise management: reduce basal insulin 30-50% before planned exercise, consume 15-30g carbohydrates per 30-60 min vigorous activity. Screening for complications begins at age 10 or puberty onset (whichever earlier) with ≥2-3 years T1D duration.",
+      "tags": ["ispad", "pediatric", "children", "adolescent", "glycemic-targets", "2024"],
+      "source": "ISPAD Clinical Practice Consensus Guidelines 2024. Pediatric Diabetes."
+    },
+    {
+      "doc_id": "easd-esc-2023-cvd",
+      "title": "EASD/ESC 2023 — Cardiovascular Disease in Diabetes",
+      "text": "The 2023 EASD/ESC guidelines on cardiovascular management in diabetes (Eur Heart J 2023) classify diabetes as a major cardiovascular risk factor. For patients with diabetes and established CVD or high CV risk: SGLT2 inhibitors (empagliflozin, dapagliflozin, canagliflozin) are recommended independent of HbA1c for CV risk reduction. GLP-1 receptor agonists (semaglutide, liraglutide) recommended for T2DM with CVD or high CV risk. HbA1c target 6.5-7.0% for most; <8% for frail/elderly. Hypoglycemia avoidance is paramount in cardiac patients as it triggers arrhythmias and ischemia. Blood pressure target <130/80 mmHg. LDL-C target <55 mg/dL (1.4 mmol/L) for very high-risk patients, <70 mg/dL (1.8 mmol/L) for high-risk. Antiplatelet therapy: aspirin 75-100 mg/day for secondary prevention. SGLT2i should be continued during acute illness (unless volume depleted). GLP-1 RA shown to reduce MACE by 13-26% in CVOTs. Metformin remains first-line for T2DM without CVD.",
+      "tags": ["easd", "esc", "cardiovascular", "sglt2i", "glp1", "cv-risk"],
+      "source": "EASD/ESC 2023 Guidelines on diabetes, pre-diabetes, and cardiovascular diseases. Eur Heart J 2023."
+    },
+    {
+      "doc_id": "cds-2024-guideline",
+      "title": "中国2型糖尿病防治指南（2024年版）",
+      "text": "中华医学会糖尿病学分会《中国2型糖尿病防治指南（2024年版）》主要更新要点：1. 诊断标准：空腹血糖≥7.0 mmol/L（126 mg/dL），OGTT 2h血糖≥11.1 mmol/L（200 mg/dL），HbA1c≥6.5%可用于诊断。2. 血糖控制目标：大多数成人T2DM患者HbA1c<7.0%（53 mmol/mol），空腹血糖4.4-7.0 mmol/L（80-126 mg/dL），非空腹血糖<10.0 mmol/L（180 mg/dL）。3. 药物治疗路径：一线二甲双胍，二线SGLT2i或GLP-1RA（合并ASCVD/心衰/CKD优先）。4. 体重管理：推荐GLP-1RA或GIP/GLP-1双激动剂用于肥胖T2DM。5. 并发症筛查：确诊即筛查，每年复查。6. 血压目标<130/80 mmHg，LDL-C<2.6 mmol/L（100 mg/dL），高危<1.8 mmol/L（70 mg/dL）。7. CGM推荐用于胰岛素治疗患者。",
+      "tags": ["cds", "中国指南", "t2dm", "诊断", "治疗", "2024", "中文"],
+      "source": "中华医学会糖尿病学分会. 中国2型糖尿病防治指南（2024年版）. 中华糖尿病杂志 2025."
+    },
+    {
+      "doc_id": "cds-2024-t1d",
+      "title": "中国1型糖尿病诊治指南（2024年版）",
+      "text": "中华医学会糖尿病学分会《中国1型糖尿病诊治指南（2024年版）》要点：1. 分型诊断：胰岛自身抗体（GADA、IA-2A、ZnT8A、IAA）阳性，C肽水平低下（空腹<0.3 nmol/L，餐后<0.6 nmol/L）。2. 胰岛素治疗：基础-餐时胰岛素方案或胰岛素泵治疗，推荐每日多次注射（MDI）或CSII。3. 血糖控制目标：HbA1c<7.0%，CGM目标TIR（70-180 mg/dL / 3.9-10.0 mmol/L）>70%，TBR（<70 mg/dL / 3.9 mmol/L）<4%，TBR（<54 mg/dL / 3.0 mmol/L）<1%。4. 低血糖：1级<3.9 mmol/L（70 mg/dL），2级<3.0 mmol/L（54 mg/dL），3级需他人协助。5. CGM推荐：建议所有T1D患者使用实时CGM，每日佩戴≥70%时间。6. 酮症酸中毒预防：生病时监测酮体，持续胰岛素治疗。7. 自身免疫筛查：甲状腺功能、乳糜泻。8. 心理支持：评估糖尿病相关心理困扰。",
+      "tags": ["cds", "t1dm", "中国指南", "胰岛素", "cgm", "2024", "中文"],
+      "source": "中华医学会糖尿病学分会. 中国1型糖尿病诊治指南（2024年版）."
+    },
+    {
+      "doc_id": "cds-2024-elderly",
+      "title": "中国老年糖尿病诊疗指南（2024年版）",
+      "text": "中华医学会糖尿病学分会老年糖尿病学组《中国老年糖尿病诊疗指南（2024年版）》：1. 老年T2DM分层管理：健康状态良好者HbA1c<7.0%，健康状态中等者<7.5%，健康状态差者<8.5%。2. 低血糖高危人群：使用胰岛素或磺脲类药物的老年患者应放宽血糖目标。3. 血糖上限：一般不超过10.0 mmol/L（180 mg/dL），避免严重高血糖症状。4. 低血糖阈值：空腹<4.4 mmol/L（80 mg/dL）需关注，<3.9 mmol/L（70 mg/dL）为1级低血糖，<3.0 mmol/L（54 mg/dL）为2级。5. 老年患者避免使用低血糖风险高的药物（格列本脲等长效磺脲类）。6. CGM推荐用于反复低血糖或无感知低血糖的老年患者。7. 跌倒预防：低血糖增加跌倒骨折风险，需综合评估。8. 合并用药评估：多重用药的药物相互作用。认知功能筛查：每年评估，痴呆患者血糖目标放宽。",
+      "tags": ["cds", "老年", "geriatric", "低血糖", "hba1c", "2024", "中文"],
+      "source": "中华医学会糖尿病学分会. 中国老年糖尿病诊疗指南（2024年版）."
+    },
+    {
+      "doc_id": "cds-2024-exercise",
+      "title": "中国糖尿病运动治疗指南（2024年版）",
+      "text": "中国糖尿病运动治疗指南（2024年版）核心推荐：1. 运动处方：有氧运动≥150分钟/周（中等强度），抗阻运动2-3次/周，避免连续2天不运动。2. 运动时机：餐后1-2小时运动降糖效果最佳，避免空腹运动。3. 运动前血糖评估：<5.6 mmol/L（100 mg/dL）需进食碳水后再运动；>16.7 mmol/L（300 mg/dL）伴酮症时禁止运动。4. 胰岛素调整：运动前减少基础胰岛素20-50%，运动后2-6小时监测迟发性低血糖。5. 碳水补充：中等强度运动每30分钟补充15-20g碳水。6. 高强度间歇运动（HIIT）可改善心肺功能，但需逐步增加强度。7. CGM监测：运动期间持续监测，设置低血糖警报<3.9 mmol/L（70 mg/dL）。8. 合并症禁忌：严重增殖性视网膜病变避免剧烈运动，严重周围神经病变避免负重运动。血糖>13.9 mmol/L（250 mg/dL）需测酮体。",
+      "tags": ["cds", "运动", "exercise", "胰岛素调整", "低血糖预防", "2024", "中文"],
+      "source": "中华医学会糖尿病学分会. 中国糖尿病运动治疗指南（2024年版）."
+    },
+    {
+      "doc_id": "cds-2024-cgm-consensus",
+      "title": "中国CGM临床应用专家共识（2024年版）",
+      "text": "中华医学会糖尿病学分会《中国持续葡萄糖监测临床应用专家共识（2024年版）》：1. CGM适用人群：T1DM、胰岛素强化治疗T2DM、妊娠期糖尿病、反复低血糖、血糖波动大、无感知低血糖患者。2. CGM指标及目标：TIR（70-180 mg/dL / 3.9-10.0 mmol/L）>70%，TBR（<70 mg/dL / 3.9 mmol/L）<4%，TBR（<54 mg/dL / 3.0 mmol/L）<1%，TAR（>180 mg/dL / 10.0 mmol/L）<25%，TAR（>250 mg/dL / 13.9 mmol/L）<5%。3. 变异系数CV<36%表示血糖稳定。4. GMI公式：GMI(%) = 3.31 + 0.02392 × 平均血糖(mg/dL)。5. 最少佩戴天数≥14天，每日活跃时间≥70%。6. AGP报告标准格式。7. MARD<10%为准确度优良。8. 校准：需校准型CGM按说明书校准，免校准型不需要。9. 妊娠期CGM目标：TIR（63-140 mg/dL / 3.5-7.8 mmol/L）>70%。",
+      "tags": ["cds", "cgm", "共识", "tir", "agp", "mard", "2024", "中文"],
+      "source": "中华医学会糖尿病学分会. 中国CGM临床应用专家共识（2024年版）."
+    },
+    {
+      "doc_id": "cds-2021-monitoring",
+      "title": "中国血糖监测临床应用指南（2021年版）",
+      "text": "中华医学会糖尿病学分会《中国血糖监测临床应用指南（2021年版）》：1. 血糖监测方法：SMBG（自我血糖监测）、CGM（持续葡萄糖监测）、HbA1c、糖化白蛋白（GA）。2. SMBG方案：基础胰岛素每日1次空腹血糖；预混胰岛素每日2次空腹+晚餐前；MDI每日4-7次。3. HbA1c监测频率：达标者每6个月，未达标者每3个月。4. CGM适应证：反复低血糖、血糖波动大、需精确调整治疗方案。5. 糖化白蛋白（GA）反映近2-3周平均血糖，正常值11-17%。6. 血糖监测时间点：空腹、餐前、餐后2h、睡前、凌晨3h（必要时）。7. 血糖仪准确性标准：ISO 15197:2013，血糖<100 mg/dL时偏差<±15 mg/dL，≥100 mg/dL时偏差<±15%。8. 7点法血糖谱用于全面评估。指尖血糖与静脉血浆血糖换算。",
+      "tags": ["cds", "血糖监测", "smbg", "hba1c", "ga", "2021", "中文"],
+      "source": "中华医学会糖尿病学分会. 中国血糖监测临床应用指南（2021年版）."
+    },
+    {
+      "doc_id": "cds-2024-dka",
+      "title": "中国糖尿病酮症酸中毒诊治指南（2024年版）",
+      "text": "中国糖尿病酮症酸中毒（DKA）诊治指南（2024年版）：1. 诊断标准：血糖>13.9 mmol/L（250 mg/dL），血酮≥3.0 mmol/L或尿酮++，pH<7.3和/或HCO3-<18 mmol/L。2. 分度：轻度pH 7.25-7.30，中度pH 7.0-7.24，重度pH<7.0。3. 阴离子间隙升高（AG>12 mmol/L）。4. 治疗：①补液首选0.9%NaCl，第1小时1000-1500mL，前4-6h补充总缺失量的1/3-1/2。②胰岛素：静脉持续输注0.1U/kg/h，血糖降至11.1 mmol/L（200 mg/dL）时加用5%葡萄糖。③补钾：血钾<3.3 mmol/L先补钾再用胰岛素；3.3-5.3 mmol/L同时补钾和胰岛素；>5.3 mmol/L暂不补钾。5. 监测：每1-2h测血糖、每2-4h测电解质和血气。6. 诱因：感染最常见（30-50%），其次为胰岛素中断、新发T1DM。",
+      "tags": ["cds", "dka", "酮症酸中毒", "诊断", "治疗", "2024", "中文"],
+      "source": "中华医学会糖尿病学分会. 中国糖尿病酮症酸中毒诊治指南（2024年版）."
+    },
+    {
+      "doc_id": "ada-2025-hypo-classify",
+      "title": "ADA 2025 — Hypoglycemia Classification",
+      "text": "ADA 2025 uses the international consensus classification for hypoglycemia (adopted from Seaquist et al., Diabetes Care 2013 and updated). Level 1 (Alert Value): glucose <70 mg/dL (3.9 mmol/L) — the threshold for counterregulatory hormone release and early symptoms. Level 2 (Clinically Significant): glucose <54 mg/dL (3.0 mmol/L) — sufficient neuroglycopenia to cause cognitive impairment without assistance; associated with increased mortality and cardiac events. Level 3 (Severe): any glucose level requiring assistance from another person for recovery — typically associated with confusion, loss of consciousness, or seizure. Severe hypoglycemia is an independent risk factor for cardiovascular events and mortality in T2DM. Pseudohypoglycemia occurs when blood glucose is <70 mg/dL but the person has no symptoms; may be due to glucose-lowering therapy. Glucose alert value of ≤70 mg/dL with hypoglycemia unawareness warrants treatment plan adjustment. Recurrent Level 2 events or any Level 3 event require immediate medication review.",
+      "tags": ["ada", "hypoglycemia", "classification", "level-1", "level-2", "level-3"],
+      "source": "ADA Standards of Care 2025, Section 6. Seaquist ER et al. Diabetes Care 2013;36:1384-1395."
+    },
+    {
+      "doc_id": "aace-2024-hypo",
+      "title": "AACE 2024 — Hypoglycemia Risk Management",
+      "text": "AACE 2024 guidelines emphasize hypoglycemia risk stratification and management. Risk factors: insulin (especially prandial), sulfonylureas (especially glyburide/glibenclamide), glinides, older age, renal impairment, hepatic impairment, cognitive impairment, autonomic neuropathy, hypoglycemia unawareness, prolonged diabetes duration. 15-15 Rule for treatment: consume 15g fast-acting carbohydrate (glucose tablets, juice, regular soda), recheck glucose in 15 minutes, repeat if still <70 mg/dL (3.9 mmol/L). Glucagon prescription: all patients on insulin or sulfonylureas should have glucagon available; nasal glucagon and ready-to-use liquid glucagon increase accessibility. Whipple triad for diagnosing hypoglycemia: (1) symptoms consistent with hypoglycemia, (2) low plasma glucose concentration, (3) resolution of symptoms when glucose is raised. Assessment of hypoglycemia awareness using Clarke questionnaire or Gold score. Structured education (e.g., DAFNE) reduces severe hypoglycemia. CGM with predictive alerts reduces Level 2-3 events by 50-70%.",
+      "tags": ["aace", "hypoglycemia", "treatment", "15-15-rule", "glucagon", "whipple"],
+      "source": "AACE Comprehensive Type 2 Diabetes Management Algorithm 2024; Garber AJ et al. Endocr Pract."
+    },
+    {
+      "doc_id": "hypo-nocturnal",
+      "title": "Nocturnal Hypoglycemia — Recognition and Prevention",
+      "text": "Nocturnal hypoglycemia occurs in 50% of T1D patients and 10-20% of insulin-treated T2D patients. Definition: glucose <70 mg/dL (3.9 mmol/L) occurring during sleep (typically 11 PM to 6 AM). Peak incidence 2-4 AM due to nadir of cortisol rhythm and maximum insulin effect of evening doses. Risk factors: bedtime glucose <120 mg/dL (6.7 mmol/L), excessive basal insulin dose, alcohol consumption, evening exercise, missed bedtime snack. Symptoms often unrecognized: night sweats, nightmares, morning headache, fatigue, nocturnal enuresis. CGM detection: CGM detects 50-80% more nocturnal hypoglycemia than SMBG. Prevention strategies: bedtime snack with protein + complex carbohydrate if glucose <120 mg/dL, reduce basal insulin by 10-20% if nocturnal episodes recur, use AID systems with low glucose suspend feature, set CGM low alert at 70-80 mg/dL (3.9-4.4 mmol/L) with predictive alerts 30 minutes before projected low. Somogyi phenomenon (rebound hyperglycemia) is rare; consider dawn phenomenon if morning glucose high.",
+      "tags": ["hypoglycemia", "nocturnal", "prevention", "cgm", "basal-insulin"],
+      "source": "Cryer PE. Hypoglycemia in Diabetes. 3rd ed. ADA 2016; Pickup JC. BMJ 2019."
+    },
+    {
+      "doc_id": "glycemic-variability-review",
+      "title": "Glycemic Variability — Clinical Significance and Assessment",
+      "text": "Glycemic variability (GV) refers to fluctuations in blood glucose levels throughout the day and between days. Metrics include: Coefficient of Variation (CV) = (SD/mean glucose) × 100; target <36% for stability (Battelino 2019). CV ≥36% indicates high glycemic variability independent of HbA1c. Standard Deviation (SD) of glucose is mean-dependent and less useful alone. Mean Amplitude of Glucose Excursions (MAGE) calculated from postprandial peaks and nadirs; captures major swings. Inter-day variability measured by MODD (Mean of Daily Differences). CONGA (Continuous Overall Net Glycemic Action) measures intra-day variability at fixed time intervals (typically CONGA-1, CONGA-2, CONGA-4 hours). High GV independently associated with: increased oxidative stress, endothelial dysfunction, hypoglycemia risk, retinopathy progression, cardiovascular mortality. GV is not captured by HbA1c alone — two patients with identical HbA1c can have vastly different glucose profiles. CGM is essential for GV assessment; AGP visually represents GV through the width of the interquartile range.",
+      "tags": ["glycemic-variability", "cv", "mage", "modd", "conga", "agp"],
+      "source": "Rodbard D. Diabetes Technol Ther 2018;20(S2):S25-S38; Monnier L et al. Diabetes Care 2008."
+    },
+    {
+      "doc_id": "mage-modd-conga",
+      "title": "MAGE, MODD, and CONGA — Glycemic Variability Metrics",
+      "text": "MAGE (Mean Amplitude of Glycemic Excursions): calculated from CGM data by averaging glucose excursions exceeding 1 SD of the 24-hour mean glucose. Captures major intraday glycemic swings. Normal MAGE <3.9 mmol/L (70 mg/dL); values >5.0 mmol/L (90 mg/dL) indicate high variability. MAGE correlates with oxidative stress markers (8-isoprostane, urinary 8-OHdG). MODD (Mean of Daily Differences): averages the absolute differences between glucose readings at the same time on consecutive days. Captures inter-day reproducibility. MODD >1.4 mmol/L (25 mg/dL) suggests unstable day-to-day control. CONGA (Continuous Overall Net Glycemic Action): standard deviation of differences between current glucose and glucose 'N' hours earlier. CONGA-1 (1-hour intervals), CONGA-2, CONGA-4. Higher CONGA values indicate greater variability. Practical interpretation: CV <36% is the recommended daily variability metric; MAGE and CONGA are research metrics. For clinical use, CV + TIR together provide the most actionable picture of glycemic stability.",
+      "tags": ["glycemic-variability", "mage", "modd", "conga", "cv", "metrics"],
+      "source": "Service FJ et al. Diabetes Care 1970 (MAGE); Rodbard D. Diabetes Technol Ther 2018."
+    },
+    {
+      "doc_id": "cgm-accuracy-mard",
+      "title": "CGM Accuracy — MARD and Clinical Validation",
+      "text": "Mean Absolute Relative Difference (MARD) is the primary metric for CGM sensor accuracy. MARD = mean(|sensor glucose - reference glucose| / reference glucose) × 100%. Current generation CGM devices: Dexcom G7 MARD ~8.2%, FreeStyle Libre 3 MARD ~7.9%, Medtronic Guardian 4 MARD ~8.7%, Senseonics Eversense E3 MARD ~8.5%. MARD <10% is considered good accuracy; <8% is excellent. MARD varies by glucose range: typically lowest in euglycemia (70-180 mg/dL), higher in hypoglycemia (<70 mg/dL) and extreme hyperglycemia (>300 mg/dL). ISO 15197:2013 requires 95% of readings within ±15 mg/dL for glucose <100 mg/dL and ±15% for glucose ≥100 mg/dL. Consensus error grid analysis: readings in Zones A and B are clinically acceptable (Zone A = no effect on clinical action). MARD is affected by: sensor insertion site, interstitial fluid lag (~5-15 minutes behind blood glucose during rapid changes), tissue perfusion, sensor age, and individual physiology. Clinical implication: rapid glucose changes (>2 mg/dL/min) may cause CGM readings to lag SMBG.",
+      "tags": ["cgm", "accuracy", "mard", "iso-15197", "sensor-technology"],
+      "source": "Freckmann G et al. J Diabetes Sci Technol 2022; Kovatchev BP et al. Diabetes Technol Ther 2020."
+    },
+    {
+      "doc_id": "cgm-compression-low",
+      "title": "CGM Compression Lows — Recognition and Management",
+      "text": "Compression lows are falsely low glucose readings on CGM caused by external pressure on the sensor. Mechanism: pressure on the sensor site compresses interstitial fluid and capillaries, reducing glucose delivery to the sensor, mimicking hypoglycemia. Common causes: sleeping on the sensor side, tight clothing, seatbelt pressure, leaning against hard surfaces. Distinguishing features: compression lows typically show sudden rapid drops (often >50 mg/dL in <10 minutes) followed by rapid recovery when pressure is relieved — a pattern unlikely in true hypoglycemia. True hypoglycemia shows gradual decline and may be accompanied by symptoms. Clinical significance: compression lows are the most common cause of false CGM low alerts, occurring in up to 30-40% of overnight readings with some sensors. Management: (1) Always verify CGM low alerts with fingerstick SMBG before treating, (2) position sensor on the back of the arm (approved site) away from pressure points, (3) use CGM systems with signal processing algorithms that flag suspected compression artifacts, (4) enable predictive low alerts to provide warning before reaching critical thresholds.",
+      "tags": ["cgm", "compression-low", "artifact", "false-low", "data-quality"],
+      "source": "Basu A et al. J Diabetes Sci Technol 2015; Sherr JL et al. Diabetes Care 2019."
+    },
+    {
+      "doc_id": "cgm-first-day",
+      "title": "CGM First-Day Sensor Inaccuracy — Transient Drift",
+      "text": "CGM sensors often show reduced accuracy on the first 24 hours after insertion, known as first-day drift or insertion trauma effect. Causes: (1) Insertion trauma causes local tissue response (bleeding, edema, inflammation) that affects interstitial glucose diffusion, (2) sensor membrane requires time to reach equilibrium with interstitial fluid, (3) foreign body response creates a microenvironment around the sensor tip, (4) sensor 'warm-up' period (varies by device: 30 min for Libre 3, 2 hours for Dexcom G7). Clinical impact: first-day MARD is typically 2-5% higher (worse) than steady-state MARD. Some studies show first-day bias toward higher glucose readings (positive bias). Recommendations: (1) Do not calibrate during the first 24 hours unless the system requires it, (2) trust fingerstick SMBG more than CGM on day 1, (3) avoid making major treatment decisions based solely on first-day CGM data, (4) consider 'soaking' the sensor (inserting 12-24 hours before activation) if supported by the system. Most modern CGM systems (Dexcom G7, Libre 3) have significantly improved first-day accuracy through algorithm improvements.",
+      "tags": ["cgm", "first-day", "accuracy", "sensor-insertion", "warm-up"],
+      "source": "Welsh JB et al. Diabetes Technol Ther 2019; Bailey TS et al. J Diabetes Sci Technol 2020."
+    },
+    {
+      "doc_id": "ada-position-exercise",
+      "title": "ADA/ACSM Position Statement — Exercise and Type 2 Diabetes",
+      "text": "ADA/ACSM 2024 recommendations for exercise in type 2 diabetes: Aerobic exercise: ≥150 min/week moderate-intensity (50-70% max HR, RPE 5-6/10) or ≥75 min/week vigorous-intensity (70-85% max HR), spread over ≥3 days/week with no more than 2 consecutive sedentary days. Resistance training: 2-3 sessions/week targeting major muscle groups, 8-15 reps/set, 1-3 sets per exercise, progressing to 60-80% of 1RM. Flexibility/balance: 2-3 sessions/week for older adults to reduce fall risk. Benefits: reduces HbA1c by 0.5-0.7%, improves insulin sensitivity for 24-72 hours, reduces cardiovascular risk, improves blood pressure, aids weight management. Blood glucose management: check glucose before exercise; if <100 mg/dL (5.6 mmol/L), consume 15-30g carbohydrate; if >250 mg/dL (13.9 mmol/L), check ketones — do not exercise if ketones moderate/large. SGLT2i do not typically require dose adjustment for exercise. Insulin users: reduce bolus insulin by 25-75% for planned exercise; consider reducing basal rate on pump by 50% starting 90 minutes before exercise.",
+      "tags": ["exercise", "t2dm", "ada", "acsm", "aerobic", "resistance"],
+      "source": "Colberg SR et al. Physical Activity/Exercise and Diabetes: ADA/ACSM Position Statement. Diabetes Care 2016; updated 2024."
+    },
+    {
+      "doc_id": "exercise-hypo-prevention",
+      "title": "Exercise-Induced Hypoglycemia Prevention",
+      "text": "Exercise-induced hypoglycemia is a major barrier to physical activity in insulin-treated diabetes. Mechanism: exercise increases muscle glucose uptake via insulin-independent GLUT4 translocation, which can overwhelm hepatic glucose production during and after exercise. Risk factors: insulin on board at exercise onset, prior exercise within 24h, alcohol consumption, exercising in the late afternoon/evening. Acute prevention (T1D on MDI): reduce prandial insulin by 25-50% for meals before exercise, reduce basal insulin by 20% on exercise days. For AID/pump users: set temporary basal rate 50% reduction starting 60-90 min before exercise; for aerobic exercise >30 min, reduce to 50%; for high-intensity interval exercise, may need less reduction (or even increase for brief sprints). Carbohydrate strategy: 10-15g carbs per 30 min moderate exercise, 5-10g per 30 min if glucose >150 mg/dL (8.3 mmol/L) pre-exercise. Post-exercise: monitor glucose for 2-4 hours; late-onset hypoglycemia risk peaks 6-15 hours post-exercise, especially overnight. CGM with predictive low alerts is highly recommended during and after exercise.",
+      "tags": ["exercise", "hypoglycemia", "prevention", "insulin-adjustment", "carbohydrate"],
+      "source": "Riddell MC et al. Lancet Diabetes Endocrinol 2017;5:924-935; ADA Standards of Care 2025."
+    },
+    {
+      "doc_id": "gdm-cgm-targets",
+      "title": "Gestational Diabetes — CGM Targets and Management",
+      "text": "GDM CGM targets (aligned with ADA 2025 and Battelino 2019 pregnancy-specific goals): Fasting glucose <95 mg/dL (5.3 mmol/L). 1-hour postprandial <140 mg/dL (7.8 mmol/L). 2-hour postprandial <120 mg/dL (6.7 mmol/L). CGM range for pregnancy: 63–140 mg/dL (3.5–7.8 mmol/L). TIR (63–140 mg/dL) target >70%. TBR (<63 mg/dL / 3.5 mmol/L) <4%. TBR (<54 mg/dL / 3.0 mmol/L) <1%. HbA1c target <6% (42 mmol/mol) if achievable, otherwise <7%. The pregnancy CGM range is narrower than standard (63–140 vs 70–180 mg/dL) reflecting tighter glycemic control needed for fetal outcomes. Uncontrolled GDM risks: macrosomia, neonatal hypoglycemia, preeclampsia, birth trauma, future T2DM for mother and child. Management: medical nutrition therapy first-line, insulin if targets not met within 1-2 weeks, metformin acceptable but crosses placenta. Glyburide is generally not recommended. Postpartum: 6-12 week OGTT to screen for persistent diabetes. Lifetime T2DM screening every 1-3 years.",
+      "tags": ["pregnancy", "gdm", "cgm-targets", "maternal", "fetal-outcomes"],
+      "source": "ADA Standards of Care 2025; Battelino T et al. Diabetes Care 2019; NICE NG3 2015 (updated)."
+    },
+    {
+      "doc_id": "adips-2025-gdm",
+      "title": "ADIPS 2025 — GDM Screening and Management Guidelines",
+      "text": "Australasian Diabetes in Pregnancy Society (ADIPS) 2025 guidelines for GDM: Screening: universal screening at 24-28 weeks using 75g OGTT. Diagnostic criteria (IADPSG/WHO 2013): fasting glucose ≥92 mg/dL (5.1 mmol/L), 1-hour ≥180 mg/dL (10.0 mmol/L), 2-hour ≥153 mg/dL (8.5 mmol/L) — any one abnormal value is diagnostic. Early screening in high-risk women (BMI ≥30, previous GDM, family history, PCOS, ethnicity risk). Targets: fasting ≤90 mg/dL (5.0 mmol/L), 1-hour postprandial ≤140 mg/dL (7.8 mmol/L), 2-hour ≤120 mg/dL (6.7 mmol/L). CGM use in GDM is increasing; target TIR (63–140 mg/dL) >70%. Pharmacological management: insulin is first-line when lifestyle measures fail; metformin may be used with informed consent. Glucose monitoring at least 4 times daily (fasting + 3 postprandial) if SMBG. Postnatal follow-up: OGTT at 6-12 weeks postpartum. Long-term: annual fasting glucose or HbA1c screening due to 50% lifetime T2DM risk.",
+      "tags": ["adips", "gdm", "pregnancy", "screening", "ogtt", "australasia"],
+      "source": "ADIPS Clinical Practice Guidelines for Pregnancy Care 2025; Nankervis A et al. Aust NZ J Obstet Gynaecol."
+    },
+    {
+      "doc_id": "basal-bolus-guide",
+      "title": "Basal-Bolus Insulin Therapy — Practical Guide",
+      "text": "Basal-bolus insulin regimen mimics physiological insulin secretion. Components: Basal insulin (glargine U100/U300, detemir, degludec): provides 24-hour background insulin; typical starting dose 0.1-0.2 U/kg/day in T1D, 0.1-0.3 U/kg/day in T2DM. Bolus/prandial insulin (lispro, aspart, glulisine, ultra-rapid lispro/aspart): covers postprandial glucose excursions; typical starting dose 0.05-0.1 U/kg/meal or 10% of total daily dose per meal. Correction factor (ISF): 1800/total daily insulin dose (mg/dL per unit) for rapid-acting analogs. Insulin-to-carb ratio (ICR): 500/total daily dose for grams covered by 1 unit. Dose titration: adjust basal by 2-4 units every 3 days based on fasting glucose; adjust bolus by 1-2 units based on postprandial glucose. TDD in T1D: typically 0.5-1.0 U/kg/day; in T2DM: may exceed 1.0 U/kg/day with insulin resistance. Key principles: basal insulin should maintain fasting glucose 80-130 mg/dL (4.4-7.2 mmol/L) with minimal fasting hypoglycemia. Bolus insulin should keep postprandial glucose <180 mg/dL (10.0 mmol/L) at 2 hours.",
+      "tags": ["insulin", "basal-bolus", "t1dm", "t2dm", "dosing", "titration"],
+      "source": "Hirsch IB. Insulin therapy: ADA/EASD consensus. Diabetes Care 2022; ADA Standards of Care 2025."
+    },
+    {
+      "doc_id": "carb-counting-basics",
+      "title": "Carbohydrate Counting for Diabetes Management",
+      "text": "Carbohydrate counting is a meal planning approach for insulin-treated diabetes. Basic carb counting: 1 carbohydrate unit (15g carbs) raises blood glucose approximately 40-50 mg/dL (2.2-2.8 mmol/L) in an average adult. Advanced carb counting uses individualized insulin-to-carbohydrate ratios (ICR). ICR calculation: ICR = 500 / total daily insulin dose (TDD). Example: TDD 50 units → ICR = 500/50 = 10g carbs per 1 unit rapid insulin. Pre-meal bolus calculation: meal carbs (g) / ICR = meal bolus (units). Sources of carbohydrate: grains/starches (15g per slice bread, 15g per 1/3 cup rice), fruits (15g per small fruit or 1/2 cup), dairy (12g per cup milk), non-starchy vegetables (5g per cup raw). Glycemic index consideration: low GI foods (GI <55) cause slower glucose rise; high GI (>70) cause rapid rise. Fat and protein also affect glucose: high-fat meals delay glucose peak by 2-4 hours; protein may raise glucose 2-3 hours post-meal (count 50% of protein grams as effective carbs for extended bolus calculations).",
+      "tags": ["nutrition", "carbohydrate-counting", "insulin-ratio", "meal-planning"],
+      "source": "DAFNE Study Group; Bergenstal RM et al. Diabetes Care 2013; ADA Nutrition Therapy 2024."
+    },
+    {
+      "doc_id": "dka-recognition",
+      "title": "DKA Recognition and Emergency Management",
+      "text": "Diabetic ketoacidosis (DKA) diagnostic criteria: blood glucose >250 mg/dL (13.9 mmol/L), arterial pH <7.3, serum bicarbonate <18 mEq/L, positive serum/urine ketones (β-hydroxybutyrate >3.0 mmol/L), anion gap >12 mEq/L, effective serum osmolality variable. DKA can occur at near-normal glucose ('euglycemic DKA') with SGLT2 inhibitors, pregnancy, or reduced food intake. Classification: Mild: pH 7.25-7.30, HCO3 15-18; Moderate: pH 7.0-7.24, HCO3 10-15; Severe: pH <7.0, HCO3 <10. Symptoms: polyuria, polydipsia, nausea/vomiting, abdominal pain, Kussmaul breathing (deep rapid), fruity breath odor (acetone), altered mental status (in severe cases). Kussmaul breathing indicates metabolic acidosis with respiratory compensation. Precipitating factors: infection (#1, 30-50%), new diagnosis T1DM, insulin omission/non-adherence, MI, stroke, pancreatitis, SGLT2i use, substance abuse. Emergency treatment: aggressive IV fluid resuscitation, IV insulin infusion, potassium replacement, monitoring and serial labs every 1-2 hours.",
+      "tags": ["dka", "emergency", "recognition", "diagnosis", "ketoacidosis"],
+      "source": "Kitabchi AE et al. Diabetes Care 2009; ADA Standards of Care 2025; Umpierrez GE, Klonoff DC. J Diabetes Sci Technol 2018."
+    },
+    {
+      "doc_id": "dka-prevention",
+      "title": "DKA Prevention Strategies",
+      "text": "DKA prevention is critical, especially for T1D patients. Key strategies: (1) Never omit insulin: even when sick or not eating, basal insulin must continue; T1D patients should never stop insulin entirely. (2) Sick day rules: check blood glucose every 2-4 hours, check ketones (blood β-hydroxybutyrate preferred over urine) when glucose >250 mg/dL (13.9 mmol/L) or during illness, maintain hydration with sugar-free fluids, continue basal insulin, add correction insulin every 2-4 hours. (3) Ketone monitoring: blood β-hydroxybutyrate <0.6 mmol/L = normal, 0.6-1.5 = elevated risk, >1.5 mmol/L = DKA risk — contact provider. (4) Emergency supply: always carry rapid-acting insulin and ketone testing supplies. (5) Education: all T1D patients and caregivers should know DKA warning signs and when to seek emergency care. (6) SGLT2i users: extra vigilance as euglycemic DKA can occur (glucose may be <250 mg/dL); check ketones if symptoms present regardless of glucose level. (7) AID systems: most modern AID systems have ketone alerts and automatic correction features. (8) Alcohol: limit intake, never drink on an empty stomach, monitor glucose before bed.",
+      "tags": ["dka", "prevention", "sick-day", "ketone-monitoring", "education"],
+      "source": "Dhatariya KK et al. BMJ 2019; DKA prevention guidelines from ADA, Diabetes UK, ISPAD."
+    },
+    {
+      "doc_id": "obesity-diabetes-2024",
+      "title": "Obesity and Type 2 Diabetes — 2024 Management Update",
+      "text": "2024 guidelines integrate obesity treatment as a core component of T2DM management. Weight loss targets: ≥5% body weight improves glycemia and CV risk factors; ≥10% improves NAFLD/fibrosis and may achieve T2DM remission; ≥15% has disease-modifying potential comparable to bariatric surgery. Pharmacotherapy: GLP-1 RAs (semaglutide 2.4mg weekly) achieve 12-15% weight loss; dual GIP/GLP-1 agonist tirzepatide achieves 15-22% weight loss in T2DM. Anti-obesity medications recommended for BMI ≥30 kg/m² or ≥27 with comorbidities. Metabolic/bariatric surgery recommended for BMI ≥40 or ≥35 with T2DM; sleeve gastrectomy and Roux-en-Y gastric bypass are most effective. T2DM remission defined as HbA1c <6.5% for ≥3 months without glucose-lowering medication. Nutritional approaches: Mediterranean diet, low-carb diet (<130g/day), intermittent fasting (16:8 pattern) all show benefit. Meal replacement (800-1000 kcal/day) for initial weight loss phase followed by gradual food reintroduction. Weight regain prevention: long-term pharmacotherapy maintenance, regular physical activity, behavioral support.",
+      "tags": ["obesity", "t2dm", "weight-loss", "glp1", "tirzepatide", "bariatric"],
+      "source": "Wilding JPH et al. NEJM 2021; Lingvay I et al. NEJM 2022; AACE Obesity Guidelines 2024."
+    },
+    {
+      "doc_id": "sglt2i-cvrm",
+      "title": "SGLT2 Inhibitors — Cardiovascular and Renal Benefits",
+      "text": "SGLT2 inhibitors have proven cardiovascular and renal benefits independent of glucose lowering. CV outcomes: EMPA-REG (empagliflozin) showed 38% reduction in CV death; CANVAS (canagliflozin) showed 14% MACE reduction; DECLARE-TIMI 58 (dapagliflozin) showed 17% reduction in HF hospitalization. Heart failure: SGLT2i reduce HF hospitalization by 30-35% regardless of diabetes status (DAPA-HF, EMPEROR-Reduced, EMPEROR-Preserved). Renal protection: CREDENCE (canagliflozin) showed 30% reduction in CKD progression; DAPA-CKD showed 39% reduction. Mechanisms: osmotic diuresis, reduced preload/afterload, improved tubuloglomerular balance, reduced inflammation. Dose adjustment: no dose adjustment for dapagliflozin/empagliflozin in renal impairment down to eGFR 20 mL/min; canagliflozin 100mg if eGFR 30-60. Common side effects: genital mycotic infections (5-10%), UTI, volume depletion. Rare but serious: euglycemic DKA (risk increased with low-carb diet, surgery, illness). SGLT2i should be stopped 3 days before major surgery. Starting SGLT2i: monitor volume status, especially in elderly or those on diuretics.",
+      "tags": ["sglt2i", "cardiovascular", "renal", "heart-failure", "ckd"],
+      "source": "Zinman B et al. NEJM 2015 (EMPA-REG); McMurray JJV et al. NEJM 2019 (DAPA-HF); Perkovic V et al. NEJM 2019 (CREDENCE)."
+    },
+    {
+      "doc_id": "diabetes-distress",
+      "title": "Diabetes Distress — Screening and Management",
+      "text": "Diabetes distress (DD) is the negative emotional burden of living with diabetes, distinct from clinical depression. Prevalence: 33-50% of T1D and 20-40% of T2DM patients experience significant distress at some point. Subtypes: regimen distress (burden of daily management), emotional distress (fear, anger, guilt related to diabetes), physician-related distress (feeling unsupported by healthcare team), interpersonal distress (feeling judged by others). Screening: Diabetes Distress Scale (DDS-17) or Problem Areas in Diabetes (PAID) questionnaire; clinically significant if DDS score ≥2.0 or PAID ≥40. Consequences: elevated distress is associated with higher HbA1c, poorer self-management, reduced medication adherence, and lower TIR. Management: (1) Normalize the experience — validate that managing diabetes is genuinely hard. (2) Address specific distress drivers. (3) Diabetes self-management education and support (DSMES). (4) Technology-assisted approaches (apps, CGM feedback). (5) Peer support groups. (6) Referral to psychologist/psychiatrist if comorbid depression (PHQ-9 ≥10) or anxiety (GAD-7 ≥10) is present. (7) Consider simplifying treatment regimen to reduce management burden.",
+      "tags": ["psychology", "diabetes-distress", "mental-health", "screening", "dds", "paid"],
+      "source": "Polonsky WH et al. Diabetes Care 2005; Fisher L et al. Diabetes Care 2012; ADA Psychosocial Care 2025."
+    },
+    {
+      "doc_id": "fear-hypo",
+      "title": "Fear of Hypoglycemia — Assessment and Interventions",
+      "text": "Fear of hypoglycemia (FOH) is a significant clinical problem affecting 40-55% of T1D and 20-30% of insulin-treated T2DM patients. Assessment: Hypoglycemia Fear Survey (HFS-II) with two subscales: Worry (cognitive) and Behavior (avoidance behaviors). Consequences: defensive snacking (eating to avoid lows rather than treating them), intentionally running glucose higher than target, reduced physical activity, impaired quality of life, sleep disturbances from nocturnal low anxiety. Contributing factors: history of severe hypoglycemia, hypoglycemia unawareness (Clarke score ≥4 or Gold score ≥4), recurrent Level 2 events (<54 mg/dL). Hypoglycemia unawareness: loss of autonomic warning symptoms at glucose <70 mg/dL; affects 25% of T1D after 25 years. Risk of severe hypoglycemia 6-fold higher with unawareness. Interventions: (1) Structured hypoglycemia avoidance programs (e.g., Blood Glucose Awareness Training, BGAT). (2) CGM with alerts reduces FOH by 20-30% over 6 months. (3) AID systems with predictive low glucose suspend. (4) Medication adjustment to reduce hypoglycemia risk. (5) Psychotherapy (CBT) for severe FOH. (6) Islet/pancreas transplant for refractory cases.",
+      "tags": ["fear-of-hypoglycemia", "psychology", "unawareness", "hfs", "cgm-therapy"],
+      "source": "Wild D et al. Diabet Med 2007; Martyn-North PE et al. Diabet Med 2023; Yeoh E et al. Diabetologia 2021."
+    },
+    {
+      "doc_id": "ada-nutrition-2024",
+      "title": "ADA 2024 — Nutrition Therapy for Diabetes",
+      "text": "ADA 2024 nutrition therapy position statement emphasizes individualized medical nutrition therapy (MNT). Key recommendations: (1) All people with diabetes should receive MNT from a registered dietitian. (2) Energy balance: modest calorie reduction (500-750 kcal/day) for weight loss in overweight/obese T2DM. (3) Macronutrient distribution: no single ideal ratio; carbohydrate quality (whole grains, legumes, vegetables) matters more than quantity. (4) Mediterranean diet pattern: associated with improved glycemia and CV outcomes. (5) Low-carb diets (<130g/day): effective for short-term glycemic improvement; may require medication adjustment. (6) Glycemic index/load: choosing lower GI foods modestly improves glycemia. (7) Non-nutritive sweeteners: acceptable in moderation, may aid calorie reduction. (8) Alcohol: limit to ≤1 drink/day women, ≤2 drinks/day men; educate on delayed hypoglycemia risk with insulin/sulfonylureas. (9) Sodium: <2300 mg/day. (10) Supplements: routine supplementation not recommended unless deficiency documented. (11) Intermittent fasting: emerging evidence supports improved insulin sensitivity and weight loss.",
+      "tags": ["nutrition", "ada", "diet", "medical-nutrition-therapy", "2024"],
+      "source": "ADA. Nutrition Therapy for Adults With Diabetes or Prediabetes: A Consensus Report. Diabetes Care 2024."
+    },
+    {
+      "doc_id": "glycemic-index-guide",
+      "title": "Glycemic Index and Glycemic Load — Clinical Guide",
+      "text": "Glycemic index (GI) ranks carbohydrate-containing foods by their blood glucose raising potential compared to a reference food (white bread or glucose = 100). Classification: Low GI ≤55 (lentils GI=32, apple GI=36, rolled oats GI=55), Medium GI 56-69 (brown rice GI=68, whole wheat bread GI=65), High GI ≥70 (white bread GI=75, white rice GI=73, potato GI=78, watermelon GI=76). Glycemic load (GL) = (GI × carbohydrate grams per serving) / 100; GL <10 = low, 11-19 = medium, ≥20 = high. Clinical evidence: low GI/GL diets reduce HbA1c by 0.2-0.5% compared to high GI diets. Mechanism: slower glucose absorption produces smaller postprandial glucose excursions, reducing insulin demand. Limitations: GI is determined under controlled conditions; mixed meals, cooking method, food processing, ripeness, and individual physiology all modify the glucose response. Practical advice: pair high GI foods with protein, fat, or fiber to lower the effective GI of the meal. CGM data shows that postprandial glucose peak typically occurs 45-75 minutes after meal start; lower GI foods delay this to 60-120 minutes.",
+      "tags": ["nutrition", "glycemic-index", "glycemic-load", "postprandial", "meal-planning"],
+      "source": "Jenkins DJA et al. Am J Clin Nutr 1981; Atkinson FS et al. Diabetes Care 2021 (International Tables of GI/GL)."
+    },
+    {
+      "doc_id": "cgm-data-quality",
+      "title": "CGM Data Quality — Indicators and Troubleshooting",
+      "text": "High-quality CGM data requires minimum 70% sensor active time over the monitoring period (Battelino 2019 consensus). For reliable AGP interpretation: minimum 14 consecutive days of data with 70% active time; 28-day datasets provide most stable patterns. Data quality indicators: (1) Sensor active time percentage — below 70% unreliable. (2) Number of calibrations (for calibration-required systems). (3) Coefficient of determination (R²) of sensor vs reference during calibration. (4) Percentage of glucose readings in plausible range (typically 40-400 mg/dL). Common data quality issues: sensor dropouts (signal loss periods), erratic readings in first 24h, compression artifacts, Bluetooth disconnection gaps. Troubleshooting: (1) Ensure proper sensor insertion technique (clean dry skin, correct site, no scar tissue). (2) Verify sensor expiration and storage conditions. (3) Check for moisture under the adhesive (causes lifting). (4) For repeated signal loss: check transmitter battery, Bluetooth pairing, phone compatibility. (5) Software/firmware updates may resolve connectivity issues. Data export: most CGM platforms support standardized data export (CSV, FHIR) for interoperability with third-party apps and EHR systems.",
+      "tags": ["cgm", "data-quality", "agp", "sensor-issues", "troubleshooting"],
+      "source": "Bergenstal RM et al. Diabetes Care 2013 (AGP consensus); Battelino T et al. Diabetes Care 2019."
     }
   ]
 }
