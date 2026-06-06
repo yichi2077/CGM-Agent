@@ -96,7 +96,7 @@ class ReportServiceTests(unittest.TestCase):
         self.assertEqual(report.g8_memory_candidates[0].target_layer, "L1")
         self.assertEqual(report.template_version, "g7-report-template-v1")
         self.assertEqual(report.route, "reports.generate")
-        self.assertEqual(report.safety_result, {"status": "clear", "reason": "no_red_zone_points"})
+        self.assertEqual(report.safety_result, {"status": "clear", "reason": "no_red_or_yellow_zone_points"})
         self.assertEqual(report.output_hash, sha256(report.rendered_markdown.encode("utf-8")).hexdigest())
         self.assertEqual(loaded.output_hash, report.output_hash)
 

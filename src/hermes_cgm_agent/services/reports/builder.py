@@ -106,6 +106,12 @@ class ReportService:
                 detected_events=detected_events,
                 warnings=warnings,
             )
+            # 🟡 Yellow zone: prepend alert prefix to the first section
+            if safety_decision.safety_result["status"] == "yellow_zone" and sections:
+                alert_prefix = safety_decision.message or ""
+                sections[0] = sections[0].model_copy(
+                    update={"content": alert_prefix + "\n\n" + sections[0].content}
+                )
         candidates = [
             candidate
             for section in sections
