@@ -22,7 +22,16 @@ PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent conte
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent memory-synthesize --user-id user-1 --window-start 2026-05-31T00:00:00+00:00 --window-end 2026-06-01T00:00:00+00:00 --period daily
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-validate
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-rag
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent seed-demo --db-path ./.runtime/demo.db
 ```
+
+`seed-demo` runs the full data→memory→recall loop on a CGM CSV (default
+`examples/cgm_test_dataset/cgm_3x14.csv`): it imports points, derives L1 episodes
+from detected glucose events (real per-day facts), consolidates them into L2
+beliefs and L3 hypotheses across distinct days, synthesizes a warm summary, and
+prints a memory-recall sample plus the USER.md L2 projection. Point it at a
+throwaway `--db-path` to inspect a populated database without touching the
+runtime DB.
 
 Run tests:
 
