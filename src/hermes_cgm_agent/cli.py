@@ -240,6 +240,7 @@ def build_parser() -> argparse.ArgumentParser:
     hermes_install.add_argument("--hermes-bin", default=None)
     hermes_install.add_argument("--skip-editable-install", action="store_true")
     hermes_install.add_argument("--skip-runtime-config", action="store_true")
+    hermes_install.add_argument("--smoke", action="store_true")
     hermes_install.add_argument("--dry-run", action="store_true")
 
     return parser
@@ -320,13 +321,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cgm_repository_tables_present: {str(cgm_status.tables_present).lower()}")
         print(f"cgm_repository_table_count: {cgm_status.table_count}")
         print(f"glucose_point_count: {cgm_status.glucose_point_count}")
+        onboarding_status = "ready" if cgm_status.glucose_point_count > 0 else "needs_data"
+        print(f"onboarding_status: {onboarding_status}")
+        if onboarding_status == "needs_data":
+            print(
+                "recommended_next_command: "
+                f"PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 "
+                f"-m hermes_cgm_agent seed-demo --db-path {config.database_path}"
+            )
         print(f"import_batch_count: {cgm_status.import_batch_count}")
         print(f"user_event_count: {cgm_status.user_event_count}")
         print("cgm_importer_present: true")
         print("cgm_importer_formats: csv,json")
         print("cgm_normalizer_present: true")
         print("cgm_analytics_present: true")
-        print("cgm_analytics_metrics: TIR,TAR,TBR,MBG,CV,GMI,LBGI,HBGI,data_coverage")
+        print("cgm_analytics_metrics: TIR,TAR,TBR,MBG,CV,GMI,LBGI,HBGI,MODD,CONGA1,CONGA2,CONGA4,data_coverage")
         print("cgm_event_tools_present: true")
         print("glucose_event_detection_present: true")
         print(f"cgm_reports_present: {str(report_table is not None).lower()}")
@@ -498,6 +507,7 @@ def main(argv: list[str] | None = None) -> int:
             hermes_bin=args.hermes_bin,
             install_editable=not args.skip_editable_install,
             configure_runtime=not args.skip_runtime_config,
+            smoke=args.smoke,
             dry_run=args.dry_run,
         )
         print(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True))

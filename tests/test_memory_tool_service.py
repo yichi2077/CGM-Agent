@@ -155,10 +155,12 @@ class MemoryToolServiceTests(unittest.TestCase):
         self.assertEqual(self.repository.list_candidates("user-1"), [])
 
     def test_ingest_report_candidates_enqueues_report_candidates(self) -> None:
+        window_start = datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc)
         result = self.service.ingest_report_candidates(
             report=_ReportFixture(
                 report_id="r1",
                 user_id="user-1",
+                data_scope=_ScopeFixture(window_start=window_start),
                 g8_memory_candidates=[
                     G8MemoryCandidate(
                         target_layer="L1",
@@ -176,6 +178,31 @@ class MemoryToolServiceTests(unittest.TestCase):
         self.assertEqual(result["enqueued"], 1)
         self.assertEqual(candidates[0].candidate_id, "report-r1-1")
         self.assertEqual(candidates[0].source_report_id, "r1")
+        self.assertEqual(candidates[0].occurred_at, window_start)
+
+    def test_report_candidate_explicit_occurred_at_overrides_window_start(self) -> None:
+        window_start = datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc)
+        event_time = datetime(2026, 5, 31, 8, 0, tzinfo=timezone.utc)
+        self.service.ingest_report_candidates(
+            report=_ReportFixture(
+                report_id="r1",
+                user_id="user-1",
+                data_scope=_ScopeFixture(window_start=window_start),
+                g8_memory_candidates=[
+                    G8MemoryCandidate(
+                        target_layer="L1",
+                        candidate_type="episode",
+                        summary="Candidate from event.",
+                        occurred_at=event_time,
+                        confidence=0.7,
+                    )
+                ],
+            ),
+            enabled=True,
+        )
+
+        candidates = self.repository.list_candidates("user-1")
+        self.assertEqual(candidates[0].occurred_at, event_time)
 
     def test_correct_memory_updates_l1(self) -> None:
         memory_id = self.service.correct_memory(
@@ -270,6 +297,12 @@ class _ReportFixture:
     report_id: str
     user_id: str
     g8_memory_candidates: list[G8MemoryCandidate]
+    data_scope: object | None = None
+
+
+@dataclass(frozen=True)
+class _ScopeFixture:
+    window_start: datetime
 
 
 if __name__ == "__main__":

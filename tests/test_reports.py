@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from hermes_cgm_agent.domain import GlucosePoint, UserEvent
-from hermes_cgm_agent.domain.report import ReportAudience, ReportInput
+from hermes_cgm_agent.domain.report import ReportAudience, ReportInput, ReportSection, ReportSourceTrack
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.reports import (
     ReportService,
@@ -94,9 +94,15 @@ class ReportServiceTests(unittest.TestCase):
         self.assertEqual(loaded.report_id, report.report_id)
         self.assertEqual(len(report.g8_memory_candidates), 1)
         self.assertEqual(report.g8_memory_candidates[0].target_layer, "L1")
+        self.assertEqual(
+            report.g8_memory_candidates[0].occurred_at,
+            datetime(2026, 5, 31, 8, 0, tzinfo=timezone.utc),
+        )
         self.assertEqual(report.template_version, "g7-report-template-v1")
         self.assertEqual(report.route, "reports.generate")
-        self.assertEqual(report.safety_result, {"status": "clear", "reason": "no_red_or_yellow_zone_points"})
+        self.assertEqual(report.safety_result["status"], "clear")
+        self.assertEqual(report.safety_result["reason"], "no_red_or_yellow_zone_points")
+        self.assertTrue(report.safety_result["authoritative_quote_verification"]["ok"])
         self.assertEqual(report.output_hash, sha256(report.rendered_markdown.encode("utf-8")).hexdigest())
         self.assertEqual(loaded.output_hash, report.output_hash)
 
@@ -209,9 +215,148 @@ class ReportServiceTests(unittest.TestCase):
             )
         )
         aggregate_refs = [ref for ref in report.evidence_refs if ref.kind == "aggregate"]
+        appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
 
         self.assertIn("doctor_appendix", [section.section_id for section in report.sections])
+        self.assertEqual(appendix.title, "AGP 文本附录")
+        self.assertIn("按 24 小时折算", appendix.content)
+        self.assertIn("目标范围内约 18.0 小时/日", appendix.content)
+        self.assertIn("高于范围约 6.0 小时/日", appendix.content)
+        self.assertIn("低于范围约 0.0 小时/日", appendix.content)
+        self.assertIn("日间变异 MODD 暂无 mg/dL", appendix.content)
+        self.assertIn("短期变异 CONGA1/2/4 17.0/15.0/暂无 mg/dL", appendix.content)
+        self.assertIn("数据充分性不足以替代标准 AGP 图", appendix.content)
         self.assertTrue(any(":14d" in ref.ref_id for ref in aggregate_refs))
+
+    def test_empty_doctor_appendix_does_not_render_none_values(self) -> None:
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="doctor",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-18T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
+
+        self.assertIn("本窗无有效 CGM 数据", appendix.content)
+        self.assertIn("不能生成时间范围折算", appendix.content)
+        self.assertNotIn("None", appendix.content)
+        self.assertNotIn("None", report.rendered_markdown)
+
+    def test_doctor_report_includes_modd_when_adjacent_day_pairs_exist(self) -> None:
+        for timestamp, value in (
+            (datetime(2026, 5, 18, 0, 0, tzinfo=timezone.utc), 100),
+            (datetime(2026, 5, 19, 0, 0, tzinfo=timezone.utc), 130),
+        ):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=timestamp,
+                    value=value,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="doctor",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-18T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
+
+        self.assertIn("日间变异 MODD 30.0 mg/dL", appendix.content)
+
+    def test_doctor_report_includes_conga_when_lagged_pairs_exist(self) -> None:
+        for hour, value in enumerate([100, 110, 140, 190, 220, 250, 260]):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 5, 18, hour, 0, tzinfo=timezone.utc),
+                    value=value,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="doctor",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-18T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
+
+        self.assertIn("短期变异 CONGA1/2/4 13.74/17.89/9.43 mg/dL", appendix.content)
+
+    def test_doctor_agp_appendix_includes_hourly_percentile_band(self) -> None:
+        for offset_day, value in enumerate([100, 120, 140]):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 5, 18 + offset_day, 0, 0, tzinfo=timezone.utc),
+                    value=value,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="doctor",
+                user_id="user-1",
+                timezone="Asia/Shanghai",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-18T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
+
+        self.assertIn("AGP 时段带", appendix.content)
+        self.assertIn("08:00 n=3 P50=120.0 mg/dL", appendix.content)
+        self.assertIn("P10-P90 104.0-136.0", appendix.content)
+        self.assertIn("IQR 110.0-130.0", appendix.content)
+
+    def test_doctor_agp_appendix_requires_repeated_hour_samples(self) -> None:
+        self._create_points(values=[95])
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="doctor",
+                user_id="user-1",
+                timezone="Asia/Shanghai",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-18T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
+
+        self.assertIn("暂无足够重复时段", appendix.content)
+        self.assertNotIn("P50=", appendix.content)
 
     def test_report_accepts_rag_context_without_retrieving_it(self) -> None:
         self._create_points()
@@ -270,6 +415,63 @@ class ReportServiceTests(unittest.TestCase):
         self.assertIn("待人工核验", observations.warnings[0].message)
         self.assertIn("general", observations.warnings[0].message)
         self.assertIn("Diabetes Care 2025;48(Suppl 1)", report.rendered_markdown)
+        self.assertTrue(report.safety_result["authoritative_quote_verification"]["ok"])
+
+    def test_authoritative_quote_gate_flags_unsupported_section_numbers(self) -> None:
+        self._create_points()
+
+        def _unsupported_authoritative_section(*args: object, **kwargs: object) -> ReportSection:
+            scope = kwargs.get("scope") or args[0]
+            return ReportSection(
+                section_id="observations",
+                kind="observations",
+                title="观察",
+                content="参考资料提示目标数值为 99。",
+                data_scope=scope,
+                source_tracks=[ReportSourceTrack.AUTHORITATIVE],
+                confidence=0.8,
+            )
+
+        original = self.report_service._observations_section
+        self.report_service._observations_section = _unsupported_authoritative_section  # type: ignore[method-assign]
+        try:
+            report = self.report_service.generate(
+                ReportInput(
+                    report_type="weekly",
+                    user_id="user-1",
+                    data_scope={
+                        "user_id": "user-1",
+                        "window_start": "2026-05-31T00:00:00+00:00",
+                        "window_end": "2026-06-07T00:00:00+00:00",
+                    },
+                    authoritative_context={
+                        "enabled": True,
+                        "documents": [
+                            {
+                                "title": "CGM FAQ",
+                                "text": "参考资料只支持数值 70。",
+                                "source": "Diabetes Care 2025;48(Suppl 1)",
+                                "citation": {"page": 12},
+                                "verified": False,
+                            }
+                        ],
+                    },
+                )
+            )
+        finally:
+            self.report_service._observations_section = original  # type: ignore[method-assign]
+
+        verification = report.safety_result["authoritative_quote_verification"]
+        observations = next(section for section in report.sections if section.section_id == "observations")
+
+        self.assertFalse(verification["ok"])
+        self.assertIn("number 99 lacks authoritative evidence mapping", verification["violations"])
+        self.assertTrue(
+            any(
+                warning.code == "authoritative_quote_verification_failed"
+                for warning in observations.warnings
+            )
+        )
 
     def test_report_includes_detected_glucose_events_section(self) -> None:
         # A sustained hypo episode (four points below 70) should be detected and

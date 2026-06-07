@@ -249,12 +249,15 @@ def _report_candidate_to_memory_candidate(
     candidate: G8MemoryCandidate,
     index: int,
 ) -> MemoryCandidate:
+    report_scope = getattr(report, "data_scope", None)
+    occurred_at = candidate.occurred_at or getattr(report_scope, "window_start", None)
     return MemoryCandidate(
         candidate_id=f"report-{report.report_id}-{index}",
         user_id=report.user_id,
         target_layer=MemoryLayer(candidate.target_layer),
         candidate_type=candidate.candidate_type,
         summary=candidate.summary,
+        occurred_at=occurred_at,
         requires_user_confirmation=candidate.requires_user_confirmation,
         source_report_id=candidate.source_report_id or report.report_id,
         source_section_id=candidate.source_section_id,

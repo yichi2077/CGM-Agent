@@ -129,7 +129,7 @@ class MemoryReviewService:
         episode_type = candidate.candidate_type or "episode"
         self.consolidation.ingest_accepted_candidate(
             candidate,
-            occurred_at=now,
+            occurred_at=candidate.occurred_at or now,
             episode_type=episode_type,
             now=now,
         )

@@ -176,6 +176,44 @@ class StorageEncryptionTests(unittest.TestCase):
         self.assertNotIn("ai_outputs", tables)
         self.assertEqual(audit_fks, [])
 
+    def test_initialize_adds_memory_candidate_occurred_at_to_existing_table(self) -> None:
+        legacy_db = Path(self.temp_dir.name) / "legacy-memory.db"
+        conn = sqlite3.connect(legacy_db)
+        try:
+            conn.executescript(
+                """
+                CREATE TABLE memory_candidates (
+                    candidate_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    target_layer TEXT NOT NULL,
+                    candidate_type TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    requires_user_confirmation INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    source_report_id TEXT,
+                    source_section_id TEXT,
+                    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+                    confidence REAL NOT NULL DEFAULT 0.5,
+                    created_at TEXT NOT NULL,
+                    resolved_at TEXT
+                );
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        store = SQLiteStore(legacy_db)
+        store.initialize()
+
+        with store.connect() as migrated:
+            columns = {
+                row["name"]
+                for row in migrated.execute("PRAGMA table_info(memory_candidates)").fetchall()
+            }
+
+        self.assertIn("occurred_at", columns)
+
 
 if __name__ == "__main__":
     unittest.main()

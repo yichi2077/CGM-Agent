@@ -22,6 +22,7 @@ class HermesInstallReport:
     plugin_targets: dict[str, str]
     editable_install_python: str | None = None
     actions: list[str] = field(default_factory=list)
+    smoke_checks: dict[str, bool] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -34,6 +35,7 @@ def install_hermes_integration(
     hermes_bin: str | None = None,
     install_editable: bool = True,
     configure_runtime: bool = True,
+    smoke: bool = False,
     dry_run: bool = False,
 ) -> HermesInstallReport:
     root = _resolve_project_root(project_root)
@@ -86,6 +88,29 @@ def install_hermes_integration(
             subprocess.run([bin_path, "memory", "setup", "cgm_memory"], check=True, capture_output=True, text=True)
             actions.append("enabled-memory-provider:cgm_memory")
 
+    smoke_checks: dict[str, bool] = {}
+    if smoke:
+        if dry_run:
+            actions.append("would-smoke:hermes-plugins-list")
+            actions.append("would-smoke:hermes-memory-status")
+            actions.append("would-smoke:cgm-dev-status")
+            smoke_checks = {
+                "hermes_plugins_list": False,
+                "hermes_memory_status": False,
+                "cgm_dev_status": False,
+            }
+        else:
+            smoke_python = editable_python or Path(sys.executable)
+            _run_checked([bin_path, "plugins", "list", "--plain", "--no-bundled"], cwd=root)
+            actions.append("smoke:hermes-plugins-list")
+            smoke_checks["hermes_plugins_list"] = True
+            _run_checked([bin_path, "memory", "status"], cwd=root)
+            actions.append("smoke:hermes-memory-status")
+            smoke_checks["hermes_memory_status"] = True
+            _run_checked([str(smoke_python), "-m", "hermes_cgm_agent", "dev-status"], cwd=root)
+            actions.append("smoke:cgm-dev-status")
+            smoke_checks["cgm_dev_status"] = True
+
     return HermesInstallReport(
         project_root=str(root),
         hermes_home=str(home),
@@ -93,6 +118,7 @@ def install_hermes_integration(
         plugin_targets=plugin_targets,
         editable_install_python=str(editable_python) if editable_python is not None else None,
         actions=actions,
+        smoke_checks=smoke_checks,
     )
 
 
@@ -157,3 +183,7 @@ def _install_plugin_dir(*, source: Path, target: Path) -> None:
         target.symlink_to(source, target_is_directory=True)
     except OSError:
         shutil.copytree(source, target, symlinks=True)
+
+
+def _run_checked(command: list[str], *, cwd: Path) -> None:
+    subprocess.run(command, check=True, capture_output=True, text=True, cwd=str(cwd))

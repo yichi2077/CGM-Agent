@@ -37,7 +37,7 @@ from hermes_cgm_agent.services.analytics import (
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.reports.renderer import render_markdown
 from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
-from hermes_cgm_agent.services.safety import SafetyRouter
+from hermes_cgm_agent.services.safety import SafetyRouter, assert_authoritative_quotes
 
 
 REPORT_WINDOW_DAYS = {
@@ -111,6 +111,7 @@ class ReportService:
                 report_id=report_id,
                 report_input=report_input,
                 scope=scope,
+                points=points,
                 aggregate=aggregate,
                 events=events,
                 detected_events=detected_events,
@@ -122,6 +123,15 @@ class ReportService:
                 sections[0] = sections[0].model_copy(
                     update={"content": alert_prefix + "\n\n" + sections[0].content}
                 )
+        quote_verification = _verify_authoritative_sections(
+            sections=sections,
+            documents=report_input.authoritative_context.documents,
+        )
+        if not quote_verification["ok"]:
+            sections = _attach_authoritative_quote_warning(
+                sections=sections,
+                violations=quote_verification["violations"],
+            )
         candidates = [
             candidate
             for section in sections
@@ -150,7 +160,10 @@ class ReportService:
                 "authoritative_context": _context_version(report_input.authoritative_context),
             },
             route=safety_decision.route,
-            safety_result=safety_decision.safety_result,
+            safety_result={
+                **safety_decision.safety_result,
+                "authoritative_quote_verification": quote_verification,
+            },
         )
         report.rendered_markdown = render_markdown(report)
         report.output_hash = _output_hash(report.rendered_markdown)
@@ -162,6 +175,7 @@ class ReportService:
         report_id: str,
         report_input: ReportInput,
         scope: DataScope,
+        points: list[GlucosePoint],
         aggregate: GlucoseAggregate,
         events: list[UserEvent],
         detected_events: list[GlucoseEvent],
@@ -211,7 +225,16 @@ class ReportService:
             )
         if report_type == ReportType.DOCTOR:
             sections.append(
-                self._doctor_appendix_section(scope, aggregate, events, detected_events, warnings, audience)
+                self._doctor_appendix_section(
+                    scope,
+                    points,
+                    aggregate,
+                    events,
+                    detected_events,
+                    warnings,
+                    audience,
+                    report_input.timezone,
+                )
             )
         return sections
 
@@ -287,7 +310,7 @@ class ReportService:
     ) -> ReportSection:
         if aggregate.point_count == 0:
             if audience == ReportAudience.CLINICIAN:
-                content = "本窗暂无可计算的关键指标；TIR/TAR/TBR、MBG、CV 与 GMI 均需有效 CGM 数据后再解读。"
+                content = "本窗暂无可计算的关键指标；TIR/TAR/TBR、MBG、CV、GMI、MODD 与 CONGA 均需有效 CGM 数据后再解读。"
             elif audience == ReportAudience.FAMILY:
                 content = "这段时间暂无可计算的关键指标，先等数据补齐后再看平均值和偏高偏低比例。"
             else:
@@ -295,7 +318,9 @@ class ReportService:
         elif audience == ReportAudience.CLINICIAN:
             content = (
                 f"TIR {aggregate.tir}%，TAR {aggregate.tar}%，TBR {aggregate.tbr}%；"
-                f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}。"
+                f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}，"
+                f"MODD {_metric_value(aggregate.modd)} mg/dL，"
+                f"CONGA1/2/4={_metric_value(aggregate.conga1)}/{_metric_value(aggregate.conga2)}/{_metric_value(aggregate.conga4)} mg/dL。"
             )
         elif audience == ReportAudience.FAMILY:
             content = (
@@ -361,6 +386,7 @@ class ReportService:
                 target_layer="L1",
                 candidate_type="episode",
                 summary=f"已确认一次{event.event_type}事件，时间在 {event.ts_start.isoformat()}。",
+                occurred_at=event.ts_start,
                 source_report_id=report_id,
                 source_section_id="key_events",
                 evidence_refs=[_event_evidence(event)],
@@ -575,6 +601,7 @@ class ReportService:
                 target_layer="L3",
                 candidate_type="hypothesis",
                 summary=summary,
+                occurred_at=scope.window_start,
                 source_report_id=report_id,
                 source_section_id="patterns",
                 evidence_refs=_unique_evidence_refs(evidence_refs),
@@ -684,31 +711,48 @@ class ReportService:
     def _doctor_appendix_section(
         self,
         scope: DataScope,
+        points: list[GlucosePoint],
         aggregate: GlucoseAggregate,
         events: list[UserEvent],
         detected_events: list[GlucoseEvent],
         warnings: list[DataQualityWarning],
         audience: ReportAudience,
+        timezone_name: str,
     ) -> ReportSection:
-        if audience == ReportAudience.FAMILY:
-            content = "这份医生版附录主要是给门诊快速查看的数字摘要，家里先知道整体已整理好就可以。"
+        agp_summary = _agp_text_summary(scope=scope, aggregate=aggregate)
+        percentile_summary = _agp_percentile_summary(points=points, timezone_name=timezone_name)
+        if aggregate.point_count == 0:
+            content = (
+                "医生附录：本窗无有效 CGM 数据，TIR/TAR/TBR、MBG、CV、GMI、MODD、CONGA、"
+                f"LBGI/HBGI 均暂不解读。{agp_summary}"
+            )
+        elif audience == ReportAudience.FAMILY:
+            content = (
+                "这份医生版附录主要是给门诊快速查看的数字摘要，"
+                f"家里先知道整体已整理好就可以。{agp_summary}{percentile_summary}"
+            )
         elif audience == ReportAudience.SELF:
             content = (
                 f"给医生快速扫读的数字版：TIR {aggregate.tir}%，TAR {aggregate.tar}%，TBR {aggregate.tbr}%，"
-                f"平均 {aggregate.mbg} mg/dL，波动系数 {aggregate.cv}%。"
+                f"平均 {aggregate.mbg} mg/dL，波动系数 {aggregate.cv}%，"
+                f"日间变异 MODD {_metric_value(aggregate.modd)} mg/dL，"
+                f"短期变异 CONGA1/2/4 {_metric_value(aggregate.conga1)}/{_metric_value(aggregate.conga2)}/{_metric_value(aggregate.conga4)} mg/dL。"
+                f"{agp_summary}{percentile_summary}"
             )
         else:
             content = (
                 f"结构化摘要：TIR={aggregate.tir}%，TAR={aggregate.tar}%，TBR={aggregate.tbr}%，"
                 f"MBG={aggregate.mbg} mg/dL，CV={aggregate.cv}%，GMI={aggregate.gmi}，"
+                f"MODD={_metric_value(aggregate.modd)} mg/dL，"
+                f"CONGA1/2/4={_metric_value(aggregate.conga1)}/{_metric_value(aggregate.conga2)}/{_metric_value(aggregate.conga4)} mg/dL，"
                 f"LBGI={aggregate.lbgi}，HBGI={aggregate.hbgi}，覆盖率={aggregate.data_coverage}%，"
                 f"已确认事件={len([event for event in events if event.user_confirmed])}，"
-                f"系统检出事件={len(detected_events)}，数据质量说明={len(warnings)}。"
+                f"系统检出事件={len(detected_events)}，数据质量说明={len(warnings)}。{agp_summary}{percentile_summary}"
             )
         return ReportSection(
             section_id="doctor_appendix",
             kind="doctor_appendix",
-            title="医生附录",
+            title="AGP 文本附录",
             content=content,
             data_scope=scope,
             evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)] + [_event_evidence(event) for event in events],
@@ -894,6 +938,91 @@ def _coverage_confidence(data_coverage: float) -> float:
     return 0.25
 
 
+def _agp_text_summary(*, scope: DataScope, aggregate: GlucoseAggregate) -> str:
+    if aggregate.point_count == 0:
+        return " AGP 文本附录：本窗无有效 CGM 数据，不能生成时间范围折算。"
+    tir_hours = _percent_to_day_hours(aggregate.tir)
+    tar_hours = _percent_to_day_hours(aggregate.tar)
+    tbr_hours = _percent_to_day_hours(aggregate.tbr)
+    sufficiency = _agp_sufficiency_label(scope=scope, aggregate=aggregate)
+    return (
+        " AGP 文本附录：按 24 小时折算，"
+        f"目标范围内约 {tir_hours} 小时/日，"
+        f"高于范围约 {tar_hours} 小时/日，"
+        f"低于范围约 {tbr_hours} 小时/日；"
+        f"{sufficiency}"
+    )
+
+
+def _percent_to_day_hours(value: float | None) -> float:
+    if value is None:
+        return 0.0
+    return round((value / 100) * 24, 1)
+
+
+def _metric_value(value: float | None) -> str:
+    return "暂无" if value is None else str(value)
+
+
+def _agp_sufficiency_label(*, scope: DataScope, aggregate: GlucoseAggregate) -> str:
+    window_days = (scope.window_end - scope.window_start).total_seconds() / 86400
+    if window_days >= 14 and aggregate.data_coverage >= 70:
+        return "数据充分性满足 14 天且覆盖率约 70% 的 AGP 解读门槛。"
+    return (
+        "数据充分性不足以替代标准 AGP 图；"
+        f"当前窗口约 {round(window_days, 1)} 天，覆盖率 {aggregate.data_coverage}%。"
+    )
+
+
+def _agp_percentile_summary(
+    *,
+    points: list[GlucosePoint],
+    timezone_name: str,
+    min_points_per_hour: int = 2,
+    max_hours: int = 4,
+) -> str:
+    if not points:
+        return ""
+    zone = ZoneInfo(timezone_name)
+    values_by_hour: dict[int, list[float]] = {}
+    for point in points:
+        local_hour = point.timestamp.astimezone(zone).hour
+        values_by_hour.setdefault(local_hour, []).append(point.value_mg_dl)
+    repeated_hours = [
+        (hour, sorted(values))
+        for hour, values in sorted(values_by_hour.items())
+        if len(values) >= min_points_per_hour
+    ]
+    if not repeated_hours:
+        return " AGP 时段带：暂无足够重复时段生成 P10/P25/P50/P75/P90 文本带。"
+    parts = []
+    for hour, values in repeated_hours[:max_hours]:
+        p10 = _percentile(values, 10)
+        p25 = _percentile(values, 25)
+        p50 = _percentile(values, 50)
+        p75 = _percentile(values, 75)
+        p90 = _percentile(values, 90)
+        parts.append(
+            f"{hour:02d}:00 n={len(values)} P50={p50} mg/dL "
+            f"(P10-P90 {p10}-{p90}, IQR {p25}-{p75})"
+        )
+    truncated = "" if len(repeated_hours) <= max_hours else f"；另有 {len(repeated_hours) - max_hours} 个时段未展开"
+    return " AGP 时段带：" + "；".join(parts) + truncated + "。"
+
+
+def _percentile(sorted_values: list[float], percentile: float) -> float:
+    if not sorted_values:
+        return 0.0
+    if len(sorted_values) == 1:
+        return round(sorted_values[0], 1)
+    rank = (percentile / 100) * (len(sorted_values) - 1)
+    lower = int(rank)
+    upper = min(lower + 1, len(sorted_values) - 1)
+    fraction = rank - lower
+    value = sorted_values[lower] + (sorted_values[upper] - sorted_values[lower]) * fraction
+    return round(value, 1)
+
+
 def _context_version(context: MemoryContext | AuthoritativeContext) -> str:
     if not context.enabled:
         return "disabled"
@@ -942,6 +1071,62 @@ def _authoritative_doc_label(doc: AuthoritativeDocument) -> str:
     if doc.source:
         label += f" ({doc.source})"
     return label
+
+
+def _verify_authoritative_sections(
+    *,
+    sections: list[ReportSection],
+    documents: list[AuthoritativeDocument],
+) -> dict[str, object]:
+    authoritative_sections = [
+        section for section in sections if ReportSourceTrack.AUTHORITATIVE in section.source_tracks
+    ]
+    if not authoritative_sections or not documents:
+        return {
+            "ok": True,
+            "mode": "strict",
+            "checked_documents": len(documents),
+            "checked_sections": len(authoritative_sections),
+            "violations": [],
+        }
+    generated_text = "\n\n".join(section.content for section in authoritative_sections)
+    result = assert_authoritative_quotes(
+        [doc.model_dump(mode="json") for doc in documents],
+        generated_text,
+        strict=True,
+    )
+    return {
+        "ok": result.ok,
+        "mode": result.mode,
+        "checked_documents": len(documents),
+        "checked_sections": len(authoritative_sections),
+        "violations": result.violations,
+    }
+
+
+def _attach_authoritative_quote_warning(
+    *,
+    sections: list[ReportSection],
+    violations: list[object],
+) -> list[ReportSection]:
+    warning = DataQualityWarning(
+        code="authoritative_quote_verification_failed",
+        severity=DataQualitySeverity.WARNING,
+        message=(
+            "权威参考段落包含未能映射到 KB 原文数字的内容，"
+            "已降级为待核验背景线索："
+            + "；".join(str(item) for item in violations)
+        ),
+    )
+    updated: list[ReportSection] = []
+    for section in sections:
+        if ReportSourceTrack.AUTHORITATIVE in section.source_tracks:
+            updated.append(
+                section.model_copy(update={"warnings": [*section.warnings, warning]})
+            )
+        else:
+            updated.append(section)
+    return updated
 
 
 def _unique_evidence_refs(refs: object) -> list[EvidenceRef]:

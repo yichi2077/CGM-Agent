@@ -101,6 +101,7 @@ class MemoryCandidate(CGMBaseModel):
     target_layer: MemoryLayer
     candidate_type: str
     summary: str
+    occurred_at: datetime | None = None
     requires_user_confirmation: bool = True
     status: CandidateStatus = CandidateStatus.PENDING
     source_report_id: str | None = None
