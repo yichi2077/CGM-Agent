@@ -310,7 +310,7 @@ class ReportService:
     ) -> ReportSection:
         if aggregate.point_count == 0:
             if audience == ReportAudience.CLINICIAN:
-                content = "本窗暂无可计算的关键指标；TIR/TAR/TBR、MBG、CV、GMI、MODD 与 CONGA 均需有效 CGM 数据后再解读。"
+                content = "本窗暂无可计算的关键指标；TIR/TAR/TBR、MBG、CV、GMI、MAGE、MODD 与 CONGA 均需有效 CGM 数据后再解读。"
             elif audience == ReportAudience.FAMILY:
                 content = "这段时间暂无可计算的关键指标，先等数据补齐后再看平均值和偏高偏低比例。"
             else:
@@ -319,6 +319,7 @@ class ReportService:
             content = (
                 f"TIR {aggregate.tir}%，TAR {aggregate.tar}%，TBR {aggregate.tbr}%；"
                 f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}，"
+                f"MAGE {_metric_value(aggregate.mage)} mg/dL，"
                 f"MODD {_metric_value(aggregate.modd)} mg/dL，"
                 f"CONGA1/2/4={_metric_value(aggregate.conga1)}/{_metric_value(aggregate.conga2)}/{_metric_value(aggregate.conga4)} mg/dL。"
             )
@@ -723,7 +724,7 @@ class ReportService:
         percentile_summary = _agp_percentile_summary(points=points, timezone_name=timezone_name)
         if aggregate.point_count == 0:
             content = (
-                "医生附录：本窗无有效 CGM 数据，TIR/TAR/TBR、MBG、CV、GMI、MODD、CONGA、"
+                "医生附录：本窗无有效 CGM 数据，TIR/TAR/TBR、MBG、CV、GMI、MAGE、MODD、CONGA、"
                 f"LBGI/HBGI 均暂不解读。{agp_summary}"
             )
         elif audience == ReportAudience.FAMILY:
@@ -735,6 +736,7 @@ class ReportService:
             content = (
                 f"给医生快速扫读的数字版：TIR {aggregate.tir}%，TAR {aggregate.tar}%，TBR {aggregate.tbr}%，"
                 f"平均 {aggregate.mbg} mg/dL，波动系数 {aggregate.cv}%，"
+                f"峰谷波动 MAGE {_metric_value(aggregate.mage)} mg/dL，"
                 f"日间变异 MODD {_metric_value(aggregate.modd)} mg/dL，"
                 f"短期变异 CONGA1/2/4 {_metric_value(aggregate.conga1)}/{_metric_value(aggregate.conga2)}/{_metric_value(aggregate.conga4)} mg/dL。"
                 f"{agp_summary}{percentile_summary}"
@@ -743,6 +745,7 @@ class ReportService:
             content = (
                 f"结构化摘要：TIR={aggregate.tir}%，TAR={aggregate.tar}%，TBR={aggregate.tbr}%，"
                 f"MBG={aggregate.mbg} mg/dL，CV={aggregate.cv}%，GMI={aggregate.gmi}，"
+                f"MAGE={_metric_value(aggregate.mage)} mg/dL，"
                 f"MODD={_metric_value(aggregate.modd)} mg/dL，"
                 f"CONGA1/2/4={_metric_value(aggregate.conga1)}/{_metric_value(aggregate.conga2)}/{_metric_value(aggregate.conga4)} mg/dL，"
                 f"LBGI={aggregate.lbgi}，HBGI={aggregate.hbgi}，覆盖率={aggregate.data_coverage}%，"

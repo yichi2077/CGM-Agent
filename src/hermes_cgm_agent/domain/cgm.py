@@ -279,6 +279,7 @@ class GlucoseAggregate(CGMBaseModel):
     mbg: float | None = Field(default=None, alias="MBG", ge=0)
     lbgi: float | None = Field(default=None, alias="LBGI", ge=0)
     hbgi: float | None = Field(default=None, alias="HBGI", ge=0)
+    mage: float | None = Field(default=None, alias="MAGE", ge=0)
     modd: float | None = Field(default=None, alias="MODD", ge=0)
     conga1: float | None = Field(default=None, alias="CONGA1", ge=0)
     conga2: float | None = Field(default=None, alias="CONGA2", ge=0)

@@ -223,6 +223,7 @@ class ReportServiceTests(unittest.TestCase):
         self.assertIn("目标范围内约 18.0 小时/日", appendix.content)
         self.assertIn("高于范围约 6.0 小时/日", appendix.content)
         self.assertIn("低于范围约 0.0 小时/日", appendix.content)
+        self.assertIn("峰谷波动 MAGE 100.0 mg/dL", appendix.content)
         self.assertIn("日间变异 MODD 暂无 mg/dL", appendix.content)
         self.assertIn("短期变异 CONGA1/2/4 17.0/15.0/暂无 mg/dL", appendix.content)
         self.assertIn("数据充分性不足以替代标准 AGP 图", appendix.content)
@@ -305,6 +306,34 @@ class ReportServiceTests(unittest.TestCase):
         appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
 
         self.assertIn("短期变异 CONGA1/2/4 13.74/17.89/9.43 mg/dL", appendix.content)
+
+    def test_doctor_report_includes_mage_when_peak_nadir_excursions_exist(self) -> None:
+        for index, value in enumerate([100, 160, 120, 210, 130, 250, 180]):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 5, 18, 0, index * 5, tzinfo=timezone.utc),
+                    value=value,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="doctor",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-18T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        appendix = next(section for section in report.sections if section.section_id == "doctor_appendix")
+
+        self.assertIn("峰谷波动 MAGE 84.0 mg/dL", appendix.content)
 
     def test_doctor_agp_appendix_includes_hourly_percentile_band(self) -> None:
         for offset_day, value in enumerate([100, 120, 140]):

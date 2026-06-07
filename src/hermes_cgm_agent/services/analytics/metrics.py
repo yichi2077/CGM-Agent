@@ -61,6 +61,7 @@ class CGMAnalyticsService:
         cv = (standard_deviation / mean_glucose * 100) if mean_glucose > 0 else None
         gmi = 3.31 + (0.02392 * mean_glucose)
         lbgi, hbgi = _blood_glucose_risk_index(values)
+        mage = _mean_amplitude_of_glycemic_excursions(eligible_points, standard_deviation)
         modd = _mean_of_daily_differences(eligible_points)
         conga = _continuous_overall_net_glycemic_action(eligible_points)
 
@@ -77,6 +78,7 @@ class CGMAnalyticsService:
             MBG=_round(mean_glucose),
             LBGI=_round(lbgi),
             HBGI=_round(hbgi),
+            MAGE=_round(mage),
             MODD=_round(modd),
             CONGA1=_round(conga[1]),
             CONGA2=_round(conga[2]),
@@ -152,6 +154,46 @@ def _blood_glucose_risk_index(values_mg_dl: list[float]) -> tuple[float | None, 
     lbgi = sum(low_risks) / len(low_risks)
     hbgi = sum(high_risks) / len(high_risks)
     return lbgi, hbgi
+
+
+def _mean_amplitude_of_glycemic_excursions(
+    points: list[GlucosePoint],
+    standard_deviation: float,
+) -> float | None:
+    """MAGE: mean peak-to-nadir excursions at least one glucose SD high."""
+    if len(points) < 3 or standard_deviation <= 0:
+        return None
+
+    values = [
+        point.value_mg_dl
+        for point in sorted(points, key=lambda item: item.timestamp)
+    ]
+    compressed: list[float] = []
+    for value in values:
+        if not compressed or value != compressed[-1]:
+            compressed.append(value)
+    if len(compressed) < 3:
+        return None
+
+    extrema: list[float] = [compressed[0]]
+    for index in range(1, len(compressed) - 1):
+        previous_value = compressed[index - 1]
+        value = compressed[index]
+        next_value = compressed[index + 1]
+        if (value > previous_value and value > next_value) or (
+            value < previous_value and value < next_value
+        ):
+            extrema.append(value)
+    extrema.append(compressed[-1])
+
+    excursions = [
+        abs(current_value - previous_value)
+        for previous_value, current_value in zip(extrema, extrema[1:])
+        if abs(current_value - previous_value) >= standard_deviation
+    ]
+    if not excursions:
+        return None
+    return sum(excursions) / len(excursions)
 
 
 def _mean_of_daily_differences(points: list[GlucosePoint]) -> float | None:

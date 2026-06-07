@@ -335,7 +335,7 @@ def main(argv: list[str] | None = None) -> int:
         print("cgm_importer_formats: csv,json")
         print("cgm_normalizer_present: true")
         print("cgm_analytics_present: true")
-        print("cgm_analytics_metrics: TIR,TAR,TBR,MBG,CV,GMI,LBGI,HBGI,MODD,CONGA1,CONGA2,CONGA4,data_coverage")
+        print("cgm_analytics_metrics: TIR,TAR,TBR,MBG,CV,GMI,LBGI,HBGI,MAGE,MODD,CONGA1,CONGA2,CONGA4,data_coverage")
         print("cgm_event_tools_present: true")
         print("glucose_event_detection_present: true")
         print(f"cgm_reports_present: {str(report_table is not None).lower()}")
