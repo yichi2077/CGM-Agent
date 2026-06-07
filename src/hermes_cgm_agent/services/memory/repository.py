@@ -375,9 +375,9 @@ class SQLiteMemoryRepository:
                 """
                 INSERT INTO memory_candidates (
                     candidate_id, user_id, target_layer, candidate_type, summary,
-                    requires_user_confirmation, status, source_report_id,
+                    occurred_at, requires_user_confirmation, status, source_report_id,
                     source_section_id, evidence_refs_json, confidence, created_at, resolved_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     candidate.candidate_id,
@@ -385,6 +385,7 @@ class SQLiteMemoryRepository:
                     _enum(candidate.target_layer),
                     candidate.candidate_type,
                     self.store.seal(candidate.summary),
+                    _dt(candidate.occurred_at) if candidate.occurred_at else None,
                     int(candidate.requires_user_confirmation),
                     _enum(candidate.status),
                     candidate.source_report_id,
@@ -622,6 +623,7 @@ def _row_to_candidate(row: Any, store: SQLiteStore) -> MemoryCandidate:
         target_layer=MemoryLayer(row["target_layer"]),
         candidate_type=row["candidate_type"],
         summary=store.unseal(row["summary"]),
+        occurred_at=datetime.fromisoformat(row["occurred_at"]) if row["occurred_at"] else None,
         requires_user_confirmation=bool(row["requires_user_confirmation"]),
         status=CandidateStatus(row["status"]),
         source_report_id=row["source_report_id"],

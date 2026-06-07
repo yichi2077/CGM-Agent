@@ -277,6 +277,7 @@ class SQLiteStore:
                     target_layer TEXT NOT NULL,
                     candidate_type TEXT NOT NULL,
                     summary TEXT NOT NULL,
+                    occurred_at TEXT,
                     requires_user_confirmation INTEGER NOT NULL DEFAULT 1,
                     status TEXT NOT NULL DEFAULT 'pending',
                     source_report_id TEXT,
@@ -377,6 +378,7 @@ class SQLiteStore:
                 self._ensure_column(
                     conn, table, "source_episode_ids_json", "TEXT NOT NULL DEFAULT '[]'"
                 )
+            self._ensure_column(conn, "memory_candidates", "occurred_at", "TEXT")
             self._migrate_legacy_session_tables(conn)
         self._harden_permissions()
 

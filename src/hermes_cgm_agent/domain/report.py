@@ -52,6 +52,7 @@ class G8MemoryCandidate(CGMBaseModel):
     target_layer: str
     candidate_type: str
     summary: str
+    occurred_at: datetime | None = None
     source_report_id: str | None = None
     source_section_id: str | None = None
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)

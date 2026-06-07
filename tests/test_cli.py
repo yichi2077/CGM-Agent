@@ -167,6 +167,7 @@ class CliTests(unittest.TestCase):
                 "--hermes-bin",
                 "hermes",
                 "--skip-editable-install",
+                "--smoke",
                 "--dry-run",
             ]
         )
@@ -176,6 +177,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.hermes_home, "/tmp/hermes")
         self.assertEqual(args.hermes_bin, "hermes")
         self.assertTrue(args.skip_editable_install)
+        self.assertTrue(args.smoke)
         self.assertTrue(args.dry_run)
 
 

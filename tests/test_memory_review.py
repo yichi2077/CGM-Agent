@@ -21,6 +21,7 @@ from hermes_cgm_agent.services.tools import ToolExecutor
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 NOW = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
+HISTORICAL = datetime(2026, 5, 28, 6, 30, tzinfo=timezone.utc)
 
 
 class MemoryReviewServiceTests(unittest.TestCase):
@@ -58,6 +59,19 @@ class MemoryReviewServiceTests(unittest.TestCase):
 
         self.assertEqual(resolved.status, CandidateStatus.ACCEPTED)
         self.assertEqual(len(self.repo.list_episodes("u1")), 1)
+
+    def test_confirm_uses_candidate_occurred_at_for_historical_backfill(self) -> None:
+        cand = self._candidate(
+            "c1",
+            requires_confirmation=True,
+            occurred_at=HISTORICAL,
+        )
+        self.review.ingest_report_candidates([cand], now=NOW)
+
+        self.review.confirm_candidate("c1", user_id="u1", confirmed=True, now=NOW)
+
+        episode = self.repo.list_episodes("u1")[0]
+        self.assertEqual(episode.occurred_at, HISTORICAL)
 
     def test_reject_does_not_promote(self) -> None:
         cand = self._candidate("c1", requires_confirmation=True)
@@ -353,13 +367,20 @@ class MemoryReviewServiceTests(unittest.TestCase):
         self.assertEqual(resolved.status, CandidateStatus.ACCEPTED)
         self.assertEqual(len(self.repo.list_episodes("u1")), 1)
 
-    def _candidate(self, candidate_id: str, *, requires_confirmation: bool) -> MemoryCandidate:
+    def _candidate(
+        self,
+        candidate_id: str,
+        *,
+        requires_confirmation: bool,
+        occurred_at: datetime | None = None,
+    ) -> MemoryCandidate:
         return MemoryCandidate(
             candidate_id=candidate_id,
             user_id="u1",
             target_layer=MemoryLayer.L1,
             candidate_type="episode",
             summary=f"candidate {candidate_id}",
+            occurred_at=occurred_at,
             requires_user_confirmation=requires_confirmation,
             evidence_refs=[EvidenceRef(kind="event", ref_id=f"ev-{candidate_id}")],
             confidence=0.8,

@@ -59,6 +59,39 @@ class HermesInstallerTests(unittest.TestCase):
             self.assertIn(["hermes", "memory", "setup", "cgm_memory"], commands)
             self.assertIn("enabled-memory-provider:cgm_memory", report.actions)
 
+    def test_install_smoke_runs_runtime_and_cgm_status_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as hermes_home:
+            python_dir = Path(hermes_home) / "hermes-agent" / "venv" / "bin"
+            python_dir.mkdir(parents=True)
+            python_bin = python_dir / "python3"
+            python_bin.write_text("", encoding="utf-8")
+
+            with patch("hermes_cgm_agent.hermes_plugins.installer.subprocess.run") as run:
+                report = install_hermes_integration(
+                    project_root=PROJECT_ROOT,
+                    hermes_home=Path(hermes_home),
+                    hermes_bin="hermes",
+                    install_editable=False,
+                    configure_runtime=False,
+                    smoke=True,
+                )
+
+            commands = [call.args[0] for call in run.call_args_list]
+            self.assertIn(["hermes", "plugins", "list", "--plain", "--no-bundled"], commands)
+            self.assertIn(["hermes", "memory", "status"], commands)
+            self.assertIn(
+                [str(python_bin.resolve()), "-m", "hermes_cgm_agent", "dev-status"],
+                commands,
+            )
+            self.assertEqual(
+                report.smoke_checks,
+                {
+                    "hermes_plugins_list": True,
+                    "hermes_memory_status": True,
+                    "cgm_dev_status": True,
+                },
+            )
+
     def test_dry_run_reports_actions_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as hermes_home:
             with patch("hermes_cgm_agent.hermes_plugins.installer.subprocess.run") as run:

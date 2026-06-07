@@ -17,11 +17,12 @@ PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent statu
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent dev-status
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent tools
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-version
-PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-install --dry-run
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-install --dry-run --smoke
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent hermes-install --smoke --skip-editable-install
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent context-build --user-id user-1 --anchor-at 2026-06-15T00:00:00+00:00
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent memory-synthesize --user-id user-1 --window-start 2026-05-31T00:00:00+00:00 --window-end 2026-06-01T00:00:00+00:00 --period daily
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-validate
-PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-rag
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-rag --min-hit3 0.95
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent seed-demo --db-path ./.runtime/demo.db
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent push-tick --user-id user-1
 ```
@@ -42,6 +43,10 @@ beliefs and L3 hypotheses across distinct days, synthesizes a warm summary, and
 prints a memory-recall sample plus the USER.md L2 projection. Point it at a
 throwaway `--db-path` to inspect a populated database without touching the
 runtime DB.
+
+`dev-status` reports `onboarding_status`. A fresh runtime DB is expected to show
+`needs_data` and a concrete `recommended_next_command`; run that command or
+`import-cgm` before treating report, memory, and push behavior as product-ready.
 
 Run tests:
 
@@ -101,7 +106,10 @@ PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent herme
 ```
 
 Use `--dry-run` first to inspect target plugin paths and Hermes commands without
-writing into `~/.hermes`.
+writing into `~/.hermes`. Add `--smoke` to verify Hermes plugin discovery,
+Hermes memory-provider status, and CGM `dev-status` after install. Use
+`--skip-editable-install` when the package is already installed in Hermes'
+runtime venv and you only need to refresh plugin wiring plus smoke checks.
 
 This command:
 
@@ -110,6 +118,7 @@ This command:
 - enables the `cgm` plugin in Hermes
 - activates `cgm_memory` as the external memory provider
 - installs this project into Hermes' own runtime venv when available
+- optionally runs post-install smoke checks with `--smoke`
 
 Knowledge-base operations:
 

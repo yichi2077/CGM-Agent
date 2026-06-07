@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 from hermes_cgm_agent.domain import (
     DataScope,
@@ -60,6 +61,9 @@ class CGMAnalyticsService:
         cv = (standard_deviation / mean_glucose * 100) if mean_glucose > 0 else None
         gmi = 3.31 + (0.02392 * mean_glucose)
         lbgi, hbgi = _blood_glucose_risk_index(values)
+        mage = _mean_amplitude_of_glycemic_excursions(eligible_points, standard_deviation)
+        modd = _mean_of_daily_differences(eligible_points)
+        conga = _continuous_overall_net_glycemic_action(eligible_points)
 
         return GlucoseAggregate(
             user_id=scope.user_id,
@@ -74,6 +78,11 @@ class CGMAnalyticsService:
             MBG=_round(mean_glucose),
             LBGI=_round(lbgi),
             HBGI=_round(hbgi),
+            MAGE=_round(mage),
+            MODD=_round(modd),
+            CONGA1=_round(conga[1]),
+            CONGA2=_round(conga[2]),
+            CONGA4=_round(conga[4]),
             data_coverage=data_coverage,
             point_count=point_count,
         )
@@ -145,6 +154,89 @@ def _blood_glucose_risk_index(values_mg_dl: list[float]) -> tuple[float | None, 
     lbgi = sum(low_risks) / len(low_risks)
     hbgi = sum(high_risks) / len(high_risks)
     return lbgi, hbgi
+
+
+def _mean_amplitude_of_glycemic_excursions(
+    points: list[GlucosePoint],
+    standard_deviation: float,
+) -> float | None:
+    """MAGE: mean peak-to-nadir excursions at least one glucose SD high."""
+    if len(points) < 3 or standard_deviation <= 0:
+        return None
+
+    values = [
+        point.value_mg_dl
+        for point in sorted(points, key=lambda item: item.timestamp)
+    ]
+    compressed: list[float] = []
+    for value in values:
+        if not compressed or value != compressed[-1]:
+            compressed.append(value)
+    if len(compressed) < 3:
+        return None
+
+    extrema: list[float] = [compressed[0]]
+    for index in range(1, len(compressed) - 1):
+        previous_value = compressed[index - 1]
+        value = compressed[index]
+        next_value = compressed[index + 1]
+        if (value > previous_value and value > next_value) or (
+            value < previous_value and value < next_value
+        ):
+            extrema.append(value)
+    extrema.append(compressed[-1])
+
+    excursions = [
+        abs(current_value - previous_value)
+        for previous_value, current_value in zip(extrema, extrema[1:])
+        if abs(current_value - previous_value) >= standard_deviation
+    ]
+    if not excursions:
+        return None
+    return sum(excursions) / len(excursions)
+
+
+def _mean_of_daily_differences(points: list[GlucosePoint]) -> float | None:
+    """Mean absolute difference between matching clock times on adjacent days."""
+    by_day_and_minute: dict[tuple[date, int], float] = {}
+    for point in sorted(points, key=lambda item: item.timestamp):
+        timestamp = point.timestamp
+        minute_of_day = timestamp.hour * 60 + timestamp.minute
+        by_day_and_minute[(timestamp.date(), minute_of_day)] = point.value_mg_dl
+
+    differences: list[float] = []
+    for day, minute_of_day in sorted(by_day_and_minute):
+        next_value = by_day_and_minute.get((day + timedelta(days=1), minute_of_day))
+        if next_value is not None:
+            differences.append(abs(next_value - by_day_and_minute[(day, minute_of_day)]))
+    if not differences:
+        return None
+    return sum(differences) / len(differences)
+
+
+def _continuous_overall_net_glycemic_action(
+    points: list[GlucosePoint],
+    *,
+    lags_hours: tuple[int, ...] = (1, 2, 4),
+) -> dict[int, float | None]:
+    """CONGA-n: SD of glucose differences between readings n hours apart."""
+    values_by_timestamp = {
+        point.timestamp: point.value_mg_dl
+        for point in sorted(points, key=lambda item: item.timestamp)
+    }
+    result: dict[int, float | None] = {}
+    for lag in lags_hours:
+        delta = timedelta(hours=lag)
+        differences = [
+            later_value - value
+            for timestamp, value in values_by_timestamp.items()
+            if (later_value := values_by_timestamp.get(timestamp + delta)) is not None
+        ]
+        if len(differences) < 2:
+            result[lag] = None
+        else:
+            result[lag] = _population_std(differences, sum(differences) / len(differences))
+    return result
 
 
 def _round(value: float | None) -> float | None:

@@ -32,7 +32,74 @@ class CGMAnalyticsTests(unittest.TestCase):
         self.assertEqual(aggregate.gmi, 6.33)
         self.assertEqual(aggregate.lbgi, 2.18)
         self.assertEqual(aggregate.hbgi, 2.58)
+        self.assertEqual(aggregate.mage, 140.0)
+        self.assertIsNone(aggregate.modd)
+        self.assertIsNone(aggregate.conga1)
+        self.assertIsNone(aggregate.conga2)
+        self.assertIsNone(aggregate.conga4)
         self.assertEqual(aggregate.data_coverage, 100.0)
+
+    def test_mage_uses_peak_nadir_excursions_above_one_standard_deviation(self) -> None:
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 5, 31, 1, 0, tzinfo=timezone.utc),
+        )
+        points = [
+            _point(index, value)
+            for index, value in enumerate([100, 160, 120, 210, 130, 250, 180])
+        ]
+
+        aggregate = CGMAnalyticsService().compute_aggregate(points=points, scope=scope)
+
+        self.assertEqual(aggregate.mage, 84.0)
+
+    def test_mage_returns_none_without_countable_excursions(self) -> None:
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 5, 31, 1, 0, tzinfo=timezone.utc),
+        )
+        points = [_point(index, 100) for index in range(6)]
+
+        aggregate = CGMAnalyticsService().compute_aggregate(points=points, scope=scope)
+
+        self.assertIsNone(aggregate.mage)
+
+    def test_modd_uses_matching_clock_times_on_adjacent_days(self) -> None:
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 6, 2, 1, 0, tzinfo=timezone.utc),
+        )
+        points = [
+            _point_at(datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc), 100),
+            _point_at(datetime(2026, 5, 31, 0, 5, tzinfo=timezone.utc), 120),
+            _point_at(datetime(2026, 6, 1, 0, 0, tzinfo=timezone.utc), 130),
+            _point_at(datetime(2026, 6, 1, 0, 5, tzinfo=timezone.utc), 150),
+            _point_at(datetime(2026, 6, 2, 0, 0, tzinfo=timezone.utc), 160),
+        ]
+
+        aggregate = CGMAnalyticsService().compute_aggregate(points=points, scope=scope)
+
+        self.assertEqual(aggregate.modd, 30.0)
+
+    def test_conga_uses_standard_deviation_of_lagged_differences(self) -> None:
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 5, 31, 7, 0, tzinfo=timezone.utc),
+        )
+        points = [
+            _point_at(datetime(2026, 5, 31, hour, 0, tzinfo=timezone.utc), value)
+            for hour, value in enumerate([100, 110, 140, 190, 260, 350, 460])
+        ]
+
+        aggregate = CGMAnalyticsService().compute_aggregate(points=points, scope=scope)
+
+        self.assertEqual(aggregate.conga1, 34.16)
+        self.assertEqual(aggregate.conga2, 56.57)
+        self.assertEqual(aggregate.conga4, 65.32)
 
     def test_lbgi_hbgi_separate_low_and_high_risk(self) -> None:
         scope = DataScope(
@@ -92,6 +159,10 @@ class CGMAnalyticsTests(unittest.TestCase):
         self.assertIsNone(aggregate.gmi)
         self.assertIsNone(aggregate.lbgi)
         self.assertIsNone(aggregate.hbgi)
+        self.assertIsNone(aggregate.modd)
+        self.assertIsNone(aggregate.conga1)
+        self.assertIsNone(aggregate.conga2)
+        self.assertIsNone(aggregate.conga4)
         self.assertEqual(aggregate.data_coverage, 0.0)
 
     def test_custom_thresholds_are_supported(self) -> None:
@@ -131,6 +202,17 @@ def _point(
         unit="mg/dL",
         source=source,
         quality_flag=quality_flag,
+    )
+
+
+def _point_at(timestamp: datetime, value: float) -> GlucosePoint:
+    return GlucosePoint(
+        user_id="user-1",
+        timestamp=timestamp,
+        value=value,
+        unit="mg/dL",
+        source="sensor:a",
+        quality_flag="valid",
     )
 
 
