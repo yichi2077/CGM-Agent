@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from hermes_cgm_agent.domain import EvidenceRef
+from hermes_cgm_agent.services.safety.memory_guard import assert_kb_readonly
 from hermes_cgm_agent.services.memory.retrieval import (
     Embedder,
     HybridRetriever,
@@ -73,6 +74,60 @@ DEFAULT_MIN_UNTRUSTED_OVERLAP = 1
 # lower BM25 rank can still be promoted above auto cards by trusted-first.
 KB_POOL_FACTOR = 8
 KB_POOL_MIN = 25
+
+# ── population taxonomy (A1, D043) ─────────────────────────────────────────
+# Auto-ingested cards carry ~150 distinct free-text ``population`` strings
+# ("elderly T2DM with CKD G3a", "older diabetes patients (Group 1, ...)" ...).
+# Exact-string filtering against that is unusable AND silently fell open
+# (returning the whole KB on a zero match). Instead we derive a small CONTROLLED
+# class from the raw text and filter on that. The raw string is preserved for
+# display/citation; only the matchable axis is normalized. ``general`` is the
+# baseline (adult/unspecified) and is always co-eligible with any specific class.
+POPULATION_GENERAL = "general"
+POPULATION_CLASSES = (
+    POPULATION_GENERAL,
+    "pediatric",
+    "pregnancy",
+    "elderly",
+    "inpatient",
+)
+
+
+def normalize_population(raw: str | None) -> str:
+    """Map a free-text population string to a controlled POPULATION_CLASSES value.
+
+    Heuristic, order-sensitive substring match over a hyphen/space-stripped
+    lower-cased form. Specific classes win over ``general``; ``nonpregnant`` is
+    explicitly excluded from the pregnancy class so e.g.
+    "adult-t1d-t2d-nonpregnant" stays ``general`` rather than matching "pregn".
+    """
+    s = (raw or "").strip().lower()
+    if not s:
+        return POPULATION_GENERAL
+    c = s.replace("-", "").replace(" ", "")
+    if (
+        ("pregn" in c and "nonpregn" not in c)
+        or "gdm" in c
+        or "gestational" in c
+        or "childbearing" in c
+    ):
+        return "pregnancy"
+    if any(k in c for k in ("pediatr", "child", "adolesc", "youth")):
+        return "pediatric"
+    if any(
+        k in c
+        for k in ("hospital", "inpatient", "critical", "periop", "icu", "hhs", "acutecoronary")
+    ):
+        return "inpatient"
+    if any(
+        k in c
+        for k in (
+            "elder", "older", "geriatr", "≥65", "≥70", "≥80", "80+", "6080",
+            "frail", "endoflife", "lifeexpectancy",
+        )
+    ):
+        return "elderly"
+    return POPULATION_GENERAL
 
 
 def _is_trusted(card: "ClaimCard") -> bool:
@@ -139,6 +194,11 @@ class ClaimCard:
         if page is not None and str(page) not in cit:
             cit = f"{cit}, p.{page}" if cit else f"p.{page}"
         return cit
+
+    @property
+    def population_class(self) -> str:
+        """Controlled population class (A1) derived from the raw ``population``."""
+        return normalize_population(self.population)
 
     @property
     def index_text(self) -> str:
@@ -227,6 +287,11 @@ class AuthoritativeRAGService:
             for c in self.knowledge_base.cards
         ]
         self._by_id = {c.card_id: c for c in self.knowledge_base.cards}
+        # R2-3 (D031): enforce the read-only KB invariant the memory_guard
+        # docstring promises. If a future change adds a mutator (add/write/
+        # update/delete/...) to this service, construction fails loudly rather
+        # than letting personal data silently leak into the immutable medical KB.
+        assert_kb_readonly(self)
 
     @property
     def kb_version(self) -> str:
@@ -261,6 +326,7 @@ class AuthoritativeRAGService:
                     "claim_zh": card.claim_zh,
                     "claim_en": card.claim_en,
                     "population": card.population,
+                    "population_class": card.population_class,
                     "source": card.citation,
                     "citation": dict(card.source),
                     "verified": card.verified,
@@ -299,10 +365,19 @@ class AuthoritativeRAGService:
     def _filter_docs(self, population: str | None) -> list[MemoryDoc]:
         if not population:
             return self._docs
-        normalized = population.strip().lower()
-        filtered = [
+        query_class = normalize_population(population)
+        if query_class == POPULATION_GENERAL:
+            # A general/unspecified request is not a real filter — everything is
+            # eligible. (Avoids excluding specific-population cards from a generic
+            # query, and avoids the old exact-match degenerate behaviour.)
+            return self._docs
+        # Keep cards of the requested class plus the always-eligible ``general``
+        # baseline. No silent fail-open: if nothing matches we honestly return the
+        # (possibly empty) filtered set instead of the whole KB pretending it
+        # filtered. ``general`` cards (the bulk baseline) keep results non-empty
+        # in practice.
+        return [
             doc
             for doc in self._docs
-            if self._by_id[doc.doc_id].population.lower() in {normalized, "general"}
+            if self._by_id[doc.doc_id].population_class in {query_class, POPULATION_GENERAL}
         ]
-        return filtered or self._docs

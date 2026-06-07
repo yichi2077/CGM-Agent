@@ -36,9 +36,10 @@ from hermes_cgm_agent.services.memory import (
     SQLiteMemoryRepository,
     UserMDSyncService,
 )
-from hermes_cgm_agent.services.rag import AuthoritativeRAGService
+from hermes_cgm_agent.services.rag import AuthoritativeRAGService, normalize_population
 from hermes_cgm_agent.services.reports import ReportService, SQLiteReportRepository
 from hermes_cgm_agent.services.safety import (
+    assert_authoritative_quotes,
     assert_track_isolation,
     query_number_coverage,
 )
@@ -127,6 +128,8 @@ class ToolExecutor:
             return self._memory_correct(arguments=arguments, session_id=session_id)
         if tool_name == "rag.authoritative_search":
             return self._rag_search(arguments=arguments, session_id=session_id)
+        if tool_name == "rag.verify_quotes":
+            return self._verify_quotes(arguments=arguments, session_id=session_id)
         if tool_name == "hypothesis.update":
             return self._hypothesis_update(arguments=arguments, session_id=session_id)
         if tool_name == "delivery.send":
@@ -141,6 +144,15 @@ class ToolExecutor:
             data_scope=arguments.get("data_scope"),
             message=f"Tool has no executor: {tool_name}",
         )
+
+    def _memory_repository(self) -> SQLiteMemoryRepository:
+        """Single construction point for the memory repository (C2).
+
+        Several handlers need an L1/L2/L3 repository over the same SQLite store;
+        constructing it here keeps that wiring in one place instead of repeating
+        ``SQLiteMemoryRepository(self.repository.store)`` across the file.
+        """
+        return SQLiteMemoryRepository(self.repository.store)
 
     def _get_points(
         self,
@@ -509,7 +521,7 @@ class ToolExecutor:
                 "pending": 0,
             }
         review = MemoryReviewService(
-            repository=SQLiteMemoryRepository(self.repository.store)
+            repository=self._memory_repository()
         )
         result = review.ingest_report_candidates(candidates)
         return {
@@ -531,7 +543,7 @@ class ToolExecutor:
             candidate_id = str(arguments["candidate_id"])
             confirmed = _require_bool(arguments.get("confirmed"), "confirmed")
             review = MemoryReviewService(
-                repository=SQLiteMemoryRepository(self.repository.store)
+                repository=self._memory_repository()
             )
             resolved = review.confirm_candidate(
                 candidate_id, user_id=user_id, confirmed=confirmed
@@ -577,7 +589,7 @@ class ToolExecutor:
             layer = str(arguments["layer"])
             limit = _parse_limit(arguments.get("limit"))
             include_archived = bool(arguments.get("include_archived", False))
-            repository = SQLiteMemoryRepository(self.repository.store)
+            repository = self._memory_repository()
             memories = self._list_memories(
                 repository=repository,
                 user_id=user_id,
@@ -625,7 +637,7 @@ class ToolExecutor:
             user_id = str(arguments["user_id"])
             memory_id = str(arguments["memory_id"])
             layer = str(arguments["layer"])
-            repository = SQLiteMemoryRepository(self.repository.store)
+            repository = self._memory_repository()
             deleted = self._delete_memory(
                 repository=repository,
                 user_id=user_id,
@@ -675,13 +687,13 @@ class ToolExecutor:
             if not isinstance(correction, dict):
                 raise ValueError("correction must be an object")
             review = MemoryReviewService(
-                repository=SQLiteMemoryRepository(self.repository.store)
+                repository=self._memory_repository()
             )
             memory_id = review.correct(user_id=user_id, target=target, correction=correction)
             hermes_home = os.environ.get("HERMES_HOME")
             if memory_id and target.upper() == "L2" and hermes_home:
                 UserMDSyncService(
-                    repository=SQLiteMemoryRepository(self.repository.store)
+                    repository=self._memory_repository()
                 ).sync(user_id=user_id, hermes_home=hermes_home)
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
@@ -720,7 +732,7 @@ class ToolExecutor:
         if not user_id:
             return args
         assembler = MemoryContextAssembler(
-            repository=SQLiteMemoryRepository(self.repository.store)
+            repository=self._memory_repository()
         )
         report_type = str(args.get("report_type", "daily"))
         query = f"{report_type} review for {user_id}"
@@ -796,6 +808,10 @@ class ToolExecutor:
             "kb_version": self._rag_service.kb_version,
             "quote_instruction": "verbatim_only",
         }
+        if population is not None:
+            # A1 (D043): surface the controlled class the free-text population
+            # resolved to, so callers/audit can see the filter actually applied.
+            payload["population_filter"] = normalize_population(population)
         if coverage.violations:
             payload["query_number_coverage"] = {
                 "mode": coverage.mode,
@@ -806,6 +822,76 @@ class ToolExecutor:
             evidence_refs=evidence_refs,
             audit_id=audit_id,
             payload=payload,
+        )
+
+    def _verify_quotes(
+        self,
+        *,
+        arguments: dict[str, Any],
+        session_id: str,
+    ) -> ToolExecutionResponse:
+        """A2 anti-hallucination gate (D044): every significant medical number in
+        the GENERATED text must be backed by a retrieved authoritative card.
+
+        Enforcement that used to live only as a comment ("the skill does it") is
+        now a callable, audited tool. Hermes calls it over its draft narrative;
+        with strict=true an unsupported number returns ok=false.
+        """
+        spec = self.registry.get("rag.verify_quotes")
+        try:
+            generated_text = str(arguments["generated_text"])
+            if not generated_text.strip():
+                raise ValueError("generated_text must be a non-empty string")
+            strict = _require_bool(arguments.get("strict", False), "strict")
+            documents = arguments.get("documents")
+            if documents is not None and not isinstance(documents, list):
+                raise ValueError("documents must be a list when provided")
+            if not documents:
+                query = arguments.get("query")
+                if not (query and str(query).strip()):
+                    raise ValueError(
+                        "provide either documents or a non-empty query to verify against"
+                    )
+                top_k = int(arguments.get("top_k", 5))
+                if top_k < 1 or top_k > 20:
+                    raise ValueError("top_k must be between 1 and 20")
+                if self._rag_service is None:
+                    self._rag_service = AuthoritativeRAGService()
+                documents = self._rag_service.search(str(query).strip(), top_k=top_k)
+        except (KeyError, TypeError, ValueError) as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope=None,
+                message=str(exc),
+            )
+
+        result = assert_authoritative_quotes(documents, generated_text, strict=strict)
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": None,
+                "risk_level": spec.risk_level,
+                "guard_ok": result.ok,
+                "guard_mode": result.mode,
+                "violation_count": len(result.violations),
+                "checked_documents": len(documents),
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=[],
+            audit_id=audit_id,
+            payload={
+                "ok": result.ok,
+                "mode": result.mode,
+                "violations": result.violations,
+                "checked_documents": len(documents),
+            },
         )
 
     def _hypothesis_update(
@@ -823,7 +909,7 @@ class ToolExecutor:
             if not isinstance(raw_refs, list):
                 raise ValueError("evidence_refs must be a list when provided")
             evidence_refs = [EvidenceRef.model_validate(ref) for ref in raw_refs]
-            repository = SQLiteMemoryRepository(self.repository.store)
+            repository = self._memory_repository()
             existing = {h.hypothesis_id: h for h in repository.list_hypotheses(user_id)}
             hypothesis = existing.get(hypothesis_id)
             if hypothesis is None:

@@ -74,12 +74,39 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_memory_delete",
                 "cgm_hypothesis_update",
                 "cgm_rag_authoritative_search",
+                "cgm_rag_verify_quotes",
                 "cgm_delivery_send",
                 "cgm_data_dexcom_sync",
             },
         )
         for call in collector.calls:
             self.assertEqual(call["toolset"], "cgm")
+
+    def test_plugin_yaml_provides_tools_matches_runtime_registration(self) -> None:
+        # R2-1: the static plugin.yaml manifest must declare exactly the tools the
+        # plugin registers at runtime. register() derives tools dynamically from
+        # the active registry, so a new tool silently drifts the manifest. This
+        # guard locks declaration == reality (no YAML dependency: manual parse).
+        collector = _ToolCollector()
+        self.cgm_plugin.register(collector)
+        runtime_names = {call["name"] for call in collector.calls}
+
+        manifest = (
+            PROJECT_ROOT / "integrations" / "hermes" / "cgm" / "plugin.yaml"
+        ).read_text(encoding="utf-8")
+        declared: set[str] = set()
+        in_block = False
+        for line in manifest.splitlines():
+            if line.strip().startswith("provides_tools:"):
+                in_block = True
+                continue
+            if in_block:
+                stripped = line.strip()
+                if stripped.startswith("- "):
+                    declared.add(stripped[2:].strip())
+                elif stripped and not line.startswith((" ", "\t")):
+                    break  # next top-level key ends the list
+        self.assertEqual(declared, runtime_names)
 
     def test_cgm_tool_handler_executes_internal_tool_in_process(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

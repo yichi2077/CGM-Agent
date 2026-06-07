@@ -400,7 +400,14 @@ def build_default_tool_registry() -> ToolRegistry:
                 properties={
                     "query": {"type": "string", "minLength": 1},
                     "top_k": {"type": "integer", "minimum": 1, "maximum": 20},
-                    "population": {"type": ["string", "null"]},
+                    "population": {
+                        "type": ["string", "null"],
+                        "description": (
+                            "Free-text population; auto-normalized to a controlled "
+                            "class (general/pediatric/pregnancy/elderly/inpatient). "
+                            "general-baseline cards are always co-eligible."
+                        ),
+                    },
                 },
             ),
             output_schema=_response_schema(
@@ -410,6 +417,41 @@ def build_default_tool_registry() -> ToolRegistry:
                         "items": {"type": "object"},
                     },
                     "kb_version": {"type": "string"},
+                }
+            ),
+            risk_level="read",
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="rag.verify_quotes",
+            group="rag",
+            owner_module="safety",
+            description=(
+                "Post-generation anti-hallucination gate (A2): verify that every "
+                "significant medical number in GENERATED narrative text is backed "
+                "by a retrieved authoritative card. Call this AFTER drafting any "
+                "narrative that cites clinical numbers. Pass the retrieved "
+                "`documents`, or a `query` to re-retrieve them. With strict=true, "
+                "any unsupported number fails (ok=false)."
+            ),
+            input_schema=_object_schema(
+                required=["generated_text"],
+                properties={
+                    "generated_text": {"type": "string", "minLength": 1},
+                    "documents": {"type": "array", "items": {"type": "object"}},
+                    "query": {"type": ["string", "null"]},
+                    "top_k": {"type": "integer", "minimum": 1, "maximum": 20},
+                    "strict": {"type": "boolean"},
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "ok": {"type": "boolean"},
+                    "mode": {"type": "string"},
+                    "violations": {"type": "array", "items": {"type": "string"}},
+                    "checked_documents": {"type": "integer"},
                 }
             ),
             risk_level="read",
