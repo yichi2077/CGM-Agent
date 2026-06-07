@@ -97,8 +97,6 @@ class SafetyRouter:
             )
             for p in red_points[:5]
         ]
-        # pick a representative value for the template
-        rep_value = min_val if min_val < RED_ZONE_LOW_MGDL else max_val
         direction = "极低" if min_val < RED_ZONE_LOW_MGDL else "极高"
         return SafetyDecision(
             route="reports.generate.red_zone",

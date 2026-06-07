@@ -135,6 +135,7 @@ class ConsolidationService:
                 profiles_updated += self._upsert_belief(
                     user_id=user_id,
                     key=f"pattern:{episode_type}",
+                    episode_type=episode_type,
                     day_count=day_count,
                     now=now,
                 )
@@ -244,14 +245,21 @@ class ConsolidationService:
         *,
         user_id: str,
         key: str,
+        episode_type: str,
         day_count: int,
         now: datetime,
     ) -> int:
         existing = self.repository.list_profile_items(user_id, key=key, active_only=False)
         confidence = min(0.95, round(0.4 + 0.1 * day_count, 4))
+        # B1: store a human-readable summary alongside the raw count so the
+        # USER.md L2 export renders a sentence, not bare JSON (D039).
+        value = {
+            "recurring_days": day_count,
+            "summary": f"近 {day_count} 天反复出现「{episode_type.replace('_', ' ')}」模式",
+        }
         if existing:
             item = existing[0]
-            item.value = {"recurring_days": day_count}
+            item.value = value
             item.confidence = confidence
             item.evidence_count = day_count
             item.last_verified = now
@@ -264,7 +272,7 @@ class ConsolidationService:
                     item_id=new_id(),
                     user_id=user_id,
                     key=key,
-                    value={"recurring_days": day_count},
+                    value=value,
                     confidence=confidence,
                     evidence_count=day_count,
                     last_verified=now,
