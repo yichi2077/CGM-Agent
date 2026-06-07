@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from numbers import Real
 from typing import Any
 
 from hermes_cgm_agent.domain import (
@@ -142,11 +143,11 @@ class MemoryReviewService:
         if episode is None:
             return None
         if "summary" in correction:
-            episode.summary = correction["summary"]
+            episode.summary = _require_string(correction["summary"], "correction.summary")
         if "confidence" in correction:
-            episode.confidence = float(correction["confidence"])
-        if correction.get("archive"):
-            episode.is_archived = True
+            episode.confidence = _require_number(correction["confidence"], "correction.confidence")
+        if "archive" in correction:
+            episode.is_archived = _require_bool(correction["archive"], "correction.archive")
         episode.last_referenced_at = now
         self.repository.replace_episode(episode)
         return episode_id
@@ -158,11 +159,11 @@ class MemoryReviewService:
         if item is None:
             return None
         if "value" in correction:
-            item.value = correction["value"]
+            item.value = _require_object(correction["value"], "correction.value")
         if "confidence" in correction:
-            item.confidence = float(correction["confidence"])
+            item.confidence = _require_number(correction["confidence"], "correction.confidence")
         if "deactivate" in correction:
-            item.is_active = not bool(correction["deactivate"])
+            item.is_active = not _require_bool(correction["deactivate"], "correction.deactivate")
         item.last_verified = now
         item.updated_at = now
         self.repository.upsert_profile_item(item)
@@ -175,9 +176,15 @@ class MemoryReviewService:
         if hyp is None:
             return None
         if "statement" in correction:
-            hyp.statement = correction["statement"]
+            hyp.statement = _require_string(correction["statement"], "correction.statement")
         if "state" in correction:
-            hyp.state = HypothesisState(correction["state"])
+            hyp.state = HypothesisState(
+                _require_enum(
+                    correction["state"],
+                    "correction.state",
+                    ("candidate", "observing", "stable", "archived"),
+                )
+            )
         hyp.last_checked = now
         hyp.updated_at = now
         self.repository.upsert_hypothesis(hyp)
@@ -186,3 +193,33 @@ class MemoryReviewService:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _require_bool(value: Any, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} must be a boolean")
+    return value
+
+
+def _require_number(value: Any, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(f"{field} must be a number")
+    return float(value)
+
+
+def _require_string(value: Any, field: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be a string")
+    return value
+
+
+def _require_object(value: Any, field: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{field} must be an object")
+    return value
+
+
+def _require_enum(value: Any, field: str, allowed: tuple[str, ...]) -> str:
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError(f"{field} must be one of: {', '.join(allowed)}")
+    return value

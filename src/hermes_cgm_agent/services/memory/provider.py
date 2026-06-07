@@ -43,15 +43,19 @@ from hermes_cgm_agent.storage.sqlite import SQLiteStore
 MEMORY_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "name": "memory.list",
-        "description": "Browse CGM memory records by layer.",
+        "description": "Browse CGM memory records and pending review candidates by layer.",
         "parameters": {
             "type": "object",
             "required": ["user_id", "layer"],
             "properties": {
                 "user_id": {"type": "string"},
-                "layer": {"type": "string", "enum": ["L1", "L2", "L3", "all"]},
+                "layer": {"type": "string", "enum": ["L1", "L2", "L3", "all", "candidates"]},
                 "limit": {"type": "integer", "minimum": 1},
                 "include_archived": {"type": "boolean"},
+                "candidate_status": {
+                    "type": "string",
+                    "enum": ["pending", "accepted", "rejected", "all"],
+                },
             },
         },
     },

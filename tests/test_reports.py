@@ -158,6 +158,42 @@ class ReportServiceTests(unittest.TestCase):
             "memory_candidates": 0,
         })
 
+    def test_empty_window_metrics_section_does_not_render_none_values(self) -> None:
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="weekly",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-07T00:00:00+00:00",
+                },
+            )
+        )
+        metrics = next(section for section in report.sections if section.section_id == "metrics")
+
+        self.assertNotIn("None", metrics.content)
+        self.assertIn("暂无可计算的关键指标", metrics.content)
+        self.assertNotIn("None mg/dL", report.rendered_markdown)
+
+    def test_empty_window_does_not_emit_memory_candidates(self) -> None:
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="weekly",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-07T00:00:00+00:00",
+                },
+            )
+        )
+        patterns = next(section for section in report.sections if section.section_id == "patterns")
+
+        self.assertIn("尚无足够数据形成模式线索", patterns.content)
+        self.assertEqual(patterns.g8_memory_candidates, [])
+        self.assertEqual(report.g8_memory_candidates, [])
+
     def test_doctor_report_includes_appendix_and_fourteen_day_label(self) -> None:
         self._create_points()
 
@@ -388,6 +424,16 @@ class ReportServiceTests(unittest.TestCase):
         patterns = next(section for section in report.sections if section.section_id == "patterns")
 
         self.assertIn("看起来可能有关，但还不够确定", patterns.content)
+        self.assertGreaterEqual(len(patterns.g8_memory_candidates), 1)
+        self.assertTrue(
+            all(candidate.target_layer == "L3" for candidate in patterns.g8_memory_candidates)
+        )
+        self.assertTrue(
+            any(
+                "看起来可能有关，但还不够确定" in candidate.summary
+                for candidate in patterns.g8_memory_candidates
+            )
+        )
 
     def _create_points(self, values: list[int] | None = None) -> None:
         for index, value in enumerate(values or [90, 100, 150, 190]):

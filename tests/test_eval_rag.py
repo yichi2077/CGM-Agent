@@ -97,10 +97,34 @@ class EvalRagTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             queries_path, kb_path = _write_half_hit_fixture(temp_dir)
             # hit@3 is 0.5; a 0.9 floor must fail (exit 1), a 0.4 floor must pass.
-            self.assertEqual(_eval_rag(queries_path=queries_path, kb_path=kb_path, min_hit3=0.9), 1)
-            self.assertEqual(_eval_rag(queries_path=queries_path, kb_path=kb_path, min_hit3=0.4), 0)
+            self.assertEqual(
+                _eval_rag(
+                    queries_path=queries_path,
+                    kb_path=kb_path,
+                    min_hit3=0.9,
+                    emit_report=False,
+                ),
+                1,
+            )
+            self.assertEqual(
+                _eval_rag(
+                    queries_path=queries_path,
+                    kb_path=kb_path,
+                    min_hit3=0.4,
+                    emit_report=False,
+                ),
+                0,
+            )
             # No threshold => always 0 (report-only).
-            self.assertEqual(_eval_rag(queries_path=queries_path, kb_path=kb_path, min_hit3=None), 0)
+            self.assertEqual(
+                _eval_rag(
+                    queries_path=queries_path,
+                    kb_path=kb_path,
+                    min_hit3=None,
+                    emit_report=False,
+                ),
+                0,
+            )
 
 
 if __name__ == "__main__":

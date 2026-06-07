@@ -905,14 +905,21 @@ def _kb_merge(*, candidates_path: Path, into_path: Path | None, dry_run: bool, k
     return 0
 
 
-def _eval_rag(*, queries_path: Path, kb_path: Path | None, min_hit3: float | None = None) -> int:
+def _eval_rag(
+    *,
+    queries_path: Path,
+    kb_path: Path | None,
+    min_hit3: float | None = None,
+    emit_report: bool = True,
+) -> int:
     from hermes_cgm_agent.services.rag.eval_hit3 import evaluate_hit3
 
     report = evaluate_hit3(queries_path=queries_path, kb_path=kb_path)
     if min_hit3 is not None:
         report["min_hit3"] = min_hit3
         report["passed"] = report["hit_at_3"] >= min_hit3
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    if emit_report:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
     if min_hit3 is not None and report["hit_at_3"] < min_hit3:
         return 1
     return 0

@@ -12,9 +12,15 @@ from hermes_cgm_agent.services.rag.validator import (
     validate_card,
     validate_knowledge_base,
 )
+from hermes_cgm_agent.services.rag.tools import (
+    AuthoritativeRAGToolResult,
+    AuthoritativeRAGToolService,
+)
 
 __all__ = [
     "AuthoritativeRAGService",
+    "AuthoritativeRAGToolResult",
+    "AuthoritativeRAGToolService",
     "ClaimCard",
     "KnowledgeBase",
     "load_knowledge_base",

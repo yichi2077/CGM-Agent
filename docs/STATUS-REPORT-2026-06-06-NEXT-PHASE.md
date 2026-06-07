@@ -4,6 +4,10 @@
 - **阶段**：G0-G8 能力层完成后，进入记忆/RAG 产品闭环建设
 - **关联**：[ADR-0001](adr/ADR-0001-memory-and-knowledge-architecture.md)、[DECISION_LOG](DECISION_LOG.md)、[MEM-ARCH](MEM-ARCH.md)、[REFACTOR-PLAN-2026-06-06](REFACTOR-PLAN-2026-06-06.md)
 
+> 当前运行基线已经更新。最新实测状态见
+> [STATUS-REPORT-2026-06-07](STATUS-REPORT-2026-06-07.md)；本文保留为
+> 2026-06-06 的历史阶段快照。
+
 ## 一句话摘要
 
 当前代码已经具备 CGM 数据、分析、报告、安全、记忆和双轨 RAG 的主体能力；下一阶段重点不是继续横向加功能，而是闭合「报告候选入队→用户确认→L1→L2/L3→Hermes USER.md」记忆链路，并把权威 KB 从 6 张草稿卡扩展为可核验、可评测的 claim card 库。

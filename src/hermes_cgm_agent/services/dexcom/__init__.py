@@ -20,6 +20,11 @@ from hermes_cgm_agent.services.dexcom.sync import (
     DexcomSyncService,
     build_dexcom_sync_service,
 )
+from hermes_cgm_agent.services.dexcom.tools import (
+    DexcomSyncFactory,
+    DexcomSyncToolResult,
+    DexcomSyncToolService,
+)
 from hermes_cgm_agent.services.dexcom.tokens import (
     DexcomTokenStore,
     StoredDexcomToken,
@@ -34,9 +39,12 @@ __all__ = [
     "DexcomError",
     "DexcomMapper",
     "DexcomRateLimitError",
+    "DexcomSyncFactory",
     "DexcomSyncResult",
     "DexcomSyncService",
     "DexcomTokenStore",
+    "DexcomSyncToolResult",
+    "DexcomSyncToolService",
     "RateLimiter",
     "StoredDexcomToken",
     "TokenResponse",

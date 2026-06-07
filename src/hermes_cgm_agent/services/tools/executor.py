@@ -6,41 +6,39 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from pydantic import ValidationError
 
 from hermes_cgm_agent.domain import (
+    CandidateStatus,
     DataScope,
     EvidenceRef,
-    G8MemoryCandidate,
-    HypothesisState,
-    MemoryCandidate,
-    MemoryLayer,
-    ReportInput,
     UserEvent,
 )
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.analytics import CGMAnalyticsService
-from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.services.data import EventToolService, SQLiteCGMRepository
 from hermes_cgm_agent.services.dexcom import (
     DexcomAuthError,
     DexcomError,
-    DexcomSyncService,
+    DexcomSyncFactory,
+    DexcomSyncToolService,
     build_dexcom_sync_service,
 )
 from hermes_cgm_agent.services.memory import (
     L0ContextBuilder,
-    MemoryContextAssembler,
-    MemoryReviewService,
+    MemoryToolService,
     SQLiteMemoryRepository,
-    UserMDSyncService,
 )
-from hermes_cgm_agent.services.rag import AuthoritativeRAGService
-from hermes_cgm_agent.services.reports import ReportService, SQLiteReportRepository
-from hermes_cgm_agent.services.safety import (
-    assert_track_isolation,
-    query_number_coverage,
+from hermes_cgm_agent.services.rag import AuthoritativeRAGToolService
+from hermes_cgm_agent.services.reports import ReportToolService, SQLiteReportRepository
+from hermes_cgm_agent.services.arguments import (
+    optional_bool,
+    optional_int,
+    parse_limit,
+    require_bool,
+    require_enum,
 )
 from hermes_cgm_agent.services.tools.registry import ToolRegistry, build_default_tool_registry
 
@@ -68,12 +66,12 @@ class ToolExecutor:
         repository: SQLiteCGMRepository,
         audit_service: AuditService,
         registry: ToolRegistry | None = None,
-        dexcom_sync_factory: Callable[[SQLiteCGMRepository], DexcomSyncService] | None = None,
+        dexcom_sync_factory: DexcomSyncFactory | None = None,
     ) -> None:
         self.repository = repository
         self.audit_service = audit_service
         self.registry = registry or build_default_tool_registry()
-        self._rag_service: AuthoritativeRAGService | None = None
+        self._rag_tool_service: AuthoritativeRAGToolService | None = None
         # Seam for tests: a factory that builds a DexcomSyncService from the
         # repository. Defaults to env-sourced wiring (build_dexcom_sync_service).
         self._dexcom_sync_factory = dexcom_sync_factory or build_dexcom_sync_service
@@ -151,7 +149,7 @@ class ToolExecutor:
         spec = self.registry.get("timeseries.get_points")
         try:
             scope = DataScope.model_validate(arguments.get("data_scope"))
-            limit = _parse_limit(arguments.get("limit"))
+            limit = parse_limit(arguments.get("limit"))
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -365,16 +363,8 @@ class ToolExecutor:
         try:
             user_id = str(arguments["user_id"])
             event_id = str(arguments["event_id"])
-            confirmed = _require_bool(arguments.get("confirmed"), "confirmed")
-            correction = arguments.get("correction")
-            if correction is not None and not isinstance(correction, dict):
-                raise ValueError("correction must be an object when provided")
-            saved = self.repository.confirm_user_event(
-                event_id,
-                user_id=user_id,
-                confirmed=confirmed,
-                correction=correction,
-            )
+            result = EventToolService(self.repository).confirm_event(arguments)
+            saved = result.event
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -387,7 +377,9 @@ class ToolExecutor:
                 message=str(exc),
             )
 
-        evidence_refs = [_event_evidence(saved, action="confirmed" if confirmed else "rejected")]
+        evidence_refs = [
+            _event_evidence(saved, action="confirmed" if result.confirmed else "rejected")
+        ]
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
@@ -398,7 +390,7 @@ class ToolExecutor:
                 "risk_level": spec.risk_level,
                 "evidence_refs": evidence_refs,
                 "event_id": saved.event_id,
-                "confirmed": confirmed,
+                "confirmed": result.confirmed,
                 "user_confirmed": saved.user_confirmed,
                 "is_rejected": saved.is_rejected,
             },
@@ -421,23 +413,16 @@ class ToolExecutor:
     ) -> ToolExecutionResponse:
         spec = self.registry.get("reports.generate")
         try:
-            # `retrieve_context` is a tool-level flag, not a ReportInput field.
-            args = dict(arguments)
-            retrieve_context = bool(args.pop("retrieve_context", False))
-            auto_ingest_memory = _auto_ingest_memory_enabled(args)
-            args.pop("auto_ingest_memory", None)
-            if retrieve_context:
-                args = self._inject_retrieved_context(args)
-            report_input = ReportInput.model_validate(args)
             report_repository = SQLiteReportRepository(self.repository.store)
-            report = ReportService(
+            result = ReportToolService(
                 cgm_repository=self.repository,
                 report_repository=report_repository,
-            ).generate(report_input)
-            memory_ingest = self._ingest_report_memory_candidates(
-                report=report,
-                enabled=auto_ingest_memory,
+                memory_repository=SQLiteMemoryRepository(self.repository.store),
+            ).generate(
+                arguments,
             )
+            report = result.report
+            memory_ingest = result.memory_ingest
         except (TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -489,36 +474,6 @@ class ToolExecutor:
             },
         )
 
-    def _ingest_report_memory_candidates(self, *, report: Any, enabled: bool) -> dict[str, Any]:
-        if not enabled:
-            return {
-                "enabled": False,
-                "enqueued": 0,
-                "auto_accepted": 0,
-                "pending": 0,
-            }
-        candidates = [
-            _report_candidate_to_memory_candidate(report, candidate, index)
-            for index, candidate in enumerate(report.g8_memory_candidates, start=1)
-        ]
-        if not candidates:
-            return {
-                "enabled": True,
-                "enqueued": 0,
-                "auto_accepted": 0,
-                "pending": 0,
-            }
-        review = MemoryReviewService(
-            repository=SQLiteMemoryRepository(self.repository.store)
-        )
-        result = review.ingest_report_candidates(candidates)
-        return {
-            "enabled": True,
-            "enqueued": result.enqueued,
-            "auto_accepted": result.auto_accepted,
-            "pending": result.pending,
-        }
-
     def _memory_confirm(
         self,
         *,
@@ -529,12 +484,13 @@ class ToolExecutor:
         try:
             user_id = str(arguments["user_id"])
             candidate_id = str(arguments["candidate_id"])
-            confirmed = _require_bool(arguments.get("confirmed"), "confirmed")
-            review = MemoryReviewService(
-                repository=SQLiteMemoryRepository(self.repository.store)
-            )
-            resolved = review.confirm_candidate(
-                candidate_id, user_id=user_id, confirmed=confirmed
+            confirmed = require_bool(arguments.get("confirmed"), "confirmed")
+            status_value = MemoryToolService(
+                SQLiteMemoryRepository(self.repository.store)
+            ).confirm_candidate(
+                user_id=user_id,
+                candidate_id=candidate_id,
+                confirmed=confirmed,
             )
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
@@ -544,7 +500,6 @@ class ToolExecutor:
                 data_scope={"user_id": arguments.get("user_id")},
                 message=str(exc),
             )
-        status_value = getattr(resolved.status, "value", resolved.status)
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
@@ -574,18 +529,26 @@ class ToolExecutor:
         spec = self.registry.get("memory.list")
         try:
             user_id = str(arguments["user_id"])
-            layer = str(arguments["layer"])
-            limit = _parse_limit(arguments.get("limit"))
-            include_archived = bool(arguments.get("include_archived", False))
+            layer = require_enum(
+                arguments["layer"],
+                "layer",
+                ("L1", "L2", "L3", "all", "candidates"),
+            )
+            limit = parse_limit(arguments.get("limit"))
+            include_archived = optional_bool(
+                arguments.get("include_archived"),
+                "include_archived",
+                default=False,
+            )
+            candidate_status = _parse_candidate_status(arguments.get("candidate_status"))
             repository = SQLiteMemoryRepository(self.repository.store)
-            memories = self._list_memories(
-                repository=repository,
+            result = MemoryToolService(repository).list_records(
                 user_id=user_id,
                 layer=layer,
                 include_archived=include_archived,
+                candidate_status=candidate_status,
+                limit=limit,
             )
-            if limit is not None:
-                memories = memories[:limit]
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -603,15 +566,24 @@ class ToolExecutor:
                 "data_scope": {"user_id": user_id, "layer": layer},
                 "risk_level": spec.risk_level,
                 "evidence_refs": [],
-                "total_count": len(memories),
+                "total_count": result.total_count,
+                "candidate_count": result.candidate_count,
                 "include_archived": include_archived,
+                "candidate_status": (
+                    candidate_status.value if candidate_status is not None else "all"
+                ),
             },
         )
         return ToolExecutionResponse(
             status="ok",
             evidence_refs=[],
             audit_id=audit_id,
-            payload={"memories": memories, "total_count": len(memories)},
+            payload={
+                "memories": result.memories,
+                "total_count": result.total_count,
+                "candidates": result.candidates,
+                "candidate_count": result.candidate_count,
+            },
         )
 
     def _memory_delete(
@@ -624,10 +596,9 @@ class ToolExecutor:
         try:
             user_id = str(arguments["user_id"])
             memory_id = str(arguments["memory_id"])
-            layer = str(arguments["layer"])
+            layer = require_enum(arguments["layer"], "layer", ("L1", "L2", "L3"))
             repository = SQLiteMemoryRepository(self.repository.store)
-            deleted = self._delete_memory(
-                repository=repository,
+            deleted = MemoryToolService(repository).delete_record(
                 user_id=user_id,
                 memory_id=memory_id,
                 layer=layer,
@@ -670,19 +641,18 @@ class ToolExecutor:
         spec = self.registry.get("memory.correct")
         try:
             user_id = str(arguments["user_id"])
-            target = str(arguments["target"])
+            target = require_enum(arguments["target"], "target", ("L1", "L2", "L3"))
             correction = arguments["correction"]
             if not isinstance(correction, dict):
                 raise ValueError("correction must be an object")
-            review = MemoryReviewService(
-                repository=SQLiteMemoryRepository(self.repository.store)
+            memory_id = MemoryToolService(
+                SQLiteMemoryRepository(self.repository.store)
+            ).correct_memory(
+                user_id=user_id,
+                target=target,
+                correction=correction,
+                hermes_home=os.environ.get("HERMES_HOME"),
             )
-            memory_id = review.correct(user_id=user_id, target=target, correction=correction)
-            hermes_home = os.environ.get("HERMES_HOME")
-            if memory_id and target.upper() == "L2" and hermes_home:
-                UserMDSyncService(
-                    repository=SQLiteMemoryRepository(self.repository.store)
-                ).sync(user_id=user_id, hermes_home=hermes_home)
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -711,34 +681,6 @@ class ToolExecutor:
             payload={"memory_id": memory_id},
         )
 
-    def _inject_retrieved_context(self, args: dict[str, Any]) -> dict[str, Any]:
-        """Populate memory_context / authoritative_context from the memory + KB
-        tracks before report generation. Facts are NOT touched (D013): this only
-        adds source-tracked background the report renders into its RAG-aware slots.
-        Caller-supplied contexts win (we do not overwrite explicit input)."""
-        user_id = args.get("user_id") or (args.get("data_scope") or {}).get("user_id")
-        if not user_id:
-            return args
-        assembler = MemoryContextAssembler(
-            repository=SQLiteMemoryRepository(self.repository.store)
-        )
-        report_type = str(args.get("report_type", "daily"))
-        query = f"{report_type} review for {user_id}"
-        if "memory_context" not in args:
-            args["memory_context"] = assembler.build_memory_context(
-                user_id=str(user_id), query=query
-            ).model_dump(mode="json")
-        if "authoritative_context" not in args:
-            args["authoritative_context"] = assembler.build_authoritative_context(
-                query=query
-            ).model_dump(mode="json")
-        # D031: fail loudly if the two memory tracks ever cross-contaminate.
-        assert_track_isolation(
-            memory_items=(args.get("memory_context") or {}).get("items", []),
-            authoritative_documents=(args.get("authoritative_context") or {}).get("documents", []),
-        )
-        return args
-
     def _rag_search(
         self,
         *,
@@ -747,22 +689,9 @@ class ToolExecutor:
     ) -> ToolExecutionResponse:
         spec = self.registry.get("rag.authoritative_search")
         try:
-            query = str(arguments["query"]).strip()
-            if not query:
-                raise ValueError("query must be a non-empty string")
-            top_k = int(arguments.get("top_k", 3))
-            if top_k < 1 or top_k > 20:
-                raise ValueError("top_k must be between 1 and 20")
-            population = arguments.get("population")
-            if population is not None:
-                population = str(population).strip() or None
-            if self._rag_service is None:
-                self._rag_service = AuthoritativeRAGService()
-            documents = self._rag_service.search(
-                query,
-                top_k=top_k,
-                population=population,
-            )
+            if self._rag_tool_service is None:
+                self._rag_tool_service = AuthoritativeRAGToolService()
+            result = self._rag_tool_service.search(arguments)
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -771,8 +700,6 @@ class ToolExecutor:
                 data_scope=None,
                 message=str(exc),
             )
-        # authoritative_kb evidence is kept on its own track, never mixed with user_memory
-        evidence_refs = [doc["evidence_ref"] for doc in documents]
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
@@ -781,31 +708,16 @@ class ToolExecutor:
                 "status": "ok",
                 "data_scope": None,
                 "risk_level": spec.risk_level,
-                "evidence_refs": evidence_refs,
-                "kb_version": self._rag_service.kb_version,
-                "result_count": len(documents),
+                "evidence_refs": result.evidence_refs,
+                "kb_version": result.kb_version,
+                "result_count": len(result.documents),
             },
         )
-        # NOTE: this is a retrieval-coverage hint (which numbers in the user's
-        # query are absent from the retrieved evidence), NOT anti-hallucination.
-        # Hallucination guarding runs over GENERATED text in the skill/generation
-        # layer via assert_authoritative_quotes (see skills/cgm-safety/SKILL.md).
-        coverage = query_number_coverage(documents, query)
-        payload = {
-            "documents": documents,
-            "kb_version": self._rag_service.kb_version,
-            "quote_instruction": "verbatim_only",
-        }
-        if coverage.violations:
-            payload["query_number_coverage"] = {
-                "mode": coverage.mode,
-                "uncovered": coverage.violations,
-            }
         return ToolExecutionResponse(
             status="ok",
-            evidence_refs=evidence_refs,
+            evidence_refs=result.evidence_refs,
             audit_id=audit_id,
-            payload=payload,
+            payload=result.payload,
         )
 
     def _hypothesis_update(
@@ -818,26 +730,14 @@ class ToolExecutor:
         try:
             user_id = str(arguments["user_id"])
             hypothesis_id = str(arguments["hypothesis_id"])
-            state = HypothesisState(str(arguments["state"]))
-            raw_refs = arguments.get("evidence_refs") or []
-            if not isinstance(raw_refs, list):
-                raise ValueError("evidence_refs must be a list when provided")
-            evidence_refs = [EvidenceRef.model_validate(ref) for ref in raw_refs]
-            repository = SQLiteMemoryRepository(self.repository.store)
-            existing = {h.hypothesis_id: h for h in repository.list_hypotheses(user_id)}
-            hypothesis = existing.get(hypothesis_id)
-            if hypothesis is None:
-                raise KeyError(f"Unknown hypothesis: {hypothesis_id}")
-            hypothesis.state = state
-            if evidence_refs:
-                # Merge new evidence; keep the existing proof count monotonic.
-                hypothesis.evidence_refs = [*hypothesis.evidence_refs, *evidence_refs]
-                hypothesis.evidence_count = len(hypothesis.evidence_refs)
-            from hermes_cgm_agent.domain.cgm import utc_now
-
-            hypothesis.last_checked = utc_now()
-            hypothesis.updated_at = utc_now()
-            saved = repository.upsert_hypothesis(hypothesis)
+            saved = MemoryToolService(
+                SQLiteMemoryRepository(self.repository.store)
+            ).update_hypothesis(
+                user_id=user_id,
+                hypothesis_id=hypothesis_id,
+                state=arguments["state"],
+                evidence_refs=arguments.get("evidence_refs"),
+            )
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -950,15 +850,10 @@ class ToolExecutor:
     ) -> ToolExecutionResponse:
         spec = self.registry.get("data.dexcom_sync")
         try:
-            user_id = str(arguments["user_id"])
-            days = int(arguments.get("days", 7))
-            if days < 1 or days > 90:
-                raise ValueError("days must be between 1 and 90")
-            force = arguments.get("force", False)
-            if not isinstance(force, bool):
-                raise ValueError("force must be a boolean")
-            sync_service = self._dexcom_sync_factory(self.repository)
-            result = sync_service.sync(user_id=user_id, days=days, force=force)
+            result = DexcomSyncToolService(
+                repository=self.repository,
+                sync_factory=self._dexcom_sync_factory,
+            ).sync(arguments)
         except DexcomAuthError as exc:
             return self._error_response(
                 session_id=session_id,
@@ -976,7 +871,7 @@ class ToolExecutor:
                 message=str(exc),
             )
 
-        payload = result.to_dict()
+        payload = result.payload
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
@@ -984,7 +879,7 @@ class ToolExecutor:
                 "tool_name": spec.name,
                 "status": "ok",
                 "data_scope": {
-                    "user_id": user_id,
+                    "user_id": result.user_id,
                     "window_start": payload["window_start"],
                     "window_end": payload["window_end"],
                 },
@@ -999,74 +894,6 @@ class ToolExecutor:
             audit_id=audit_id,
             payload=payload,
         )
-
-    def _list_memories(
-        self,
-        *,
-        repository: SQLiteMemoryRepository,
-        user_id: str,
-        layer: str,
-        include_archived: bool,
-    ) -> list[dict[str, Any]]:
-        normalized = layer.lower()
-        if normalized not in {"l1", "l2", "l3", "all"}:
-            raise ValueError("layer must be one of: L1, L2, L3, all")
-        memories: list[dict[str, Any]] = []
-        if normalized in {"l1", "all"}:
-            for episode in repository.list_episodes(user_id, include_archived=include_archived):
-                item = episode.model_dump(mode="json")
-                item["layer"] = "L1"
-                item["memory_id"] = episode.episode_id
-                memories.append(item)
-        if normalized in {"l2", "all"}:
-            for profile in repository.list_profile_items(user_id, active_only=not include_archived):
-                item = profile.model_dump(mode="json")
-                item["layer"] = "L2"
-                item["memory_id"] = profile.item_id
-                memories.append(item)
-        if normalized in {"l3", "all"}:
-            states = None if include_archived else [
-                HypothesisState.CANDIDATE,
-                HypothesisState.OBSERVING,
-                HypothesisState.STABLE,
-            ]
-            for hypothesis in repository.list_hypotheses(user_id, states=states):
-                item = hypothesis.model_dump(mode="json")
-                item["layer"] = "L3"
-                item["memory_id"] = hypothesis.hypothesis_id
-                memories.append(item)
-        return memories
-
-    def _delete_memory(
-        self,
-        *,
-        repository: SQLiteMemoryRepository,
-        user_id: str,
-        memory_id: str,
-        layer: str,
-    ) -> bool:
-        normalized = layer.upper()
-        if normalized == "L1":
-            episode = repository.get_episode(memory_id)
-            if episode is None or episode.user_id != user_id:
-                return False
-            return repository.delete_episode(memory_id)
-        if normalized == "L2":
-            items = {item.item_id: item for item in repository.list_profile_items(user_id, active_only=False)}
-            if memory_id not in items:
-                return False
-            return repository.delete_profile_item(memory_id)
-        if normalized == "L3":
-            hypotheses = {item.hypothesis_id: item for item in repository.list_hypotheses(user_id, states=[
-                HypothesisState.CANDIDATE,
-                HypothesisState.OBSERVING,
-                HypothesisState.STABLE,
-                HypothesisState.ARCHIVED,
-            ])}
-            if memory_id not in hypotheses:
-                return False
-            return repository.delete_hypothesis(memory_id)
-        raise ValueError("layer must be one of: L1, L2, L3")
 
     def _error_response(
         self,
@@ -1097,21 +924,13 @@ class ToolExecutor:
         )
 
 
-def _require_bool(value: Any, field: str) -> bool:
-    # C3: strict boolean. A JSON string like "false" is truthy in Python and
-    # must NOT be coerced; reject non-bool so a rejection cannot become accept.
-    if not isinstance(value, bool):
-        raise ValueError(f"{field} must be a boolean")
-    return value
-
-
-def _auto_ingest_memory_enabled(arguments: dict[str, Any]) -> bool:
-    value = arguments.get("auto_ingest_memory")
-    if value is not None:
-        return _require_bool(value, "auto_ingest_memory")
-    # Doctor-facing reports should not silently queue personal memory because
-    # their audience and wording are optimized for clinicians, not self-review.
-    return str(arguments.get("report_type", "")).lower() != "doctor"
+def _parse_candidate_status(value: Any) -> CandidateStatus | None:
+    if value is None:
+        return CandidateStatus.PENDING
+    status = require_enum(value, "candidate_status", ("pending", "accepted", "rejected", "all"))
+    if status == "all":
+        return None
+    return CandidateStatus(status)
 
 
 def _optional_datetime(value: Any) -> datetime | None:
@@ -1120,34 +939,6 @@ def _optional_datetime(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
     return datetime.fromisoformat(str(value))
-
-
-def _report_candidate_to_memory_candidate(
-    report: Any,
-    candidate: G8MemoryCandidate,
-    index: int,
-) -> MemoryCandidate:
-    return MemoryCandidate(
-        candidate_id=f"report-{report.report_id}-{index}",
-        user_id=report.user_id,
-        target_layer=MemoryLayer(candidate.target_layer),
-        candidate_type=candidate.candidate_type,
-        summary=candidate.summary,
-        requires_user_confirmation=candidate.requires_user_confirmation,
-        source_report_id=candidate.source_report_id or report.report_id,
-        source_section_id=candidate.source_section_id,
-        evidence_refs=candidate.evidence_refs,
-        confidence=candidate.confidence,
-    )
-
-
-def _parse_limit(value: Any) -> int | None:
-    if value is None:
-        return None
-    limit = int(value)
-    if limit < 1 or limit > 10000:
-        raise ValueError("limit must be between 1 and 10000")
-    return limit
 
 
 def _point_ref(point: Any) -> str:

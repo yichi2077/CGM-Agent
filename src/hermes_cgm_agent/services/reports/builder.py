@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -44,6 +45,13 @@ REPORT_WINDOW_DAYS = {
     ReportType.WEEKLY: 7,
     ReportType.DOCTOR: 14,
 }
+
+
+@dataclass(frozen=True)
+class PatternSignal:
+    summaries: list[str]
+    evidence_refs: list[EvidenceRef]
+    emit_memory_candidates: bool
 
 
 class ReportService:
@@ -277,7 +285,14 @@ class ReportService:
         aggregate: GlucoseAggregate,
         audience: ReportAudience,
     ) -> ReportSection:
-        if audience == ReportAudience.CLINICIAN:
+        if aggregate.point_count == 0:
+            if audience == ReportAudience.CLINICIAN:
+                content = "本窗暂无可计算的关键指标；TIR/TAR/TBR、MBG、CV 与 GMI 均需有效 CGM 数据后再解读。"
+            elif audience == ReportAudience.FAMILY:
+                content = "这段时间暂无可计算的关键指标，先等数据补齐后再看平均值和偏高偏低比例。"
+            else:
+                content = "这段时间暂无可计算的关键指标，先不看平均值、偏高比例或偏低比例。"
+        elif audience == ReportAudience.CLINICIAN:
             content = (
                 f"TIR {aggregate.tir}%，TAR {aggregate.tar}%，TBR {aggregate.tbr}%；"
                 f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}。"
@@ -546,45 +561,14 @@ class ReportService:
         evidence_refs = [_aggregate_evidence(scope, aggregate.window_label)] + [
             _event_evidence(event) for event in events if event.user_confirmed
         ]
-        # Repetition analysis over detected glucose events: a pattern needs the
-        # same event type recurring on multiple distinct local days, not just a
-        # single window-level aggregate threshold (audit P1-3 fix).
         repeated = self._repeated_event_patterns(detected_events)
-        candidate_summaries: list[str] = []
-        for event_type, day_count in repeated:
-            label = _event_type_label(event_type, audience)
-            candidate_summaries.append(
-                (
-                    f"这周有 {day_count} 天出现类似的{label}，看起来可能有关，但还不够确定。"
-                    if audience != ReportAudience.CLINICIAN
-                    else f"本周有 {day_count} 个不同日期出现重复的{label}事件。"
-                )
-            )
-            evidence_refs.extend(
-                ref
-                for event in detected_events
-                if str(event.event_type) == event_type
-                for ref in event.evidence_refs
-            )
-        if not candidate_summaries:
-            if (aggregate.tar or 0) >= 20:
-                candidate_summaries.append(
-                    "这周偏高的时间有点集中，看起来可能跟固定时段有关，但还不够确定。"
-                    if audience != ReportAudience.CLINICIAN
-                    else "本周高于目标范围时间占比升高，结合时段分层后会更容易解释。"
-                )
-            elif (aggregate.tbr or 0) >= 5:
-                candidate_summaries.append(
-                    "这周有几段偏低反复出现，看起来像个线索，但还想再多看几次。"
-                    if audience != ReportAudience.CLINICIAN
-                    else "本周出现低于目标范围时间，结合具体时段与诱因复核会更稳妥。"
-                )
-            else:
-                candidate_summaries.append(
-                    "这周暂时还没看到特别稳定的重复模式，先继续观察就好。"
-                    if audience != ReportAudience.CLINICIAN
-                    else "当前周窗尚未形成稳定重复模式，证据仍不足。"
-                )
+        signal = self._pattern_signal(
+            aggregate=aggregate,
+            repeated=repeated,
+            detected_events=detected_events,
+            audience=audience,
+        )
+        evidence_refs.extend(signal.evidence_refs)
 
         candidates = [
             G8MemoryCandidate(
@@ -597,19 +581,86 @@ class ReportService:
                 confidence=_coverage_confidence(aggregate.data_coverage),
                 requires_user_confirmation=True,
             )
-            for summary in candidate_summaries
+            for summary in signal.summaries
+            if signal.emit_memory_candidates
         ]
         return ReportSection(
             section_id="patterns",
             kind="patterns",
             title="模式线索",
-            content=" ".join(candidate_summaries),
+            content=" ".join(signal.summaries),
             data_scope=scope,
             evidence_refs=_unique_evidence_refs(evidence_refs),
             source_tracks=[ReportSourceTrack.FACT],
             confidence=_coverage_confidence(aggregate.data_coverage),
             g8_memory_candidates=candidates,
         )
+
+    def _pattern_signal(
+        self,
+        *,
+        aggregate: GlucoseAggregate,
+        repeated: list[tuple[str, int]],
+        detected_events: list[GlucoseEvent],
+        audience: ReportAudience,
+    ) -> PatternSignal:
+        if aggregate.point_count == 0:
+            return PatternSignal(
+                summaries=[
+                    "尚无足够数据形成模式线索，先不沉淀为长期记忆。"
+                    if audience != ReportAudience.CLINICIAN
+                    else "本窗无有效 CGM 数据，尚无足够证据形成模式线索。"
+                ],
+                evidence_refs=[],
+                emit_memory_candidates=False,
+            )
+
+        summaries: list[str] = []
+        evidence_refs: list[EvidenceRef] = []
+        # Repetition analysis over detected glucose events: a pattern needs the
+        # same event type recurring on multiple distinct local days, not just a
+        # single window-level aggregate threshold (audit P1-3 fix).
+        for event_type, day_count in repeated:
+            label = _event_type_label(event_type, audience)
+            summaries.append(
+                (
+                    f"这周有 {day_count} 天出现类似的{label}，看起来可能有关，但还不够确定。"
+                    if audience != ReportAudience.CLINICIAN
+                    else f"本周有 {day_count} 个不同日期出现重复的{label}事件。"
+                )
+            )
+            evidence_refs.extend(
+                ref
+                for event in detected_events
+                if str(event.event_type) == event_type
+                for ref in event.evidence_refs
+            )
+
+        if summaries:
+            return PatternSignal(
+                summaries=summaries,
+                evidence_refs=evidence_refs,
+                emit_memory_candidates=True,
+            )
+        if (aggregate.tar or 0) >= 20:
+            summary = (
+                "这周偏高的时间有点集中，看起来可能跟固定时段有关，但还不够确定。"
+                if audience != ReportAudience.CLINICIAN
+                else "本周高于目标范围时间占比升高，结合时段分层后会更容易解释。"
+            )
+        elif (aggregate.tbr or 0) >= 5:
+            summary = (
+                "这周有几段偏低反复出现，看起来像个线索，但还想再多看几次。"
+                if audience != ReportAudience.CLINICIAN
+                else "本周出现低于目标范围时间，结合具体时段与诱因复核会更稳妥。"
+            )
+        else:
+            summary = (
+                "这周暂时还没看到特别稳定的重复模式，先继续观察就好。"
+                if audience != ReportAudience.CLINICIAN
+                else "当前周窗尚未形成稳定重复模式，证据仍不足。"
+            )
+        return PatternSignal(summaries=[summary], evidence_refs=[], emit_memory_candidates=True)
 
     def _repeated_event_patterns(
         self,

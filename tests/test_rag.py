@@ -213,6 +213,16 @@ class RAGToolTests(unittest.TestCase):
         ).to_dict()
         self.assertEqual(body["status"], "error")
 
+    def test_rag_tool_rejects_string_top_k(self) -> None:
+        body = self.executor.execute(
+            tool_name="rag.authoritative_search",
+            arguments={"query": "compression low false reading", "top_k": "2"},
+            session_id=self.session_id,
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("top_k must be an integer", body["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

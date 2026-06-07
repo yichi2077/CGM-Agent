@@ -99,6 +99,51 @@ class ReportToolTests(unittest.TestCase):
             body["memory_ingest"]["enqueued"],
         )
 
+    def test_reports_generate_respects_explicit_auto_ingest_false(self) -> None:
+        self._create_points([190, 195, 200, 205])
+
+        response = self.executor.execute(
+            tool_name="reports.generate",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "report_type": "weekly",
+                "auto_ingest_memory": False,
+                "data_scope": {
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-07T00:00:00+00:00",
+                },
+            },
+        )
+        body = response.to_dict()
+        memory = SQLiteMemoryRepository(self.store)
+
+        self.assertEqual(body["status"], "ok")
+        self.assertGreater(len(body["g8_memory_candidates"]), 0)
+        self.assertEqual(body["memory_ingest"]["enabled"], False)
+        self.assertEqual(body["memory_ingest"]["enqueued"], 0)
+        self.assertEqual(memory.list_candidates("user-1"), [])
+
+    def test_reports_generate_rejects_string_retrieve_context_flag(self) -> None:
+        response = self.executor.execute(
+            tool_name="reports.generate",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "report_type": "daily",
+                "retrieve_context": "false",
+                "data_scope": {
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            },
+        ).to_dict()
+
+        self.assertEqual(response["status"], "error")
+        self.assertIn("retrieve_context must be a boolean", response["error"])
+
     def test_doctor_report_does_not_auto_ingest_by_default(self) -> None:
         self._create_points([190, 195, 200, 205])
 

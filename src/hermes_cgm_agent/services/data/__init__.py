@@ -10,11 +10,14 @@ from hermes_cgm_agent.services.data.repository import (
     CGMRepositoryStatus,
     SQLiteCGMRepository,
 )
+from hermes_cgm_agent.services.data.tools import EventToolResult, EventToolService
 
 __all__ = [
     "CGMImporter",
     "CGMNormalizer",
     "CGMRepositoryStatus",
+    "EventToolResult",
+    "EventToolService",
     "FieldMapping",
     "ImportReport",
     "NormalizationConfig",

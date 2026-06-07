@@ -14,7 +14,9 @@ from hermes_cgm_agent.services.dexcom import (
     DexcomAuthService,
     DexcomConfig,
     DexcomMapper,
+    DexcomSyncResult,
     DexcomSyncService,
+    DexcomSyncToolService,
     DexcomTokenStore,
     TokenResponse,
 )
@@ -298,6 +300,91 @@ class DexcomSyncToolTests(unittest.TestCase):
         body = response.to_dict()
         self.assertEqual(body["status"], "error")
         self.assertIn("authorization", body["error"].lower())
+
+    def test_executor_rejects_string_days(self) -> None:
+        client = FakeDexcomClient()
+        sync_service = _build_sync(self.store, client)
+        executor = ToolExecutor(
+            repository=self.repository,
+            audit_service=AuditService(self.store),
+            dexcom_sync_factory=lambda repo: sync_service,
+        )
+        response = executor.execute(
+            tool_name="data.dexcom_sync",
+            arguments={"user_id": "user-1", "days": "7"},
+            session_id="sync-session",
+        ).to_dict()
+
+        self.assertEqual(response["status"], "error")
+        self.assertIn("days must be an integer", response["error"])
+
+    def test_executor_rejects_string_force(self) -> None:
+        client = FakeDexcomClient()
+        sync_service = _build_sync(self.store, client)
+        executor = ToolExecutor(
+            repository=self.repository,
+            audit_service=AuditService(self.store),
+            dexcom_sync_factory=lambda repo: sync_service,
+        )
+        response = executor.execute(
+            tool_name="data.dexcom_sync",
+            arguments={"user_id": "user-1", "force": "false"},
+            session_id="sync-session",
+        ).to_dict()
+
+        self.assertEqual(response["status"], "error")
+        self.assertIn("force must be a boolean", response["error"])
+
+
+class DexcomSyncToolServiceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.store = SQLiteStore(Path(self.temp_dir.name) / "app.db")
+        self.store.initialize()
+        self.repository = SQLiteCGMRepository(self.store)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_sync_parses_defaults_and_returns_payload(self) -> None:
+        recorder = _RecordingDexcomSync()
+        service = DexcomSyncToolService(
+            repository=self.repository,
+            sync_factory=lambda repo: recorder,
+        )
+
+        result = service.sync({"user_id": "user-1"})
+
+        self.assertEqual(recorder.calls, [("user-1", 7, False)])
+        self.assertEqual(result.user_id, "user-1")
+        self.assertEqual(result.payload["environment"], "sandbox")
+
+    def test_sync_rejects_string_force(self) -> None:
+        service = DexcomSyncToolService(
+            repository=self.repository,
+            sync_factory=lambda repo: _RecordingDexcomSync(),
+        )
+
+        with self.assertRaisesRegex(ValueError, "force must be a boolean"):
+            service.sync({"user_id": "user-1", "force": "false"})
+
+    def test_sync_rejects_out_of_range_days(self) -> None:
+        service = DexcomSyncToolService(
+            repository=self.repository,
+            sync_factory=lambda repo: _RecordingDexcomSync(),
+        )
+
+        with self.assertRaisesRegex(ValueError, "days must be between 1 and 90"):
+            service.sync({"user_id": "user-1", "days": 91})
+
+
+class _RecordingDexcomSync:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int, bool]] = []
+
+    def sync(self, *, user_id: str, days: int = 7, force: bool = False) -> DexcomSyncResult:
+        self.calls.append((user_id, days, force))
+        return DexcomSyncResult(user_id=user_id, environment="sandbox")
 
 
 if __name__ == "__main__":

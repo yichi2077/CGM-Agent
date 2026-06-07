@@ -30,6 +30,10 @@ Run tests:
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests
 ```
 
+Current runtime baseline and audit entry point:
+
+- `docs/STATUS-REPORT-2026-06-07.md`
+
 Memory retrieval runtime notes:
 
 - Default authoritative medical RAG is sparse-only BM25 over curated claim cards

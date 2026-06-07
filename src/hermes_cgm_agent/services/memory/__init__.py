@@ -20,6 +20,7 @@ from hermes_cgm_agent.services.memory.review import (
     IngestResult,
     MemoryReviewService,
 )
+from hermes_cgm_agent.services.memory.tools import MemoryListResult, MemoryToolService
 from hermes_cgm_agent.services.memory.user_md_sync import (
     CGM_USER_MD_END,
     CGM_USER_MD_START,
@@ -50,7 +51,9 @@ __all__ = [
     "ConversationMemoryExtractor",
     "IngestResult",
     "MemoryContextAssembler",
+    "MemoryListResult",
     "MemoryReviewService",
+    "MemoryToolService",
     "CGM_USER_MD_END",
     "CGM_USER_MD_START",
     "UserMDSyncResult",

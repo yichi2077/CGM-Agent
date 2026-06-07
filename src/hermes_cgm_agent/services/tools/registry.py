@@ -277,15 +277,21 @@ def build_default_tool_registry() -> ToolRegistry:
                 required=["user_id", "layer"],
                 properties={
                     "user_id": {"type": "string"},
-                    "layer": {"type": "string", "enum": ["L1", "L2", "L3", "all"]},
+                    "layer": {"type": "string", "enum": ["L1", "L2", "L3", "all", "candidates"]},
                     "limit": {"type": "integer", "minimum": 1},
                     "include_archived": {"type": "boolean"},
+                    "candidate_status": {
+                        "type": "string",
+                        "enum": ["pending", "accepted", "rejected", "all"],
+                    },
                 },
             ),
             output_schema=_response_schema(
                 {
                     "memories": {"type": "array", "items": {"type": "object"}},
                     "total_count": {"type": "integer"},
+                    "candidates": {"type": "array", "items": {"type": "object"}},
+                    "candidate_count": {"type": "integer"},
                 }
             ),
             risk_level="read",

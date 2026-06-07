@@ -102,6 +102,23 @@ class TimeseriesToolTests(unittest.TestCase):
         self.assertEqual(audit_payload["tool_name"], "timeseries.get_points")
         self.assertEqual(audit_payload["evidence_refs"], [])
 
+    def test_timeseries_get_points_rejects_string_limit(self) -> None:
+        response = self.executor.execute(
+            tool_name="timeseries.get_points",
+            session_id=self.session_id,
+            arguments={
+                "data_scope": {
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-05-31T00:10:00+00:00",
+                },
+                "limit": "1",
+            },
+        ).to_dict()
+
+        self.assertEqual(response["status"], "error")
+        self.assertIn("limit must be an integer", response["error"])
+
     def test_timeseries_get_aggregate_returns_metrics_evidence_and_audit(self) -> None:
         for index, value in enumerate([60, 90, 100, 190]):
             self.repository.create_glucose_point(
@@ -179,6 +196,57 @@ class TimeseriesToolTests(unittest.TestCase):
         self.assertEqual(audit_payload["tool_name"], "hypothesis.update")
         self.assertEqual(audit_payload["status"], "ok")
         self.assertEqual(audit_payload["state"], "observing")
+
+    def test_hypothesis_update_rejects_uppercase_state(self) -> None:
+        memory = SQLiteMemoryRepository(self.store)
+        memory.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="h1",
+                user_id="user-1",
+                statement="Breakfast spikes after oatmeal",
+                state=HypothesisState.CANDIDATE,
+            )
+        )
+
+        body = self.executor.execute(
+            tool_name="hypothesis.update",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "hypothesis_id": "h1",
+                "state": "OBSERVING",
+            },
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("state must be one of", body["error"])
+        saved = {h.hypothesis_id: h for h in memory.list_hypotheses("user-1")}["h1"]
+        self.assertEqual(saved.state, HypothesisState.CANDIDATE)
+
+    def test_hypothesis_update_rejects_non_list_evidence_refs(self) -> None:
+        memory = SQLiteMemoryRepository(self.store)
+        memory.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="h1",
+                user_id="user-1",
+                statement="Breakfast spikes after oatmeal",
+                state=HypothesisState.CANDIDATE,
+            )
+        )
+
+        body = self.executor.execute(
+            tool_name="hypothesis.update",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "hypothesis_id": "h1",
+                "state": "observing",
+                "evidence_refs": {"kind": "event", "ref_id": "ev-1"},
+            },
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("evidence_refs must be a list", body["error"])
 
     def _last_audit_payload(self) -> dict[str, object]:
         with self.store.connect() as conn:

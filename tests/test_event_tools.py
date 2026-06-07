@@ -191,6 +191,27 @@ class EventToolTests(unittest.TestCase):
         self.assertFalse(saved.user_confirmed)
         self.assertFalse(saved.is_rejected)
 
+    def test_events_confirm_rejects_non_object_correction(self) -> None:
+        self._create_candidate("evt-1")
+
+        response = self.executor.execute(
+            tool_name="events.confirm",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "event_id": "evt-1",
+                "confirmed": True,
+                "correction": "bad",
+            },
+        )
+        body = response.to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction must be an object", body["error"])
+        saved = self.repository.get_user_event("evt-1", include_rejected=True)
+        self.assertFalse(saved.user_confirmed)
+        self.assertFalse(saved.is_rejected)
+
     def _create_candidate(self, event_id: str) -> None:
         response = self.executor.execute(
             tool_name="events.create",

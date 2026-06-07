@@ -80,6 +80,13 @@ class HermesPluginIntegrationTests(unittest.TestCase):
         )
         for call in collector.calls:
             self.assertEqual(call["toolset"], "cgm")
+        memory_list = next(call for call in collector.calls if call["name"] == "cgm_memory_list")
+        properties = memory_list["schema"]["parameters"]["properties"]
+        self.assertIn("candidates", properties["layer"]["enum"])
+        self.assertEqual(
+            properties["candidate_status"]["enum"],
+            ["pending", "accepted", "rejected", "all"],
+        )
 
     def test_cgm_tool_handler_executes_internal_tool_in_process(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -160,4 +167,11 @@ class HermesPluginIntegrationTests(unittest.TestCase):
         self.assertEqual(
             schema_names,
             {"memory.list", "memory.delete", "memory.confirm", "memory.correct"},
+        )
+        memory_list = next(schema for schema in provider.get_tool_schemas() if schema["name"] == "memory.list")
+        properties = memory_list["parameters"]["properties"]
+        self.assertIn("candidates", properties["layer"]["enum"])
+        self.assertEqual(
+            properties["candidate_status"]["enum"],
+            ["pending", "accepted", "rejected", "all"],
         )

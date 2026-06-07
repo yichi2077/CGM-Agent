@@ -8,6 +8,9 @@ from pathlib import Path
 from hermes_cgm_agent.domain import (
     CandidateStatus,
     EvidenceRef,
+    HypothesisState,
+    L2ProfileItem,
+    L3Hypothesis,
     MemoryCandidate,
     MemoryLayer,
 )
@@ -102,6 +105,212 @@ class MemoryReviewServiceTests(unittest.TestCase):
         self.assertEqual(body["status"], "ok")
         self.assertEqual(body["memory_id"], episode.episode_id)
         self.assertEqual(self.repo.list_episodes("u1")[0].summary, "corrected")
+
+    def test_memory_correct_rejects_lowercase_schema_target(self) -> None:
+        executor = self._executor()
+
+        body = executor.execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "l1",
+                "correction": {"episode_id": "missing", "summary": "corrected"},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("target must be one of", body["error"])
+
+    def test_memory_correct_rejects_string_l1_confidence(self) -> None:
+        cand = self._candidate("c1", requires_confirmation=False)
+        self.review.ingest_report_candidates([cand], now=NOW)
+        episode = self.repo.list_episodes("u1")[0]
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L1",
+                "correction": {"episode_id": episode.episode_id, "confidence": "0.9"},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction.confidence must be a number", body["error"])
+
+    def test_memory_correct_rejects_string_l1_archive(self) -> None:
+        cand = self._candidate("c1", requires_confirmation=False)
+        self.review.ingest_report_candidates([cand], now=NOW)
+        episode = self.repo.list_episodes("u1")[0]
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L1",
+                "correction": {"episode_id": episode.episode_id, "archive": "false"},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction.archive must be a boolean", body["error"])
+
+    def test_memory_correct_rejects_non_string_l1_summary(self) -> None:
+        cand = self._candidate("c1", requires_confirmation=False)
+        self.review.ingest_report_candidates([cand], now=NOW)
+        episode = self.repo.list_episodes("u1")[0]
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L1",
+                "correction": {"episode_id": episode.episode_id, "summary": {"text": "bad"}},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction.summary must be a string", body["error"])
+
+    def test_memory_correct_rejects_string_l2_deactivate(self) -> None:
+        self.repo.upsert_profile_item(
+            L2ProfileItem(
+                item_id="pi-1",
+                user_id="u1",
+                key="pattern:dinner",
+                value={"summary": "Dinner tends to rise."},
+            )
+        )
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L2",
+                "correction": {"item_id": "pi-1", "deactivate": "false"},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction.deactivate must be a boolean", body["error"])
+
+    def test_memory_correct_accepts_boolean_l2_deactivate(self) -> None:
+        self.repo.upsert_profile_item(
+            L2ProfileItem(
+                item_id="pi-1",
+                user_id="u1",
+                key="pattern:dinner",
+                value={"summary": "Dinner tends to rise."},
+            )
+        )
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L2",
+                "correction": {"item_id": "pi-1", "deactivate": False},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "ok")
+        self.assertTrue(self.repo.list_profile_items("u1")[0].is_active)
+
+    def test_memory_correct_rejects_non_object_l2_value(self) -> None:
+        self.repo.upsert_profile_item(
+            L2ProfileItem(
+                item_id="pi-1",
+                user_id="u1",
+                key="pattern:dinner",
+                value={"summary": "Dinner tends to rise."},
+            )
+        )
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L2",
+                "correction": {"item_id": "pi-1", "value": "not-an-object"},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction.value must be an object", body["error"])
+
+    def test_memory_correct_updates_l3_state(self) -> None:
+        self.repo.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="hyp-1",
+                user_id="u1",
+                statement="Dinner may raise glucose.",
+                state=HypothesisState.CANDIDATE,
+            )
+        )
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L3",
+                "correction": {"hypothesis_id": "hyp-1", "state": "observing"},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(self.repo.list_hypotheses("u1")[0].state, HypothesisState.OBSERVING)
+
+    def test_memory_correct_rejects_non_string_l3_statement(self) -> None:
+        self.repo.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="hyp-1",
+                user_id="u1",
+                statement="Dinner may raise glucose.",
+            )
+        )
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L3",
+                "correction": {"hypothesis_id": "hyp-1", "statement": ["bad"]},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction.statement must be a string", body["error"])
+
+    def test_memory_correct_rejects_uppercase_l3_state(self) -> None:
+        self.repo.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="hyp-1",
+                user_id="u1",
+                statement="Dinner may raise glucose.",
+            )
+        )
+
+        body = self._executor().execute(
+            tool_name="memory.correct",
+            arguments={
+                "user_id": "u1",
+                "target": "L3",
+                "correction": {"hypothesis_id": "hyp-1", "state": "OBSERVING"},
+            },
+            session_id="memory-test",
+        ).to_dict()
+
+        self.assertEqual(body["status"], "error")
+        self.assertIn("correction.state must be one of", body["error"])
 
     def test_confirm_keeps_candidate_pending_when_promotion_fails(self) -> None:
         # C4: if promotion (_accept) fails, the candidate must NOT be left
