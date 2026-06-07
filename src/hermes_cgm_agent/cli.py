@@ -38,6 +38,10 @@ from hermes_cgm_agent.services.memory import (
     SQLiteMemoryRepository,
 )
 from hermes_cgm_agent.services.memory.user_md_sync import render_l2_user_md_block
+from hermes_cgm_agent.services.scheduling import (
+    PushSchedulerConfig,
+    PushSchedulerService,
+)
 from hermes_cgm_agent.services.tools import ToolExecutor, build_default_tool_registry
 from hermes_cgm_agent.config import AppConfig, default_hermes_exe
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
@@ -147,6 +151,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="最近的血糖模式 recent overnight low hyper pattern",
         help="Recall query used to demonstrate memory retrieval",
     )
+
+    push_tick = sub.add_parser(
+        "push-tick",
+        help=(
+            "Tiered-push scheduler tick (cron-callable): apply silent-consent, "
+            "decide which of daily/weekly/monthly digests are due, and emit them "
+            "idempotently. The project owns policy+content+state; Hermes/cron owns "
+            "timing and delivery."
+        ),
+    )
+    push_tick.add_argument("--user-id", default="demo-user")
+    push_tick.add_argument("--now", default=None, help="ISO 8601 datetime override (testing)")
+    push_tick.add_argument("--timezone", default="Asia/Shanghai")
+    push_tick.add_argument("--db-path", default=None, help="SQLite DB path (default: runtime DB)")
 
     sub.add_parser(
         "kb-validate",
@@ -328,8 +346,11 @@ def main(argv: list[str] | None = None) -> int:
             f"{consolidation_payload.get('hypotheses_updated', '') if consolidation_payload else ''}"
         )
         print("dual_track_rag_present: true")
-        print("current_phase: memory/rag product loop implemented")
-        print("prototype_limit: authoritative KB verification and external delivery scheduling remain workflow-dependent")
+        print("push_scheduler_present: true")
+        print("push_tiers: daily,weekly,monthly")
+        print("silent_consent_present: true")
+        print("current_phase: tiered-push product loop implemented")
+        print("prototype_limit: authoritative KB verification and the external delivery channel (email/webhook timing) remain workflow-dependent")
         print("test_command: PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests")
         return 0 if status["available"] else 1
 
@@ -407,6 +428,14 @@ def main(argv: list[str] | None = None) -> int:
             user_id=args.user_id,
             timezone_name=args.timezone,
             query=args.query,
+        )
+
+    if args.command == "push-tick":
+        return _push_tick(
+            db_path=Path(args.db_path) if args.db_path else config.database_path,
+            user_id=args.user_id,
+            now=args.now,
+            timezone_name=args.timezone,
         )
 
     if args.command == "kb-validate":
@@ -929,6 +958,28 @@ def _seed_demo(
         "user_md_l2_preview": user_md_preview,
     }
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def _push_tick(
+    *,
+    db_path: Path,
+    user_id: str,
+    now: str | None,
+    timezone_name: str,
+) -> int:
+    store = SQLiteStore(db_path)
+    store.initialize()
+    service = PushSchedulerService(
+        store=store,
+        config=PushSchedulerConfig(timezone=timezone_name),
+        audit_service=AuditService(store),
+    )
+    result = service.push_tick(
+        user_id=user_id,
+        now=_parse_iso_datetime(now) if now else None,
+    )
+    print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True))
     return 0
 
 
