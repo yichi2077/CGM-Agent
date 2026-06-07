@@ -29,7 +29,9 @@ def evaluate_hit3(*, queries_path: Path, kb_path: Path | None = None) -> dict:
     for row in queries:
         query = str(row["query"])
         expected = set(row.get("expected_any") or [])
-        results = service.search(query, top_k=3)
+        # A1: exercise the population filter end-to-end when a query declares one.
+        population = row.get("population")
+        results = service.search(query, top_k=3, population=population)
         found = {doc["doc_id"] for doc in results}
         matched = bool(expected & found)
         if matched:

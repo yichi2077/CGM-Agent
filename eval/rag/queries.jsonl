@@ -41,3 +41,4 @@
 {"query": "elderly diabetes ASCVD first-line GLP-1 RA SGLT2 inhibitor", "expected_any": ["auto-cds-2024-guideline-p13-cds2024-p13-f2-ascvd-firstline"], "track": "authoritative_kb"}
 {"query": "diabetes chronic kidney disease first-line SGLT2 metformin statin", "expected_any": ["auto-ada-2025-updates-p9-ada2025-p09-008", "auto-cds-2024-guideline-p13-cds2024-p13-f2-ckd-firstline"], "track": "authoritative_kb"}
 {"query": "长新冠糖尿病降糖药物SGLT2 GLP-1", "expected_any": ["auto-cds-2024-guideline-p27-cds-2024-p27-004"], "track": "authoritative_kb"}
+{"query": "老年或高危成人 TIR 目标 避免低血糖", "expected_any": ["battelino-2019-tir-older-highrisk"], "population": "elderly", "track": "authoritative_kb"}

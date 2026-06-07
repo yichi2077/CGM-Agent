@@ -315,6 +315,23 @@ class SQLiteStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+
+                -- P2 tiered-push state: scheduling metadata only (no PHI). The
+                -- UNIQUE(user_id, tier, period_key) constraint makes a push
+                -- idempotent within its period (daily/weekly/monthly).
+                CREATE TABLE IF NOT EXISTS push_events (
+                    push_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    tier TEXT NOT NULL,
+                    period_key TEXT NOT NULL,
+                    summary_id TEXT,
+                    delivery_id TEXT,
+                    pushed_at TEXT NOT NULL,
+                    UNIQUE(user_id, tier, period_key)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_push_events_user
+                    ON push_events(user_id, tier, period_key);
                 """
             )
             self._ensure_column(

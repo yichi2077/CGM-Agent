@@ -123,8 +123,70 @@ class AuthoritativeRAGTests(unittest.TestCase):
             population="pregnancy-t1d",
         )
         self.assertTrue(results)
-        populations = {r["population"] for r in results}
-        self.assertTrue(populations <= {"pregnancy-t1d", "general"})
+        # A1: filtering is by controlled class, not raw exact-string. The raw
+        # population may be "pregnancy", "pregnancy-GDM", etc. — all class
+        # "pregnancy" — plus the always-eligible general baseline.
+        classes = {r["population_class"] for r in results}
+        self.assertTrue(classes <= {"pregnancy", "general"})
+
+    def test_normalize_population_maps_free_text_to_controlled_class(self) -> None:
+        from hermes_cgm_agent.services.rag import normalize_population
+
+        # nonpregnant must NOT match the "pregn" substring (real curated card).
+        self.assertEqual(normalize_population("adult-t1d-t2d-nonpregnant"), "general")
+        self.assertEqual(normalize_population("pregnancy-t1d"), "pregnancy")
+        self.assertEqual(normalize_population("persons of childbearing potential"), "pregnancy")
+        self.assertEqual(normalize_population("elderly T2DM with CKD G3a"), "elderly")
+        self.assertEqual(normalize_population("older diabetes patients (Group 1)"), "elderly")
+        self.assertEqual(normalize_population("children and adolescents"), "pediatric")
+        self.assertEqual(normalize_population("hospitalized-critically-ill"), "inpatient")
+        self.assertEqual(normalize_population(""), "general")
+        self.assertEqual(normalize_population(None), "general")
+
+    def test_population_filter_resolves_free_text_to_class(self) -> None:
+        # A1: a free-text elderly population resolves to the controlled "elderly"
+        # class; results are restricted to elderly + general, never the whole KB.
+        svc = AuthoritativeRAGService()
+        results = svc.search(
+            "血糖管理目标",
+            top_k=10,
+            population="elderly T2DM with CKD G3a",
+        )
+        self.assertTrue(results)
+        classes = {r["population_class"] for r in results}
+        self.assertTrue(classes <= {"elderly", "general"})
+
+    def test_population_filter_does_not_fail_open(self) -> None:
+        # A1 regression: a population request must NOT silently return the whole
+        # KB. With one pediatric and one general card, an elderly request must
+        # drop the pediatric card and keep only the general baseline.
+        kb = KnowledgeBase(
+            kb_version="kb-pop-test",
+            cards=[
+                ClaimCard(
+                    card_id="peds",
+                    title="peds",
+                    claim_zh="儿童注意事项",
+                    claim_en="pediatric note about glucose",
+                    population="children and adolescents",
+                    source={"citation": "x", "page": 1},
+                    tier="curated",
+                ),
+                ClaimCard(
+                    card_id="gen",
+                    title="gen",
+                    claim_zh="通用注意事项",
+                    claim_en="general note about glucose",
+                    population="general",
+                    source={"citation": "y", "page": 1},
+                    tier="curated",
+                ),
+            ],
+        )
+        svc = AuthoritativeRAGService(knowledge_base=kb)
+        results = svc.search("note about glucose", top_k=5, population="elderly")
+        ids = {r["doc_id"] for r in results}
+        self.assertEqual(ids, {"gen"})  # pediatric excluded; no fail-open to all
 
     def test_trusted_card_is_not_crowded_out_by_auto_cards(self) -> None:
         # D041 correction: noisy auto cards must never push a curated card out of
@@ -222,6 +284,78 @@ class RAGToolTests(unittest.TestCase):
 
         self.assertEqual(body["status"], "error")
         self.assertIn("top_k must be an integer", body["error"])
+
+    def test_verify_quotes_passes_when_numbers_supported(self) -> None:
+        # A2: a number present in a supplied card is supported -> ok, no violations.
+        body = self.executor.execute(
+            tool_name="rag.verify_quotes",
+            arguments={
+                "generated_text": "你的目标范围内时间是 70 percent。",
+                "documents": [
+                    {"claim_en": "TIR target is above 70 percent", "claim_zh": "目标范围内时间应高于70%"}
+                ],
+                "strict": True,
+            },
+            session_id=self.session_id,
+        ).to_dict()
+        self.assertEqual(body["status"], "ok")
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["violations"], [])
+        self.assertEqual(body["checked_documents"], 1)
+        self.assertIsNotNone(body["audit_id"])
+
+    def test_verify_quotes_strict_flags_unsupported_number(self) -> None:
+        # A2: an unsupported number in strict mode fails the gate (ok=false).
+        body = self.executor.execute(
+            tool_name="rag.verify_quotes",
+            arguments={
+                "generated_text": "你的平均血糖是 185 mg/dL。",
+                "documents": [{"claim_en": "TIR target is above 70 percent"}],
+                "strict": True,
+            },
+            session_id=self.session_id,
+        ).to_dict()
+        self.assertEqual(body["status"], "ok")
+        self.assertFalse(body["ok"])
+        self.assertEqual(body["mode"], "strict")
+        self.assertTrue(any("185" in v for v in body["violations"]))
+
+    def test_verify_quotes_warn_mode_lists_but_does_not_fail(self) -> None:
+        # A2: default (non-strict) mode surfaces violations but ok stays true.
+        body = self.executor.execute(
+            tool_name="rag.verify_quotes",
+            arguments={
+                "generated_text": "你的平均血糖是 185 mg/dL。",
+                "documents": [{"claim_en": "TIR target is above 70 percent"}],
+            },
+            session_id=self.session_id,
+        ).to_dict()
+        self.assertEqual(body["status"], "ok")
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["mode"], "warn")
+        self.assertTrue(body["violations"])
+
+    def test_verify_quotes_query_path_reretrieves_documents(self) -> None:
+        # A2: with no documents, a query re-retrieves the cards to check against.
+        body = self.executor.execute(
+            tool_name="rag.verify_quotes",
+            arguments={
+                "generated_text": "目标范围内时间是一个重要指标。",  # no numbers -> ok
+                "query": "time in range target",
+            },
+            session_id=self.session_id,
+        ).to_dict()
+        self.assertEqual(body["status"], "ok")
+        self.assertTrue(body["ok"])
+        self.assertGreater(body["checked_documents"], 0)
+
+    def test_verify_quotes_requires_documents_or_query(self) -> None:
+        body = self.executor.execute(
+            tool_name="rag.verify_quotes",
+            arguments={"generated_text": "平均血糖 185"},
+            session_id=self.session_id,
+        ).to_dict()
+        self.assertEqual(body["status"], "error")
 
 
 if __name__ == "__main__":

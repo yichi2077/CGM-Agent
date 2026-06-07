@@ -10,9 +10,13 @@
 
 | ID | 主题 | 重建自 | 重建要点 |
 |---|---|---|---|
+| D010 | 记忆 provider 与 Hermes SDK 解耦 | `services/memory/provider.py` | provider 以 duck-typing 实现 Hermes memory-provider 契约、不 import Hermes SDK，保持项目可独立测试/替换 |
 | D012 | 自建 Hermes 兼容记忆 provider | `services/memory/provider.py` | `CGMMemoryProvider` 实现 Hermes memory-provider 接口（prefetch/sync_turn/tools），不依赖外部记忆框架 |
 | D013 | 双轨 RAG + KB 随包发布 | `services/rag/authoritative.py` | 权威知识库作为 package data（`hermes_cgm_agent/knowledge/`）随 wheel 发布，避免 repo-root 路径在安装后失效（C7） |
+| D015 | 数值指标只来自 analytics，不来自 LLM | `domain/context.py`, `services/analytics/events.py` | TIR/TBR/GMI 等指标与血糖事件检测由可复现代码计算，绝不由 LLM 生成 |
 | D018 | 记忆工具与 provider 协同 | `provider.py` | memory.confirm / memory.correct 工具 schema 单一来源（`MEMORY_TOOL_SCHEMAS`），内层 provider 与 wrapper fallback 共用 |
+| D022 | 事件检测确定性 + UserEvent 与检测事件分离 | `domain/cgm.py`, `services/analytics/events.py` | 血糖事件检测基于信号确定性规则（非 LLM）；用户/agent 记录的 `UserEvent` 与系统检测的 `GlucoseEvent` 是不同来源、不混淆 |
+| D024 | L0 工作上下文是结构化装配，非长上下文原始投喂 | `domain/context.py`, `domain/memory.py` | L0 是分辨率分层的结构化上下文（近端高分辨率 + 远端聚合 + 关键事件），不是把原始数据塞进长上下文 LLM；L2 为 USER.md 映射快照 |
 | D025 | 混合检索 BM25+dense+RRF | `services/memory/retrieval.py` | sparse(BM25)+dense(向量)+RRF(k=60, 按 rank) 融合；语义嵌入可选。该条记录的是旧设计基线，默认路径已由 D029/D035 修正为 sparse-only，HashingEmbedder 仅保留为显式测试/离线强制 |
 | D026 | 分级巩固 + 候选评审 | `services/memory/consolidation.py`, `review.py` | L1→L2→L3 阈值门控巩固 + 遗忘；候选先入队评审再接受 |
 
@@ -99,3 +103,15 @@
 5. **citation_guard 语义修正**：`assert_authoritative_quotes` 改为对**生成文本**做整数 token 精确匹配（不再子串误配，不再误用在用户 query 上）；查询侧覆盖信号拆为 `query_number_coverage`（仅检索提示）。真正的生成层防幻觉规则写入 `skills/cgm-safety`。
 **理由**：医学零容错下，"卡数"不是目标，"可信检索"才是。tier 护栏与种子优先保证人工/已核验内容不被机器草稿稀释；Hermes 抽取（而非句子切割）才能产出原子、真双语、可引的卡（单页验证：`TIR >70%`、`TBR <4%`、`%CV ≤36%` 等阈值与中文翻译均正确）。门禁 + 质量门确保未来任何 merge 不会再悄悄拉低质量。
 **影响**：见 `docs/BUILD-REPORT-2026-06-07-kb-correction.md`。架构不变（Claim Card + BM25 双轨 + verified=false 默认 + 人工签核外置）；为运行 vision 重抽，向 Hermes venv 安装 `pymupdf`/`pdfplumber`（ingest 环境依赖，不改 Hermes 安装树代码）。
+
+### D043 — 权威 KB population 受控词表归一 + 过滤器不再 fail-open
+**背景**：`rag.authoritative_search` 声明了自由文本 `population` 过滤参数，但 572 张 auto 卡的 `population` 是 ~150 种自由文本（"elderly T2DM with CKD G3a" 等），`_filter_docs` 用精确小写相等匹配，且零命中时 `return filtered or self._docs` **静默返回整库**——一个声明了却不可靠、且静默失效的能力。
+**决策**：新增 `normalize_population()` 把自由文本归一到受控类 `{general, pediatric, pregnancy, elderly, inpatient}`（子串启发式，`nonpregnant` 显式排除出 pregnancy）；`ClaimCard.population_class` 派生属性（不改 JSON、无数据迁移）；`_filter_docs` 改按受控类匹配 `{query_class, general}` 并**删除静默 fail-open**；`search()` 输出 `population_class`，工具 payload 输出 `population_filter`；eval harness 透传 `population` 形成端到端回归。
+**理由**：过滤是"功能适应性"承诺，必须可靠且行为诚实——零命中应返回真实（含 general 基线）结果集，而非伪装成"过滤成功"的整库。受控类用派生属性实现，避免 578 卡数据迁移与漂移。
+**影响**：`services/rag/authoritative.py`、`rag/__init__.py`、`tools/executor.py`、`tools/registry.py`、`eval_hit3.py`、`eval/rag/queries.jsonl`（+1 population 回归 query）；新测试覆盖 normalize 映射（含 nonpregnant 反例）、free-text→class 过滤、不再 fail-open。架构不变。
+
+### D044 — 抗幻觉守卫从注释承诺升级为运行期工具 `rag.verify_quotes`
+**背景**：真正的"生成文本里每个医学数字都必须有卡片支撑"守卫 `assert_authoritative_quotes` 已实现且有单测，但**运行期从未被调用**——只有 `query_number_coverage`（检索提示）和 `assert_track_isolation` 接线。`quote_instruction:"verbatim_only"` 仅是提示。因生成发生在 Hermes 主壳，本仓声明的安全保证此前是 aspirational。
+**决策**：新增工具 `rag.verify_quotes`（入参 `generated_text`、可选 `documents`/`query`/`strict`），复用 `assert_authoritative_quotes`，落审计，经 cgm 插件暴露给 Hermes；`skills/cgm-safety/SKILL.md` 把"数字映射检查"从"手动应用规则"升级为 **MANDATORY 工具调用契约**（strict 失败不得输出未支撑数字）。把"强制点在生成层"从注释变为可执行、可审计、可测的边界。
+**理由**：医学零容错下，安全保证必须是可强制、可验证的运行期能力，而非文档承诺。本仓无法在生成层内部强制（生成在 Hermes），但可提供 Hermes 在交付前必须回调的审计工具，并在 skill 契约里强制其调用。
+**影响**：`tools/registry.py`（+`rag.verify_quotes`，tool_count 14→15）、`tools/executor.py`（`_verify_quotes` handler + import）、`skills/cgm-safety/SKILL.md`、`integrations/hermes/cgm/plugin.yaml`（manifest 声明同步，+漂移守卫测试 R2-1）；5 个 executor 级测试。架构不变（双轨隔离/只读 KB 不变）。

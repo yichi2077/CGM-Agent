@@ -22,7 +22,26 @@ PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent conte
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent memory-synthesize --user-id user-1 --window-start 2026-05-31T00:00:00+00:00 --window-end 2026-06-01T00:00:00+00:00 --period daily
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent kb-validate
 PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-rag
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent seed-demo --db-path ./.runtime/demo.db
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent push-tick --user-id user-1
 ```
+
+`push-tick` is the cron-callable tiered-push scheduler. The project owns the
+**policy** (which of daily/weekly/monthly digests is due), the **content** (warm
+summaries) and the **state** (idempotent `push_events` + a silence window); the
+**timing and delivery channel** are driven externally by Hermes/cron. Each tick
+also applies *silent-consent*: a low-commitment `candidate` behavioural
+hypothesis left unobjected for the silence window advances to `observing` — never
+`stable` (that needs evidence), never archived hypotheses, never safety/medical
+content, and always audited and reversible via `memory.correct`.
+
+`seed-demo` runs the full data→memory→recall loop on a CGM CSV (default
+`examples/cgm_test_dataset/cgm_3x14.csv`): it imports points, derives L1 episodes
+from detected glucose events (real per-day facts), consolidates them into L2
+beliefs and L3 hypotheses across distinct days, synthesizes a warm summary, and
+prints a memory-recall sample plus the USER.md L2 projection. Point it at a
+throwaway `--db-path` to inspect a populated database without touching the
+runtime DB.
 
 Run tests:
 

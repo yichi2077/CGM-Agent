@@ -37,6 +37,17 @@ class MemoryGuardTests(unittest.TestCase):
         # personal memory can never be written into it (D031).
         assert_kb_readonly(AuthoritativeRAGService())
 
+    def test_kb_service_construction_enforces_read_only(self) -> None:
+        # R2-3: the invariant is enforced at construction, not only when
+        # assert_kb_readonly is called manually. A subclass that adds a mutator
+        # must fail to construct.
+        class MutableKB(AuthoritativeRAGService):
+            def delete(self, *args, **kwargs):  # forbidden mutator
+                return None
+
+        with self.assertRaises(MemoryTrackViolation):
+            MutableKB()
+
     def test_conflict_resolves_to_authoritative(self) -> None:
         decision = resolve_conflict(
             authoritative={"text": "TIR target >70%"},

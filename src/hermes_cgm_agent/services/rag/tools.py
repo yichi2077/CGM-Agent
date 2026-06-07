@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from hermes_cgm_agent.services.arguments import optional_int
-from hermes_cgm_agent.services.rag.authoritative import AuthoritativeRAGService
-from hermes_cgm_agent.services.safety import query_number_coverage
+from hermes_cgm_agent.services.arguments import optional_bool, optional_int, require_bool
+from hermes_cgm_agent.services.rag.authoritative import (
+    AuthoritativeRAGService,
+    normalize_population,
+)
+from hermes_cgm_agent.services.safety import assert_authoritative_quotes, query_number_coverage
 
 
 @dataclass(frozen=True)
@@ -15,6 +18,14 @@ class AuthoritativeRAGToolResult:
     evidence_refs: list[dict[str, Any]]
     kb_version: str
     payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class VerifyQuotesToolResult:
+    ok: bool
+    mode: str
+    violations: list[str]
+    checked_documents: int
 
 
 class AuthoritativeRAGToolService:
@@ -44,6 +55,8 @@ class AuthoritativeRAGToolService:
             "kb_version": self.rag_service.kb_version,
             "quote_instruction": "verbatim_only",
         }
+        if population is not None:
+            payload["population_filter"] = normalize_population(population)
         # NOTE: this is a retrieval-coverage hint (which numbers in the user's
         # query are absent from retrieved evidence), NOT anti-hallucination.
         coverage = query_number_coverage(documents, query)
@@ -58,4 +71,34 @@ class AuthoritativeRAGToolService:
             evidence_refs=evidence_refs,
             kb_version=self.rag_service.kb_version,
             payload=payload,
+        )
+
+    def verify_quotes(self, arguments: dict[str, Any]) -> VerifyQuotesToolResult:
+        generated_text = str(arguments["generated_text"])
+        if not generated_text.strip():
+            raise ValueError("generated_text must be a non-empty string")
+        strict = require_bool(arguments.get("strict", False), "strict")
+        documents = arguments.get("documents")
+        if documents is not None and not isinstance(documents, list):
+            raise ValueError("documents must be a list when provided")
+        if not documents:
+            query = arguments.get("query")
+            if not (query and str(query).strip()):
+                raise ValueError(
+                    "provide either documents or a non-empty query to verify against"
+                )
+            top_k = optional_int(
+                arguments.get("top_k"),
+                "top_k",
+                default=5,
+                minimum=1,
+                maximum=20,
+            )
+            documents = self.rag_service.search(str(query).strip(), top_k=top_k)
+        result = assert_authoritative_quotes(documents, generated_text, strict=strict)
+        return VerifyQuotesToolResult(
+            ok=result.ok,
+            mode=result.mode,
+            violations=result.violations,
+            checked_documents=len(documents),
         )
