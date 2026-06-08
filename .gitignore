@@ -10,3 +10,8 @@ venv/
 
 # Transient page renders produced by `kb-ingest-llm --mode vision` (regenerable)
 src/hermes_cgm_agent/knowledge/review_queue/_page_images/
+
+# Claude Code local/personal config (settings.local.json may contain credentials).
+# Shared .claude/settings.json and .claude/skills/ stay tracked.
+.claude/settings.local.json
+.claude/worktrees/

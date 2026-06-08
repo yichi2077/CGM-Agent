@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-rag --min-hit3 0.95)",
+      "Bash(~/.hermes/hermes-agent/venv/bin/python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('hit@3',d['hit_at_3'],d['hits'],'/',d['total'],'passed',d.get\\('passed'\\)\\);[print\\('MISS:',m['query'],'->',m['found']\\) for m in d['misses']]\")",
+      "Bash(echo \"exit=$?\")",
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -)",
+      "Bash(echo \"gate exit=$?\")",
+      "Bash(~/.hermes/hermes-agent/venv/bin/python3 -c \"import json;d=json.load\\(open\\('/tmp/eval_out.json'\\)\\);print\\(' hit@3',d['hit_at_3'],d['hits'],'/',d['total']\\)\")",
+      "Bash(~/.hermes/hermes-agent/venv/bin/python3 -c \"import json,collections;d=json.load\\(open\\('src/hermes_cgm_agent/knowledge/authoritative_kb.json'\\)\\);c=d['cards'];print\\(' ',d['kb_version'],'total',len\\(c\\),'tier',dict\\(collections.Counter\\(x.get\\('tier'\\) for x in c\\)\\),'verified',dict\\(collections.Counter\\(x['verified'] for x in c\\)\\)\\)\")",
+      "Bash(git merge *)",
+      "Bash(git branch *)",
+      "Bash(git push *)"
+    ]
+  }
+}
