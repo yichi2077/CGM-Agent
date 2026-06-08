@@ -11,6 +11,8 @@ provides_tools:
   - cgm_events_confirm
   - cgm_memory_list
   - cgm_memory_delete
+  - cgm_memory_confirm
+  - cgm_memory_correct
   - cgm_hypothesis_update
   - cgm_rag_authoritative_search
   - cgm_rag_verify_quotes

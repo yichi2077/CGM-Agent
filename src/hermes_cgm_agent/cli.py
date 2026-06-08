@@ -5,6 +5,7 @@ import json
 import shutil
 import sqlite3
 import subprocess
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -241,6 +242,20 @@ def build_parser() -> argparse.ArgumentParser:
     hermes_install.add_argument("--skip-editable-install", action="store_true")
     hermes_install.add_argument("--skip-runtime-config", action="store_true")
     hermes_install.add_argument("--dry-run", action="store_true")
+    hermes_install.add_argument(
+        "--seed-demo",
+        action="store_true",
+        help="After install, seed demo CGM data into the canonical store (first-run convenience)",
+    )
+
+    migrate_db = sub.add_parser(
+        "migrate-db",
+        help="Migrate the legacy .runtime store (DB + key) to the canonical Hermes path",
+    )
+    migrate_db.add_argument("--dry-run", action="store_true")
+    migrate_db.add_argument(
+        "--force", action="store_true", help="overwrite an existing target (backed up first)"
+    )
 
     return parser
 
@@ -249,6 +264,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     config = AppConfig.from_env()
+    _warn_legacy_store_if_relevant(config)
 
     if args.command == "status":
         status = _hermes_status(config)
@@ -438,6 +454,13 @@ def main(argv: list[str] | None = None) -> int:
             timezone_name=args.timezone,
         )
 
+    if args.command == "migrate-db":
+        from hermes_cgm_agent.migrate import OK_STATUSES, migrate
+
+        result = migrate(dry_run=args.dry_run, force=args.force)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0 if result["status"] in OK_STATUSES else 1
+
     if args.command == "kb-validate":
         from hermes_cgm_agent.services.rag import validate_knowledge_base
 
@@ -501,10 +524,44 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
         )
         print(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True))
+        if getattr(args, "seed_demo", False):
+            print("[cgm-agent] seeding demo CGM data into the canonical store...", file=sys.stderr)
+            return _seed_demo(
+                db_path=config.database_path,
+                csv_path=_default_demo_csv(),
+                user_id="demo-user",
+                timezone_name="Asia/Shanghai",
+                query="最近血糖怎么样",
+            )
         return 0
 
     parser.error(f"Unhandled command {args.command}")
     return 2
+
+
+def _warn_legacy_store_if_relevant(config: AppConfig) -> None:
+    """Hint the user to migrate when legacy ``.runtime`` data exists but the active
+    canonical store has not been created yet (F1 / D045 W4).
+
+    Printed to stderr so command stdout stays machine-parseable; suppressed once the
+    canonical store exists or when the active path coincides with the legacy path
+    (e.g. standalone dev runs with no HERMES_HOME).
+    """
+    from hermes_cgm_agent.config import DEFAULT_DB_PATH
+
+    legacy = Path(DEFAULT_DB_PATH)
+    target = config.database_path
+    try:
+        same = target.resolve() == legacy.resolve()
+    except OSError:
+        same = str(target) == str(legacy)
+    if legacy.exists() and not same and not target.exists():
+        print(
+            f"[cgm-agent] legacy data detected at {legacy}, but the active store "
+            f"({target}) is empty. Run `python -m hermes_cgm_agent migrate-db` to "
+            "move your data + key to the canonical path.",
+            file=sys.stderr,
+        )
 
 
 def _hermes_status(config: AppConfig) -> dict[str, object]:

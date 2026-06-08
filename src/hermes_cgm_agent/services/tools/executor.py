@@ -255,11 +255,20 @@ class ToolExecutor:
         spec = self.registry.get("events.create")
         try:
             user_id = str(arguments["user_id"])
-            event = UserEvent.model_validate(arguments.get("event"))
-            if event.user_id != user_id:
-                raise ValueError("event.user_id must match user_id")
-            if event.created_by == "agent" and event.user_confirmed:
-                raise ValueError("agent-created events must be unconfirmed candidates")
+            event_raw = arguments.get("event")
+            if not isinstance(event_raw, dict):
+                raise ValueError("event must be an object")
+            event_raw = dict(event_raw)
+            # Force technical/provenance fields server-side (D045 / FR-007, Damocles W2):
+            # the model supplies only event_type + ts_start (+ optional ts_end/payload/
+            # confidence). The id, owner, provenance and confirmation flag are NOT
+            # model-controllable, so an agent-created event can never masquerade as a
+            # user-authored or user-confirmed fact.
+            event_raw["event_id"] = uuid.uuid4().hex
+            event_raw["user_id"] = user_id
+            event_raw["created_by"] = "agent"
+            event_raw["user_confirmed"] = False
+            event = UserEvent.model_validate(event_raw)
         except (KeyError, TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,

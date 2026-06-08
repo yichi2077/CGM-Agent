@@ -72,6 +72,8 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_events_confirm",
                 "cgm_memory_list",
                 "cgm_memory_delete",
+                "cgm_memory_confirm",
+                "cgm_memory_correct",
                 "cgm_hypothesis_update",
                 "cgm_rag_authoritative_search",
                 "cgm_rag_verify_quotes",
@@ -190,15 +192,70 @@ class HermesPluginIntegrationTests(unittest.TestCase):
         provider = collector.providers[0]
         self.assertEqual(provider.name, "cgm_memory")
         self.assertTrue(provider.is_available())
-        schema_names = {schema["name"] for schema in provider.get_tool_schemas()}
-        self.assertEqual(
-            schema_names,
-            {"memory.list", "memory.delete", "memory.confirm", "memory.correct"},
-        )
-        memory_list = next(schema for schema in provider.get_tool_schemas() if schema["name"] == "memory.list")
-        properties = memory_list["parameters"]["properties"]
-        self.assertIn("candidates", properties["layer"]["enum"])
-        self.assertEqual(
-            properties["candidate_status"]["enum"],
-            ["pending", "accepted", "rejected", "all"],
-        )
+        # Single LLM-facing channel (F1 US3 / Damocles W3): the provider advertises
+        # NO tools; the cgm plugin owns tool registration. The candidate layer/status
+        # schema is asserted via cgm_memory_list in the plugin registration test.
+        self.assertEqual(provider.get_tool_schemas(), [])
+
+    def test_memory_tools_have_a_single_llm_facing_registration(self) -> None:
+        # C4 / Damocles W3: memory.confirm/correct are reachable via the cgm plugin
+        # exactly once, and the memory provider advertises no competing tool set.
+        collector = _ToolCollector()
+        self.cgm_plugin.register(collector)
+        names = [call["name"] for call in collector.calls]
+        self.assertEqual(names.count("cgm_memory_confirm"), 1)
+        self.assertEqual(names.count("cgm_memory_correct"), 1)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "app.db"
+            with patch.dict(os.environ, {"CGM_AGENT_DB_PATH": str(db_path)}, clear=False):
+                mem_collector = _MemoryCollector()
+                self.cgm_memory_plugin.register(mem_collector)
+        self.assertEqual(mem_collector.providers[0].get_tool_schemas(), [])
+
+
+class RuntimePathDataVisibilityTests(unittest.TestCase):
+    """SC-001: data written at the resolved store path is exactly what the CLI
+    config (AppConfig.from_env) points at, and is readable back — no split-brain."""
+
+    def test_cli_config_points_at_store_where_data_lives(self) -> None:
+        from datetime import datetime, timezone
+
+        from hermes_cgm_agent.config import AppConfig, resolve_database_path
+        from hermes_cgm_agent.domain import UserEvent
+        from hermes_cgm_agent.services.data import SQLiteCGMRepository
+        from hermes_cgm_agent.storage.sqlite import SQLiteStore
+
+        with tempfile.TemporaryDirectory() as home:
+            env = {
+                key: value
+                for key, value in os.environ.items()
+                if key not in ("CGM_AGENT_DB_PATH", "CGM_AGENT_STORAGE_KEY_PATH")
+            }
+            env["HERMES_HOME"] = home
+            with patch.dict(os.environ, env, clear=True):
+                target = resolve_database_path(home)
+                store = SQLiteStore(target)
+                store.initialize()
+                SQLiteCGMRepository(store).create_user_event(
+                    UserEvent(
+                        event_id="evt-visible",
+                        user_id="u1",
+                        type="meal",
+                        ts_start=datetime(2026, 6, 1, 8, 0, tzinfo=timezone.utc),
+                        created_by="user",
+                        user_confirmed=True,
+                    )
+                )
+                config = AppConfig.from_env()
+                self.assertEqual(config.database_path, target)
+                read_back = SQLiteCGMRepository(
+                    SQLiteStore(config.database_path)
+                ).get_user_event("evt-visible")
+
+        self.assertEqual(read_back.user_id, "u1")
+        self.assertEqual(read_back.event_type, "meal")
+
+
+if __name__ == "__main__":
+    unittest.main()

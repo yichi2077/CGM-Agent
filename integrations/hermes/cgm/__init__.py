@@ -15,8 +15,10 @@ def register(ctx: Any) -> None:
 
     registry = build_default_tool_registry()
     for spec in registry.list(status="active"):
-        if spec.name in {"memory.confirm", "memory.correct"}:
-            continue
+        # The `cgm` plugin is the single LLM-facing tool channel (D045 / F1 US3):
+        # all active capability tools — including memory.confirm/correct — register
+        # here. The cgm_memory provider no longer advertises a competing tool set
+        # (its get_tool_schemas() returns []), so each tool appears exactly once.
         external_name = _external_tool_name(spec.name)
         ctx.register_tool(
             name=external_name,

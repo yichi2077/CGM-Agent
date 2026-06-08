@@ -137,8 +137,19 @@ Production cards in `authoritative_kb.json` may remain `verified=false` as
 machine-extracted guideline drafts. A card may only become `verified=true` after
 external review provenance (`reviewer` or `reviewed_at`) is recorded.
 
-Runtime data is stored under the project's `.runtime/` directory by default, for example:
+Runtime data lives in a **single canonical SQLite store shared by the CLI and the
+Hermes plugins**, so data imported via the CLI is visible to the agent in Hermes.
+Resolution precedence (one source of truth):
 
-`./.runtime/`
+1. `CGM_AGENT_DB_PATH` — explicit operator override
+2. `~/.hermes/cgm-agent/app.db` — default (Hermes-home scoped)
+3. `./.runtime/app.db` — standalone dev fallback only
 
-The SQLite file is created with `0600` permissions on Unix-like systems. Sensitive health payload columns are application-encrypted with a Fernet key stored at `.runtime/storage.key` by default. Override with `CGM_AGENT_STORAGE_KEY_PATH` or provide `CGM_AGENT_STORAGE_KEY` in managed deployments.
+The SQLite file is created with `0600` permissions on Unix-like systems. Sensitive health payload columns are application-encrypted with a Fernet key kept **beside the database** (`<db-dir>/storage.key`). Override with `CGM_AGENT_STORAGE_KEY_PATH` or provide `CGM_AGENT_STORAGE_KEY` in managed deployments.
+
+If you have legacy data under `./.runtime/`, migrate it (database **and** key together, non-destructive) to the canonical path:
+
+```bash
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent migrate-db --dry-run
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent migrate-db
+```
