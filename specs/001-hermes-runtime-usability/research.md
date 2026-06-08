@@ -78,6 +78,21 @@ before changing architecture to avoid double-registration.
 duplicate tools / model confusion). Leave as-is — rejected (memory loop may be
 unreachable, US3 fails).
 
+**Diagnosis outcome (T021, 2026-06-09)**: The real-Hermes smoke recorded in
+`docs/STATUS-REPORT-2026-06-07.md` ("Real Hermes `cgm_memory_list` smoke …
+status=ok") confirms the **`cgm` standalone plugin** tool names (`cgm_memory_*`)
+are what the LLM actually calls — i.e. the plugin is the LLM-facing tool channel.
+`memory.confirm`/`memory.correct` were excluded from it (`cgm/__init__.py:18`), so
+they were unreachable. The `cgm_memory` provider *also* exposed all four via
+`get_tool_schemas()` (names without the `cgm_` prefix), a latent dual-channel.
+**Decision**: make the `cgm` plugin the single LLM-facing channel — register all
+memory tools there (remove the exclusion) and have the provider's
+`get_tool_schemas()` return `[]` (the provider keeps its memory-provider duties:
+prefetch / sync_turn / system_prompt_block / handle_tool_call). This both makes
+confirm/correct reachable and removes the dual-channel (Damocles W3). Verified at
+the registration-contract level by unit tests; live LLM reachability follows the
+same proven path as `cgm_memory_list`.
+
 ## R5 — Non-destructive legacy migration
 
 **Decision**: New `scripts/migrate_legacy_data.py` (and a `migrate-db` CLI entry):

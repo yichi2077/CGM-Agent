@@ -36,13 +36,33 @@ class G0G7E2ETests(unittest.TestCase):
         self.assertEqual(aggregate["status"], "ok")
         self.assertTrue(aggregate["evidence_refs"])
 
-        self.assertEqual(self._tool("events.create", "event_breakfast_confirmed.json")["status"], "ok")
-        self.assertEqual(self._tool("events.create", "event_walk_candidate.json")["status"], "ok")
-        confirmed = self._tool("events.confirm", "event_walk_confirm.json")
+        # events.create now always returns a server-generated id and an agent
+        # candidate (D045 / FR-007); confirmation happens via events.confirm using
+        # that returned id. The scenario's confirmed/rejected/candidate structure is
+        # preserved: breakfast + walk confirmed, note rejected, meal candidate.
+        breakfast_id = self._tool("events.create", "event_breakfast_confirmed.json")["event_id"]
+        self.assertTrue(breakfast_id)
+        self._tool_payload(
+            "events.confirm",
+            {"user_id": "demo-user", "event_id": breakfast_id, "confirmed": True},
+        )
+        walk_id = self._tool("events.create", "event_walk_candidate.json")["event_id"]
+        confirmed = self._tool_payload(
+            "events.confirm",
+            {
+                "user_id": "demo-user",
+                "event_id": walk_id,
+                "confirmed": True,
+                "correction": {"payload": {"user_note": "confirmed as a short post-meal walk"}},
+            },
+        )
         self.assertEqual(confirmed["status"], "ok")
         self.assertTrue(confirmed["event"]["user_confirmed"])
-        self.assertEqual(self._tool("events.create", "event_note_candidate.json")["status"], "ok")
-        rejected = self._tool("events.confirm", "event_note_reject.json")
+        note_id = self._tool("events.create", "event_note_candidate.json")["event_id"]
+        rejected = self._tool_payload(
+            "events.confirm",
+            {"user_id": "demo-user", "event_id": note_id, "confirmed": False},
+        )
         self.assertEqual(rejected["status"], "ok")
         self.assertTrue(rejected["event"]["is_rejected"])
         self.assertEqual(self._tool("events.create", "event_meal_candidate.json")["status"], "ok")

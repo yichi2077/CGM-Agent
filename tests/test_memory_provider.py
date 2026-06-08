@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
-from hermes_cgm_agent.services.memory.provider import _looks_memory_relevant
+from hermes_cgm_agent.services.memory.provider import CGMMemoryProvider, _looks_memory_relevant
+from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 
 class MemoryProviderTests(unittest.TestCase):
@@ -18,3 +21,16 @@ class MemoryProviderTests(unittest.TestCase):
         for sample in samples:
             with self.subTest(sample=sample):
                 self.assertTrue(_looks_memory_relevant(sample))
+
+
+class EmptyStorePrefetchTests(unittest.TestCase):
+    """F1 A5: an empty store guides the agent (gently) to import/seed."""
+
+    def test_prefetch_hints_when_store_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = SQLiteStore(Path(temp_dir) / "app.db")
+            store.initialize()
+            provider = CGMMemoryProvider(store, user_id="u1")
+            out = provider.prefetch("最近血糖怎么样")
+        self.assertIn("empty store", out)
+        self.assertIn("import-cgm", out)

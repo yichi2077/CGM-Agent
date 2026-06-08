@@ -151,7 +151,7 @@ def build_default_tool_registry() -> ToolRegistry:
                 {
                     "points": {
                         "type": "array",
-                        "items": {"$ref": "#/$defs/GlucosePoint"},
+                        "items": {"type": "object", "description": "A normalized glucose point."},
                     }
                 }
             ),
@@ -171,7 +171,14 @@ def build_default_tool_registry() -> ToolRegistry:
                     "window_label": {"type": "string", "enum": ["day", "week", "14d", "month"]},
                 },
             ),
-            output_schema=_response_schema({"aggregate": {"$ref": "#/$defs/GlucoseAggregate"}}),
+            output_schema=_response_schema(
+                {
+                    "aggregate": {
+                        "type": "object",
+                        "description": "Aggregate CGM metrics (TIR/TAR/TBR/GMI/CV/MBG/LBGI/HBGI, coverage).",
+                    }
+                }
+            ),
             status="active",
         )
     )
@@ -185,7 +192,50 @@ def build_default_tool_registry() -> ToolRegistry:
                 required=["user_id", "event"],
                 properties={
                     "user_id": {"type": "string"},
-                    "event": {"$ref": "#/$defs/UserEvent"},
+                    "event": {
+                        "type": "object",
+                        "required": ["event_type", "ts_start"],
+                        "additionalProperties": False,
+                        "description": (
+                            "The event to record. Only event_type and ts_start are required; "
+                            "the system assigns the id and marks it as an unconfirmed, "
+                            "agent-created candidate (the model cannot set id/created_by/user_confirmed)."
+                        ),
+                        "properties": {
+                            "event_type": {
+                                "type": "string",
+                                "enum": [
+                                    "meal",
+                                    "exercise",
+                                    "medication",
+                                    "symptom",
+                                    "note",
+                                    "feedback",
+                                    "clinic_followup",
+                                ],
+                                "description": "Type of event.",
+                            },
+                            "ts_start": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "Event start time (ISO 8601).",
+                            },
+                            "ts_end": {
+                                "type": ["string", "null"],
+                                "format": "date-time",
+                                "description": "Optional event end time (ISO 8601).",
+                            },
+                            "payload": {
+                                "type": "object",
+                                "description": "Freeform details (e.g. meal description).",
+                            },
+                            "confidence": {
+                                "type": ["number", "null"],
+                                "minimum": 0,
+                                "maximum": 1,
+                            },
+                        },
+                    },
                     "reason": {"type": ["string", "null"]},
                 },
             ),

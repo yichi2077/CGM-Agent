@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Literal
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 
 def utc_now() -> str:
@@ -52,7 +52,17 @@ class _StorageCipher:
             return None
         if isinstance(value, str) and value.startswith(self.PREFIX):
             token = value[len(self.PREFIX) :].encode("utf-8")
-            payload = self._fernet.decrypt(token).decode("utf-8")
+            try:
+                payload = self._fernet.decrypt(token).decode("utf-8")
+            except InvalidToken as exc:
+                # Surface an explicit, actionable error instead of leaking a silent
+                # None / partial read (F1 edge case). A correctly located store keeps
+                # its key beside it; a mismatch usually means the DB and key were
+                # separated (see config storage_key_path / CGM_AGENT_STORAGE_KEY).
+                raise RuntimeError(
+                    "Failed to decrypt a stored value with the current storage key; "
+                    "the database and its Fernet key appear mismatched or separated."
+                ) from exc
             return json.loads(payload)
         if legacy == "json" and isinstance(value, str):
             return json.loads(value)

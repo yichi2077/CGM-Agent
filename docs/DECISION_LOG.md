@@ -115,3 +115,9 @@
 **决策**：新增工具 `rag.verify_quotes`（入参 `generated_text`、可选 `documents`/`query`/`strict`），复用 `assert_authoritative_quotes`，落审计，经 cgm 插件暴露给 Hermes；`skills/cgm-safety/SKILL.md` 把"数字映射检查"从"手动应用规则"升级为 **MANDATORY 工具调用契约**（strict 失败不得输出未支撑数字）。把"强制点在生成层"从注释变为可执行、可审计、可测的边界。
 **理由**：医学零容错下，安全保证必须是可强制、可验证的运行期能力，而非文档承诺。本仓无法在生成层内部强制（生成在 Hermes），但可提供 Hermes 在交付前必须回调的审计工具，并在 skill 契约里强制其调用。
 **影响**：`tools/registry.py`（+`rag.verify_quotes`，tool_count 14→15）、`tools/executor.py`（`_verify_quotes` handler + import）、`skills/cgm-safety/SKILL.md`、`integrations/hermes/cgm/plugin.yaml`（manifest 声明同步，+漂移守卫测试 R2-1）；5 个 executor 级测试。架构不变（双轨隔离/只读 KB 不变）。
+
+### D045 — CLI 与 Hermes 插件统一数据库路径 + 事件技术字段强制（F1）
+**背景**：`AppConfig.from_env()` 硬编码 `DEFAULT_DB_PATH`（`.runtime/app.db`），绕过 `resolve_database_path()`；而 `cgm`/`cgm_memory` 插件用 `resolve_database_path(hermes_home)` 解析到 `~/.hermes/cgm-agent/app.db`。结果 CLI 与 Hermes 各读一个库（split-brain），用户在 Hermes 对话中看不到 CLI 导入的数据。另外 `events.create` 让模型自填 `event_id/created_by/user_confirmed`，既易失败又可被模型伪造 provenance。
+**决策**：(1) `from_env()` 改走 `resolve_database_path(HERMES_HOME)`，`storage_key_path` 派生自 DB 同目录，密钥与库不同目录时告警；单一真实源优先级保持 `CGM_AGENT_DB_PATH` > `<hermes_home>/cgm-agent/app.db` > `.runtime`（开发回退）。(2) 旧数据迁移用户触发（`migrate-db`，DB+key 一并、拒绝静默覆盖、缺 key 即拒）。(3) `events.create` 展平内联 schema（仅 `event_type`+`ts_start` 必填），executor 在校验前**硬覆盖** `event_id/user_id/created_by=agent/user_confirmed=false`（不可被模型绕过）。(4) 解密失败抛显式错误，不静默返回 None。
+**理由**：单一存储是"在 Hermes 里能看到数据"的前置；密钥跟随库保证可解密（零数据丢失）；provenance 强制满足 agent 创建事件必须为未确认候选的不变量。详见 [ADR-0001](adr/ADR-0001-memory-and-knowledge-architecture.md) 与 spec `specs/001-hermes-runtime-usability/`。
+**影响**：`config.py`、`storage/sqlite.py`、`cli.py`、`scripts/migrate_legacy_data.py`(新增)、`services/tools/registry.py`、`services/tools/executor.py`、`integrations/hermes/cgm*`；配套回归测试。架构不变（双轨隔离/只读 KB/PHI 加密 0600 均保持）。

@@ -86,15 +86,13 @@ class HermesCGMMemoryProvider(MemoryProvider):
         )
 
     def get_tool_schemas(self) -> list[dict[str, Any]]:
-        if self._inner is not None:
-            return self._inner.get_tool_schemas()
-        # Pre-initialize fallback: reuse the inner provider's schema source so a
-        # schema change never silently diverges between the two paths (NEW-5).
-        import copy
-
-        from hermes_cgm_agent.services.memory.provider import MEMORY_TOOL_SCHEMAS
-
-        return copy.deepcopy(MEMORY_TOOL_SCHEMAS)
+        # Single LLM-facing tool channel (D045 / F1 US3, Damocles W3): the standalone
+        # `cgm` plugin registers ALL capability tools, including the four memory tools
+        # (memory.list/delete/confirm/correct -> cgm_memory_*). The memory provider
+        # therefore advertises NO tools, so each appears exactly once to the model.
+        # The provider keeps its memory-provider duties (prefetch / sync_turn /
+        # system_prompt_block) and can still execute a routed call via handle_tool_call.
+        return []
 
     def handle_tool_call(self, tool_name: str, args: dict[str, Any], **kwargs: Any) -> str:
         self._require_initialized()

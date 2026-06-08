@@ -182,6 +182,21 @@ class CGMMemoryProvider:
             lines.append("[CGM user-memory recall]")
             for item in context.items:
                 lines.append(f"- ({item['layer']}) {item['summary']}")
+        if not lines:
+            # First-run / empty store (F1 A5): guide the agent to gently surface that
+            # there is no data yet. The user-facing wording is the agent's, in the
+            # informed-companion tone (SOUL / Principle IV) — never a command.
+            try:
+                if SQLiteCGMRepository(self._store).status().glucose_point_count == 0:
+                    lines.append(
+                        "[CGM empty store] No CGM data for this user yet. If the user "
+                        "asks about their glucose, gently let them know there is no data "
+                        "yet and that they can import a CSV (`import-cgm`) or try sample "
+                        "data (`seed-demo`) — stay in the informed-companion tone, no "
+                        "pressure and no commands."
+                    )
+            except Exception:
+                pass
         return "\n".join(lines)
 
     def queue_prefetch(self, query: str, *, session_id: str = "") -> None:

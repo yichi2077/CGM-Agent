@@ -123,3 +123,19 @@ memory-tool exposure diagnosis path, and the non-destructive migration design.
 ## Complexity Tracking
 
 No constitution violations — section intentionally empty.
+
+## Notes
+
+- **Test baseline (T001, 2026-06-08, Hermes venv)**: `unittest discover -s tests` →
+  **337 passing + 1 pre-existing unrelated error** (`tests/test_safety_router.py`
+  imports `pytest`, absent from the venv; the tests are pytest-style plain classes
+  that the unittest runner never collected — tracked as a separate task, chip
+  `task_8323652c`). F1's green standard = the 337 do not regress, F1's new tests
+  pass, and no NEW failures appear. The safety-router error is out of F1 scope.
+- **After Foundational (T002–T005)**: `343 ran → 342 pass + 1 known error` (+5 new
+  tests, 0 regressions).
+- **Baseline correction (2026-06-09)**: the `test_safety_router.py` pytest defect was
+  fixed out-of-band (chip `task_8323652c` executed — test converted to unittest), so
+  the suite is now **fully green**. After US1 (T006–T013): `367 tests OK` (no errors),
+  including the now-collected safety-router tests plus F1's new config / storage /
+  migration / provider / plugin tests.

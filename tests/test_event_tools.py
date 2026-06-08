@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -36,18 +35,15 @@ class EventToolTests(unittest.TestCase):
             arguments={
                 "user_id": "user-1",
                 "event": {
-                    "event_id": "evt-1",
-                    "user_id": "user-1",
                     "type": "meal",
                     "ts_start": "2026-05-31T08:00:00+00:00",
                     "payload": {"category": "breakfast"},
                     "confidence": 0.8,
-                    "created_by": "agent",
-                    "user_confirmed": False,
                 },
             },
         )
         body = response.to_dict()
+        event_id = body["event_id"]
         scope = DataScope(
             user_id="user-1",
             window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
@@ -58,48 +54,74 @@ class EventToolTests(unittest.TestCase):
         audit_payload = self._last_audit_payload()
 
         self.assertEqual(body["status"], "ok")
-        self.assertEqual(body["event_id"], "evt-1")
+        self.assertTrue(event_id)  # server-generated, not model-supplied
+        self.assertEqual(body["event"]["created_by"], "agent")
         self.assertFalse(body["event"]["user_confirmed"])
         self.assertEqual(body["evidence_refs"][0]["kind"], "event")
-        self.assertEqual([event.event_id for event in all_events], ["evt-1"])
+        self.assertEqual([event.event_id for event in all_events], [event_id])
         self.assertEqual(confirmed_events, [])
         self.assertEqual(audit_payload["tool_name"], "events.create")
         self.assertEqual(audit_payload["status"], "ok")
         self.assertFalse(audit_payload["user_confirmed"])
 
-    def test_events_create_rejects_agent_confirmed_event(self) -> None:
+    def test_events_create_succeeds_with_minimal_fields(self) -> None:
+        # FR-006 / C2: only event_type + ts_start are required (event_type via the
+        # flattened schema name; populate_by_name accepts it).
+        response = self.executor.execute(
+            tool_name="events.create",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "event": {"event_type": "exercise", "ts_start": "2026-05-31T18:00:00+00:00"},
+            },
+        )
+        body = response.to_dict()
+        self.assertEqual(body["status"], "ok")
+        self.assertTrue(body["event_id"])
+        self.assertEqual(body["event"]["created_by"], "agent")
+        self.assertFalse(body["event"]["user_confirmed"])
+
+    def test_events_create_forces_agent_unconfirmed_provenance(self) -> None:
+        # FR-007 / Damocles W2: model-supplied id / created_by / user_confirmed are
+        # hard-overridden so an agent event can never pose as user-authored/confirmed.
         response = self.executor.execute(
             tool_name="events.create",
             session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event": {
-                    "event_id": "evt-1",
-                    "user_id": "user-1",
                     "type": "meal",
                     "ts_start": "2026-05-31T08:00:00+00:00",
-                    "created_by": "agent",
+                    "event_id": "hacked",
+                    "created_by": "user",
                     "user_confirmed": True,
                 },
             },
         )
         body = response.to_dict()
-        audit_payload = self._last_audit_payload()
+        self.assertEqual(body["status"], "ok")
+        self.assertNotEqual(body["event_id"], "hacked")
+        self.assertEqual(body["event"]["created_by"], "agent")
+        self.assertFalse(body["event"]["user_confirmed"])
+        self.assertEqual(body["event"]["user_id"], "user-1")
 
-        self.assertEqual(body["status"], "error")
-        self.assertIn("agent-created events must be unconfirmed candidates", body["error"])
-        self.assertEqual(audit_payload["tool_name"], "events.create")
-        self.assertEqual(audit_payload["status"], "error")
+    def test_events_create_rejects_non_object_event(self) -> None:
+        response = self.executor.execute(
+            tool_name="events.create",
+            session_id=self.session_id,
+            arguments={"user_id": "user-1", "event": "not-an-object"},
+        )
+        self.assertEqual(response.to_dict()["status"], "error")
 
     def test_events_confirm_promotes_candidate_and_applies_correction(self) -> None:
-        self._create_candidate("evt-1")
+        event_id = self._create_candidate()
 
         response = self.executor.execute(
             tool_name="events.confirm",
             session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
-                "event_id": "evt-1",
+                "event_id": event_id,
                 "confirmed": True,
                 "correction": {
                     "payload": {"category": "lunch"},
@@ -108,7 +130,7 @@ class EventToolTests(unittest.TestCase):
             },
         )
         body = response.to_dict()
-        saved = self.repository.get_user_event("evt-1")
+        saved = self.repository.get_user_event(event_id)
         audit_payload = self._last_audit_payload()
 
         self.assertEqual(body["status"], "ok")
@@ -121,14 +143,14 @@ class EventToolTests(unittest.TestCase):
         self.assertEqual(audit_payload["evidence_refs"][0]["kind"], "event")
 
     def test_events_confirm_rejects_candidate_and_hides_from_default_queries(self) -> None:
-        self._create_candidate("evt-1")
+        event_id = self._create_candidate()
 
         response = self.executor.execute(
             tool_name="events.confirm",
             session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
-                "event_id": "evt-1",
+                "event_id": event_id,
                 "confirmed": False,
             },
         )
@@ -146,60 +168,59 @@ class EventToolTests(unittest.TestCase):
         self.assertFalse(body["event"]["user_confirmed"])
         self.assertTrue(body["event"]["is_rejected"])
         self.assertEqual(visible_events, [])
-        self.assertEqual([event.event_id for event in rejected_events], ["evt-1"])
+        self.assertEqual([event.event_id for event in rejected_events], [event_id])
         self.assertFalse(audit_payload["confirmed"])
         self.assertTrue(audit_payload["is_rejected"])
 
     def test_events_confirm_rejects_cross_user_ownership(self) -> None:
         # C2: a caller must not confirm/mutate another user's event by id alone.
-        self._create_candidate("evt-1")
+        event_id = self._create_candidate()
 
         response = self.executor.execute(
             tool_name="events.confirm",
             session_id=self.session_id,
             arguments={
                 "user_id": "attacker",
-                "event_id": "evt-1",
+                "event_id": event_id,
                 "confirmed": True,
             },
         )
         body = response.to_dict()
 
         self.assertEqual(body["status"], "error")
-        # the victim's event must remain an unconfirmed candidate
-        saved = self.repository.get_user_event("evt-1", include_rejected=True)
+        saved = self.repository.get_user_event(event_id, include_rejected=True)
         self.assertFalse(saved.user_confirmed)
         self.assertFalse(saved.is_rejected)
 
     def test_events_confirm_rejects_non_boolean_confirmed(self) -> None:
         # C3: a string like "false" must not be coerced to True.
-        self._create_candidate("evt-1")
+        event_id = self._create_candidate()
 
         response = self.executor.execute(
             tool_name="events.confirm",
             session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
-                "event_id": "evt-1",
+                "event_id": event_id,
                 "confirmed": "false",
             },
         )
         body = response.to_dict()
 
         self.assertEqual(body["status"], "error")
-        saved = self.repository.get_user_event("evt-1", include_rejected=True)
+        saved = self.repository.get_user_event(event_id, include_rejected=True)
         self.assertFalse(saved.user_confirmed)
         self.assertFalse(saved.is_rejected)
 
     def test_events_confirm_rejects_non_object_correction(self) -> None:
-        self._create_candidate("evt-1")
+        event_id = self._create_candidate()
 
         response = self.executor.execute(
             tool_name="events.confirm",
             session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
-                "event_id": "evt-1",
+                "event_id": event_id,
                 "confirmed": True,
                 "correction": "bad",
             },
@@ -208,28 +229,25 @@ class EventToolTests(unittest.TestCase):
 
         self.assertEqual(body["status"], "error")
         self.assertIn("correction must be an object", body["error"])
-        saved = self.repository.get_user_event("evt-1", include_rejected=True)
+        saved = self.repository.get_user_event(event_id, include_rejected=True)
         self.assertFalse(saved.user_confirmed)
         self.assertFalse(saved.is_rejected)
 
-    def _create_candidate(self, event_id: str) -> None:
+    def _create_candidate(self) -> str:
         response = self.executor.execute(
             tool_name="events.create",
             session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
                 "event": {
-                    "event_id": event_id,
-                    "user_id": "user-1",
                     "type": "meal",
                     "ts_start": "2026-05-31T08:00:00+00:00",
                     "payload": {"category": "breakfast"},
-                    "created_by": "agent",
-                    "user_confirmed": False,
                 },
             },
         )
         self.assertEqual(response.status, "ok")
+        return response.to_dict()["event_id"]
 
     def _last_audit_payload(self) -> dict[str, object]:
         with self.store.connect() as conn:

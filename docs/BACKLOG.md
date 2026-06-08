@@ -3,7 +3,8 @@
 - **日期**：2026-06-08
 - **作用**：项目后续开发的唯一 backlog 事实源（宪法 §VI）。所有 ad-hoc 计划（`docs/FIX-PLAN-*`）以本文件为准归并，归并后退役。
 - **权威约束**：[宪法](../.specify/memory/constitution.md)（7 原则）· [ADR-0001](adr/ADR-0001-memory-and-knowledge-architecture.md) · [DECISION_LOG](DECISION_LOG.md)
-- **状态图例**：`OPEN` 未动 · `PARTIAL` 有骨架待完善 · `CORE-DONE` 核心已完成 · `VERIFY` 需先排查再定 · `BLOCKED/FROZEN` 外部依赖或主动冻结 · `DEFERRED` 暂缓
+- **状态图例**：`OPEN` 未动 · `PARTIAL` 有骨架待完善 · `CORE-DONE` 核心已完成 · `VERIFY` 需先排查再定 · `BLOCKED/FROZEN` 外部依赖或主动冻结 · `DEFERRED` 暂缓 · `DONE` 已实现并验证
+- **进度（2026-06-09）**：**F1（A1/A2/A3/A5）已实现并验证** —— spec `specs/001-hermes-runtime-usability/`，全套 372 测试绿。条目 A4/A6 仍 `VERIFY`（划在 F1 范围外）。`docs/FIX-PLAN-*` 已被 spec 001 取代（可删除）。
 - **来源**：FIX-PLAN-2026-06-07（Apollo）+ Caesar 审查 + Damocles 审计 + PRD-SUPPLEMENT + ADR-0001 backlog + AUDIT-2026-06-07 残留 + Dexcom 集成备忘。状态均已对当前 HEAD 代码核实。
 
 ---

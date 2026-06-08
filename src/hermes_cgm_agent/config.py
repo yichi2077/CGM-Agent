@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -82,6 +83,24 @@ class AppConfig:
         except ValueError:
             timeout_seconds = 300
 
+        # Route the CLI entry point through the SAME resolver the cgm/cgm_memory
+        # plugins use (D045 / F1 A1). Previously this hardcoded DEFAULT_DB_PATH, so
+        # the CLI wrote .runtime/app.db while the agent read ~/.hermes/cgm-agent/app.db
+        # — a split-brain store the user could never see in Hermes.
+        db = resolve_database_path(os.getenv("HERMES_HOME") or None)
+
+        # The Fernet key MUST live beside its database (SQLiteStore default), so a
+        # correctly located store is always decryptable. An explicit override is
+        # honored but warned about when it separates the key from the DB.
+        storage_key = os.getenv("CGM_AGENT_STORAGE_KEY_PATH", str(db.parent / "storage.key"))
+        if Path(storage_key).expanduser().resolve().parent != db.parent:
+            logging.getLogger("hermes_cgm_agent.config").warning(
+                "storage_key_path (%s) is not in the database directory (%s); "
+                "the Fernet key may be separated from its database.",
+                storage_key,
+                db.parent,
+            )
+
         return cls(
             hermes_bin=os.getenv("HERMES_BIN"),
             default_model=os.getenv("CGM_AGENT_MODEL"),
@@ -89,8 +108,8 @@ class AppConfig:
             default_toolsets=os.getenv("CGM_AGENT_TOOLSETS"),
             default_skills=os.getenv("CGM_AGENT_SKILLS"),
             timeout_seconds=timeout_seconds,
-            db_path=os.getenv("CGM_AGENT_DB_PATH", str(DEFAULT_DB_PATH)),
-            storage_key_path=os.getenv("CGM_AGENT_STORAGE_KEY_PATH", str(DEFAULT_STORAGE_KEY_PATH)),
+            db_path=str(db),
+            storage_key_path=storage_key,
         )
 
     @property

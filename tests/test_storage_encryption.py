@@ -176,6 +176,19 @@ class StorageEncryptionTests(unittest.TestCase):
         self.assertNotIn("ai_outputs", tables)
         self.assertEqual(audit_fks, [])
 
+    def test_decryption_with_wrong_key_raises_explicit_error(self) -> None:
+        # F1 edge case: a separated/mismatched key must surface an explicit error,
+        # never a silent None / partial read.
+        from hermes_cgm_agent.storage.sqlite import _StorageCipher
+
+        dir_a = Path(self.temp_dir.name) / "key-a"
+        dir_b = Path(self.temp_dir.name) / "key-b"
+        dir_a.mkdir()
+        dir_b.mkdir()
+        sealed = _StorageCipher(dir_a / "storage.key").seal({"note": "secret"})
+        with self.assertRaises(RuntimeError):
+            _StorageCipher(dir_b / "storage.key").open(sealed)
+
 
 if __name__ == "__main__":
     unittest.main()

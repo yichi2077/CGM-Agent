@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 
 from hermes_cgm_agent.services.tools import ToolSpec, build_default_tool_registry
@@ -54,6 +55,22 @@ class ToolRegistryTests(unittest.TestCase):
 
         self.assertIn("user_id", schema["properties"])
         self.assertIn("user_id", schema["required"])
+
+    def test_tool_schemas_have_no_unresolved_refs(self) -> None:
+        # C2 / F1: dangling "$ref": "#/$defs/..." entries (no $defs block exists) make
+        # tool schemas unresolvable for the model. All schemas must be self-contained.
+        registry = build_default_tool_registry()
+        blob = json.dumps(
+            [{"in": spec.input_schema, "out": spec.output_schema} for spec in registry.list()]
+        )
+        self.assertNotIn("$ref", blob)
+
+    def test_events_create_event_is_inline_minimal_object(self) -> None:
+        registry = build_default_tool_registry()
+        event_schema = registry.get("events.create").input_schema["properties"]["event"]
+        self.assertEqual(event_schema["type"], "object")
+        self.assertEqual(set(event_schema["required"]), {"event_type", "ts_start"})
+        self.assertNotIn("$ref", json.dumps(event_schema))
 
     def test_duplicate_tool_names_are_rejected(self) -> None:
         registry = build_default_tool_registry()
