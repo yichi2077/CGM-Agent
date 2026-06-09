@@ -70,8 +70,8 @@
 ### G. 工程健康（→ F6，持续技术债）
 | # | 条目 | 状态 | 说明 |
 |---|---|---|---|
-| G1 | 大模块拆分 | `OPEN` | `cli.py`(1252)/`executor.py`(1010)/`builder.py`(980)；拆 executor 是后续并行的使能器 |
-| G2 | 双插件路径一致性测试 + `_EXECUTOR_CACHE` 失效 | `OPEN` | Caesar 遗漏 B/C；加守卫测试 |
+| G1 | 大模块拆分 | `PARTIAL` | **`executor.py` 已拆**（1019→115 行，按域拆成 `services/tools/handlers/` mixin 包，PR #3，纯重构，374 绿）——并行使能器到位。`cli.py`(1252)/`builder.py`(980) 仍待拆 |
+| G2 | 双插件路径一致性测试 + `_EXECUTOR_CACHE` 失效 | `PARTIAL` | 已加 `_DISPATCH` 覆盖守卫测试（G1 PR）；双插件路径一致性 + cache 失效测试仍待补 |
 | G3 | 文档计数漂移收敛 | `OPEN` | 旧报告 183/196/222 等过期计数 |
 | G4 | 未入库 FIX-PLAN → 收编后退役 | `OPEN` | 4 份竞争性计划文档，本 BACKLOG 落地后删除（宪法 §VI） |
 

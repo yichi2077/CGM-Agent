@@ -88,5 +88,32 @@ class ToolRegistryTests(unittest.TestCase):
             registry.register(duplicate)
 
 
+class ExecutorDispatchCoverageTests(unittest.TestCase):
+    """G1 guard: every active tool the registry exposes must have a handler
+    wired in ToolExecutor._DISPATCH, and every dispatch entry must map to a
+    real method. After splitting the executor into per-domain handler mixins,
+    this catches a tool added during parallel feature work (F3/F4/F5) whose
+    handler was never wired — which would otherwise only surface as a runtime
+    "Tool has no executor" error."""
+
+    def test_every_active_tool_has_a_dispatch_handler(self) -> None:
+        from hermes_cgm_agent.services.tools import ToolExecutor
+
+        registry = build_default_tool_registry()
+        active = {spec.name for spec in registry.list() if spec.status == "active"}
+        dispatched = set(ToolExecutor._DISPATCH)
+        self.assertEqual(active - dispatched, set(), "active tools missing a handler")
+        self.assertEqual(dispatched - active, set(), "dispatch entries with no active tool")
+
+    def test_every_dispatch_handler_method_exists(self) -> None:
+        from hermes_cgm_agent.services.tools import ToolExecutor
+
+        for tool_name, method_name in ToolExecutor._DISPATCH.items():
+            self.assertTrue(
+                callable(getattr(ToolExecutor, method_name, None)),
+                f"{tool_name} -> {method_name} is not a callable handler",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
