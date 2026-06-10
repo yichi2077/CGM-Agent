@@ -34,6 +34,7 @@ from hermes_cgm_agent.domain.context import (
 )
 from hermes_cgm_agent.domain.memory import (
     CandidateStatus,
+    EscalationState,
     HypothesisState,
     L1Episode,
     L2ProfileItem,
@@ -41,6 +42,7 @@ from hermes_cgm_agent.domain.memory import (
     MemoryCandidate,
     MemoryLayer,
     MemorySummary,
+    PendingInteraction,
 )
 from hermes_cgm_agent.domain.report import (
     AuthoritativeContext,
@@ -87,6 +89,7 @@ __all__ = [
     "L0_DEFAULT_SPAN_DAYS",
     "L0_DEFAULT_TOKEN_BUDGET",
     "CandidateStatus",
+    "EscalationState",
     "HypothesisState",
     "L1Episode",
     "L2ProfileItem",
@@ -94,6 +97,7 @@ __all__ = [
     "MemoryCandidate",
     "MemorySummary",
     "MemoryLayer",
+    "PendingInteraction",
     "AuthoritativeContext",
     "DataQualityWarning",
     "FactsContext",

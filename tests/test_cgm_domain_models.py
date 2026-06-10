@@ -12,6 +12,8 @@ from hermes_cgm_agent.domain import (
     RawImportBatch,
     UserEvent,
     convert_glucose_value,
+    EscalationState,
+    PendingInteraction,
 )
 
 
@@ -76,6 +78,62 @@ class CGMDomainModelTests(unittest.TestCase):
 
         self.assertAlmostEqual(mmol_l, 6.0, places=4)
 
+    def test_escalation_state_derivation(self) -> None:
+        # Standard escalation
+        self.assertEqual(EscalationState.derive(0), EscalationState.NORMAL)
+        self.assertEqual(EscalationState.derive(1), EscalationState.NORMAL)
+        self.assertEqual(EscalationState.derive(2), EscalationState.NORMAL)
+        self.assertEqual(EscalationState.derive(3), EscalationState.CONCERN)
+        self.assertEqual(EscalationState.derive(4), EscalationState.CONCERN)
+        self.assertEqual(EscalationState.derive(5), EscalationState.EXTERNAL_SUPPORT)
+        self.assertEqual(EscalationState.derive(6), EscalationState.EXTERNAL_SUPPORT)
+
+        # Vulnerable escalation (compressed thresholds)
+        self.assertEqual(EscalationState.derive(0, is_vulnerable=True), EscalationState.NORMAL)
+        self.assertEqual(EscalationState.derive(1, is_vulnerable=True), EscalationState.CONCERN)
+        self.assertEqual(EscalationState.derive(2, is_vulnerable=True), EscalationState.CONCERN)
+        self.assertEqual(EscalationState.derive(3, is_vulnerable=True), EscalationState.EXTERNAL_SUPPORT)
+        self.assertEqual(EscalationState.derive(4, is_vulnerable=True), EscalationState.EXTERNAL_SUPPORT)
+
+    def test_pending_interaction_ttl(self) -> None:
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        
+        # 1. Active and not expired
+        interaction1 = PendingInteraction(
+            interaction_id="int-1",
+            user_id="user-1",
+            interaction_type="missing_data_query",
+            content="No data seen today",
+            expires_at=now + timedelta(days=3),
+        )
+        self.assertTrue(interaction1.check_active(now))
+        self.assertFalse(interaction1.is_expired)
+
+        # 2. Expired (beyond 3-day TTL)
+        interaction2 = PendingInteraction(
+            interaction_id="int-2",
+            user_id="user-1",
+            interaction_type="missing_data_query",
+            content="No data seen today",
+            expires_at=now - timedelta(seconds=1),
+        )
+        self.assertFalse(interaction2.check_active(now))
+        # Note: is_expired compares against utc_now(), so it's naturally True for past times.
+        self.assertTrue(interaction2.is_expired)
+
+        # 3. Resolved
+        interaction3 = PendingInteraction(
+            interaction_id="int-3",
+            user_id="user-1",
+            interaction_type="missing_data_query",
+            content="No data seen today",
+            expires_at=now + timedelta(days=3),
+            resolved_at=now,
+        )
+        self.assertFalse(interaction3.check_active(now))
+
 
 if __name__ == "__main__":
     unittest.main()
+

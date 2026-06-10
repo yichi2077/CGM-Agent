@@ -60,14 +60,130 @@ class PushSchedulerTests(unittest.TestCase):
         self.assertNotIn("weekly", due)
 
     # ── idempotency ───────────────────────────────────────────────────────────
+    # ── idempotency ───────────────────────────────────────────────────────────
     def test_push_is_idempotent_within_period(self) -> None:
         now = _dt("2026-06-09T09:30:00+00:00")
+        # Ensure daily push triggers by adding a CANDIDATE L3 hypothesis created now
+        self._hyp(HypothesisState.CANDIDATE, last_checked=now)
         first = self.service.push_tick(user_id="u1", now=now)
         self.assertEqual([p["tier"] for p in first.pushed], ["daily"])
         later = self.service.push_tick(user_id="u1", now=_dt("2026-06-09T18:00:00+00:00"))
         self.assertEqual(later.pushed, [])  # same daily period -> not re-pushed
-        next_day = self.service.push_tick(user_id="u1", now=_dt("2026-06-10T09:30:00+00:00"))
-        self.assertEqual([p["tier"] for p in next_day.pushed], ["daily"])  # new period
+        
+        # Ensure next_day daily push triggers by updating/re-creating the CANDIDATE at next_day
+        next_day = _dt("2026-06-10T09:30:00+00:00")
+        self._hyp(HypothesisState.CANDIDATE, last_checked=next_day)
+        next_day_push = self.service.push_tick(user_id="u1", now=next_day)
+        self.assertEqual([p["tier"] for p in next_day_push.pushed], ["daily"])  # new period
+
+    # ── F4 Daily trigger & Rate Limiting tests ──────────────────────────────
+    def test_daily_triggers_only_on_thresholds(self) -> None:
+        now = _dt("2026-06-09T09:30:00+00:00")
+        
+        # 1. No triggers -> Daily push skipped
+        res = self.service.push_tick(user_id="u1", now=now)
+        self.assertEqual(res.pushed, [])
+        
+        # 2. Trigger: new candidate candidate
+        self._hyp(HypothesisState.CANDIDATE, last_checked=now)
+        res = self.service.push_tick(user_id="u1", now=now)
+        self.assertEqual([p["tier"] for p in res.pushed], ["daily"])
+        
+        # Reset push events for subsequent test stages
+        with self.store.connect() as conn:
+            conn.execute("DELETE FROM push_events")
+
+        # 3. Trigger: TIR delta >= 5%
+        from hermes_cgm_agent.domain import MemorySummary
+        self.service.memory.create_summary(
+            MemorySummary(
+                summary_id="s1",
+                user_id="u1",
+                period="daily",
+                window_start=now - timedelta(days=2),
+                window_end=now - timedelta(days=1),
+                content="digest",
+                metrics={"tir_pct": 75.0},
+                created_at=now - timedelta(days=1)
+            )
+        )
+        
+        # Now today's TIR will be computed as 0 (no data), delta is abs(0 - 75) = 75 >= 5 -> trigger!
+        res = self.service.push_tick(user_id="u1", now=now)
+        self.assertEqual([p["tier"] for p in res.pushed], ["daily"])
+
+        # Reset push events
+        with self.store.connect() as conn:
+            conn.execute("DELETE FROM push_events")
+
+        # 4. Trigger: consecutive >= 2 days same-period anomaly
+        from hermes_cgm_agent.domain import GlucosePoint
+        # Day 1 overnight points (hypo event)
+        for i in range(5):
+            self.service.cgm.create_glucose_point(
+                GlucosePoint(
+                    user_id="u1",
+                    timestamp=now - timedelta(hours=2) + timedelta(minutes=i*5),
+                    value=50.0,
+                    unit="mg/dL",
+                    source="sensor",
+                    quality_flag="valid"
+                )
+            )
+        # Day 2 overnight points (hypo event)
+        for i in range(5):
+            self.service.cgm.create_glucose_point(
+                GlucosePoint(
+                    user_id="u1",
+                    timestamp=now - timedelta(days=1, hours=2) + timedelta(minutes=i*5),
+                    value=50.0,
+                    unit="mg/dL",
+                    source="sensor",
+                    quality_flag="valid"
+                )
+            )
+        res = self.service.push_tick(user_id="u1", now=now)
+        self.assertEqual([p["tier"] for p in res.pushed], ["daily"])
+
+    def test_non_urgent_push_rate_limit_1_per_day(self) -> None:
+        mon = _dt("2026-06-08T09:30:00+00:00")
+        self._hyp(HypothesisState.CANDIDATE, last_checked=mon)
+        
+        # We push tick. Daily is sorted after weekly.
+        # We expect weekly to be pushed, and daily to be skipped due to the 1-per-day rate limit!
+        res = self.service.push_tick(user_id="u1", now=mon)
+        pushed_tiers = [p["tier"] for p in res.pushed]
+        self.assertIn("weekly", pushed_tiers)
+        self.assertNotIn("daily", pushed_tiers)
+
+    def test_os_push_permission_denied_fallback(self) -> None:
+        from hermes_cgm_agent.services.scheduling.scheduler import PermissionDenied
+        
+        # Mock send_os_push to raise PermissionDenied
+        original_send = self.service.send_os_push
+        def mock_send(user_id, content):
+            raise PermissionDenied("Denied")
+        self.service.send_os_push = mock_send
+        
+        try:
+            now = _dt("2026-06-09T09:30:00+00:00")
+            self._hyp(HypothesisState.CANDIDATE, last_checked=now)
+            
+            # Badge count starts at 0
+            self.assertEqual(self.service.get_badge_count("u1"), 0)
+            
+            # Tick push
+            res = self.service.push_tick(user_id="u1", now=now)
+            self.assertEqual([p["tier"] for p in res.pushed], ["daily"])
+            
+            # Badge count should be incremented to 1
+            self.assertEqual(self.service.get_badge_count("u1"), 1)
+            
+            # Test reset
+            self.service.reset_badge_count("u1")
+            self.assertEqual(self.service.get_badge_count("u1"), 0)
+        finally:
+            self.service.send_os_push = original_send
 
     # ── silent consent ────────────────────────────────────────────────────────
     def _hyp(self, state: HypothesisState, *, last_checked: datetime) -> str:

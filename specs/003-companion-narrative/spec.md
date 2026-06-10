@@ -31,6 +31,35 @@ but needs to verify if scheduling/report implements it).
 
 ## Clarifications
 
+### Session 2026-06-10 (Narrative Style & Interaction Flow)
+
+Resolves F4 narrative style and push boundaries via user selection:
+- **表达风格 (A1, A5, A6)**：采用“共同探索型”，多用“我们发现”等协商式词汇；用提问引导表达不确定性（“你觉得可能是因为...吗？”）；对“坏习惯”不作道德评判，仅提醒潜在影响且不带情绪。
+- **隐性推理与假设 (A2, A3)**：在自然对话中穿插轻量的推理过程（L1/L2）；长期假设（L3）完全在后台流转，前端只通过自然语言体现，不暴露状态机。
+- **主动打扰与断联响应 (A4, A11)**：打破每天一次的限制。只要发现有价值的 Insight，就随时主动 Push；遇到数据缺失或断联异常时，立即主动发送消息询问用户。
+- **长篇输出与退场 (A10, A12)**：长篇医学分析前，先询问“需要听详细分析吗？”，肯定后再发送；遇到“不知道”的情况，坦诚告知并主动提出一个可执行的观察实验。
+- **跨天记忆 (A9)**：在当前话题相关时，Agent 自然引入历史记忆（“这和昨天下午的趋势很像”）。
+- **特殊交互机制 (A7, A8)**：对于脆弱人群，增加特殊的“安全免责声明”卡片或弹窗；**F4 (陪伴对话) 与 F3 (医疗卡片) 完全隔离**，对话不涉及严谨报告内容，报告也不体现聊天语气。
+- **主动 Push 触发边界 (Clarify-1)**：“有价值的 Insight”不仅限紧急情况，还包括非紧急但具有参考价值的日常趋势发现（如“今天下午的波动比昨天平稳”）。
+- **无响应退避策略 (Clarify-2)**：主动 Push 询问断联/异常后，若用户未回复，系统不主动重试，默默记录，等待用户下一次主动交互时再顺带提起。
+
+### Session 2026-06-10 (Checklist Quality Resolution)
+
+Resolves F4 narrative quality, insight threshold, push message length, and tone isolation via user selection:
+- **Insight 触发阈值 (CHK006)**：定义明确的触发阈值，仅在满足以下条件之一时触发主动 Push：TIR 变化幅度（delta）≥ 5%、连续 ≥ 2 天在同一时间段出现异常波动、或生成新的 L3 假设候选（CANDIDATE）。
+- **Push 消息长度限制 (CHK007)**：主动 Push 消息有独立的长度限制，要求不超过 100 个汉字（因 Push 需具备完整的上下文，可长于日常卡片的 50 字限制）。
+- **语气隔离与黑名单校验 (CHK008)**：F4 陪伴者叙事输出中不得包含任何临床专业缩写（如 TIR、TAR、TBR、GMI、CV、LBGI、HBGI）以及任何武断/断言式短语，并建立黑名单校验机制（通过 `validate_companion_text()` 函数）进行强制校验。
+- **Push 延迟与实时性要求 (CHK009)**：不要求实时推送，允许有数小时的合理延迟；完全依赖现有的 `push_tick` 轮询机制（频率至少每天 1 次）进行判定与发送。
+
+### Session 2026-06-10 (Checklist Gaps Resolution)
+
+Resolves gaps identified by speckit-checklist:
+- **防打扰机制（频率上限）**：非紧急主动 Push 限制为每天最多 1 次，紧急异常不受限制。
+- **“沉默记录”失效规则（TTL）**：未回复的主动提问状态仅保留 3 天，逾期作废。
+- **“免责声明”交互**：对于脆弱人群采用强阻断式，首次触达时强制弹窗并要求输入“已知晓”才能继续。
+- **F3/F4跳转路径**：通过专属指令（如 `/report`）从对话流中独立拉取纯净版 F3 卡片。
+- **OS Push兜底**：推送权限关闭时，应用内转为未读消息红点（Badge）积攒。
+
 ### Session 2026-06-09
 
 - Q: HypothesisState 枚举中 SOUL.md 使用 "失效/归档" 而代码使用 ARCHIVED，C2 的话术模板应以哪个为准？ → A: 代码枚举 ARCHIVED 为权威，话术模板按 "归档" 语义编写，映射到 HypothesisState.ARCHIVED。
@@ -146,18 +175,20 @@ for a vulnerable-population user and verify escalation starts at day 1/3/5
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST render report narrative sections (daily card, overview, metrics, observations, follow-up, patterns) in conversational Chinese for SELF audience, matching SOUL.md style norms (30-80 chars default, life-language, no clinical jargon).
-- **FR-002**: The system MUST maintain distinct narrative templates for three audiences: SELF (conversational Chinese, life-language), CLINICIAN (clinical language, structured numbers), and FAMILY (simplest possible language, one-sentence summaries for daily card).
+- **FR-001**: F4 conversational interactions MUST be strictly isolated from F3 clinical reports. Chat interactions MUST NOT include clinical report structures, and F3 reports MUST NOT use chat/companion tone.
+- **FR-002**: The system MUST use a "co-exploration" narrative style in conversations, incorporating light reasoning, questions for uncertainty, and objective consequence reminders without moral judgment.
 - **FR-003**: The system MUST translate clinical metrics (TIR, TAR, TBR, MBG, CV, GMI) into life-language equivalents for SELF and FAMILY audiences (e.g., TIR → "大部分时间都在范围里", TAR → "偏高的时候").
 - **FR-004**: The system MUST render L3 hypothesis narratives using state-appropriate templates: CANDIDATE → hedged + invitation, OBSERVING → evidence-counted observation, STABLE → confirmed pattern language, ARCHIVED → "最近不明显" demotion language.
-- **FR-005**: Hypothesis narratives MUST NOT use causal/assertive language ("经分析发现", "研究表明", "数据证明") in any state; all language MUST be hedged and non-directive per Principle IV.
+- **FR-005**: Hypothesis and companion narratives MUST NOT use causal/assertive language ("经分析发现", "研究表明", "数据证明") in any state; all language MUST be hedged and non-directive per Principle IV. The system MUST implement a validation function `validate_companion_text()` to enforce this and strictly forbid clinical abbreviations (TIR, TAR, TBR, GMI, CV, LBGI, HBGI) in F4 outputs.
 - **FR-006**: The system MUST calculate consecutive anomaly days for each user during push_tick and store the escalation level (standard: day 1/3/5; vulnerable: day 1/3/5 with earlier thresholds).
-- **FR-007**: Report sections MUST incorporate escalation-aware concern language when the user's consecutive anomaly count crosses a threshold: day 3+ → personal concern, day 5+ → external support suggestion.
-- **FR-008**: Vulnerable population users MUST be identified from L2ProfileItem (key-based detection, e.g., `vulnerable_population=true`) and MUST receive the earlier escalation timeline.
+- **FR-007**: The system MUST proactively PUSH messages upon detecting Insights or missing data. Non-urgent pushes MUST be rate-limited to 1 per day. Urgent criticals are unlimited. Unanswered queries MUST NOT be retried proactively; they are stored with a 3-day TTL and referenced in the next user-initiated interaction if valid. Proactive pushes for daily trends are triggered only when meeting explicit thresholds: TIR delta ≥ 5%, consecutive ≥ 2 days same-period anomaly, or a new L3 hypothesis candidate. Push latency is non-realtime, relying on the daily `push_tick` loop.
+- **FR-008**: Vulnerable population users MUST be identified via L2ProfileItem. The system MUST present a strong-blocking "Safety Disclaimer" requiring explicit "已知晓" (acknowledged) input before allowing further interaction.
 - **FR-009**: The system MUST NOT emit escalation or hypothesis narratives during red-zone safety override (Principle III compliance).
-- **FR-010**: The report narrative MUST respect SOUL.md output length norms: daily card ≤50 chars, weekly pattern ≤100 chars, general default ≤80 chars (for SELF audience).
-- **FR-011**: All narrative changes MUST preserve existing evidence_refs, source_tracks, confidence, and data_quality_warnings structures — narrative is a rendering concern, not a data concern.
-- **FR-012**: The existing automated test suite MUST remain green (374+ tests), and new narrative/escalation behaviors MUST be covered by regression tests.
+- **FR-010**: The report narrative MUST respect SOUL.md output length norms: daily card ≤50 chars, weekly pattern ≤100 chars, general default ≤80 chars (for SELF audience). Active push messages MUST have an independent limit ≤100 chars to ensure self-contained context.
+- **FR-011**: The system MUST provide a slash command (e.g., `/report`) to invoke strictly isolated F3 clinical reports within the F4 conversational interface.
+- **FR-012**: The system MUST implement a fallback mechanism accumulating internal unread badges for proactive pushes if OS-level push notifications fail or are disabled.
+- **FR-013**: All narrative changes MUST preserve existing evidence_refs, source_tracks, confidence, and data_quality_warnings structures — narrative is a rendering concern, not a data concern.
+- **FR-014**: The existing automated test suite MUST remain green (374+ tests), and new narrative/escalation behaviors MUST be covered by regression tests.
 
 ### Key Entities
 
@@ -170,8 +201,8 @@ for a vulnerable-population user and verify escalation starts at day 1/3/5
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of SELF-audience report sections use conversational Chinese with no raw clinical jargon (TIR/TAR/TBR/MBG/CV/GMI spelled out as acronyms) — verified by automated text-pattern assertion in tests.
-- **SC-002**: FAMILY-audience daily cards are ≤1 sentence and convey safety status without clinical numbers — verified by character count and keyword absence in tests.
+- **SC-001**: F3 reports and F4 conversations are verifiably isolated in tone and content formatting.
+- **SC-002**: The system triggers immediate proactive messages upon simulated sensor disconnection or new Insight generation.
 - **SC-003**: Hypothesis narratives for each of the 4 states (CANDIDATE, OBSERVING, STABLE, ARCHIVED) match the SOUL.md template language — verified by state-specific test cases.
 - **SC-004**: Escalation concern language appears at the correct consecutive-day thresholds for standard and vulnerable users — verified by simulating 1-7 days of anomaly data.
 - **SC-005**: Zero narrative leakage during red-zone safety override — verified by safety router integration test.

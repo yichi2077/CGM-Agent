@@ -1,207 +1,143 @@
-# Tasks: Companion Narrative + Negotiated Interaction (F4)
+# Feature Tasks: Companion Narrative + Negotiated Interaction (F4)
 
-**Input**: Design documents from `/specs/003-companion-narrative/`
+## Phase 1: Foundational State & Scheduler
+**Goal:** Prepare the underlying data models and push scheduler logic for the narrative layer to consume.
+**Independent Test Criteria:** State models can hold TTL, and scheduler correctly respects rate limits and accumulates badges.
 
-**Prerequisites**: plan.md (required), spec.md (required), research.md, data-model.md, contracts/
+- [x] T001 [US3] Add `EscalationState` derivation logic to `src/hermes_cgm_agent/domain/memory.py`.
+  - **测试方式**: Unit tests for derivation function with 1, 3, 5 days inputs.
+  - **完成标准**: Model correctly maps consecutive anomaly days + vulnerable flag to NORMAL/CONCERN/EXTERNAL_SUPPORT.
+- [x] T002 [US2] Implement `PendingInteraction` model with 3-day TTL in `src/hermes_cgm_agent/domain/memory.py`.
+  - **测试方式**: Unit test instantiating and expiring the model.
+  - **完成标准**: Model exists, `is_active` computed correctly based on 3-day TTL.
+- [ ] T003 [P] [US3] Update `PushSchedulerService` in `src/hermes_cgm_agent/services/scheduler.py` for 1-day rate limit and explicit trigger thresholds.
+  - **测试方式**: Mock time/data and trigger non-urgent pushes; verify only pushes meeting thresholds (TIR delta ≥5%, consecutive ≥2 days same-period anomaly, new L3 hypothesis) are sent, non-urgent is rate-limited to 1/day, and push latency is non-realtime.
+  - **完成标准**: Rate limit, thresholds, and non-realtime polling latency are correctly enforced.
+- [ ] T004 [US3] Add OS Push failure fallback to `PushSchedulerService` (`src/hermes_cgm_agent/services/scheduler.py`).
+  - **测试方式**: Mock `PermissionDenied` on OS push API; assert internal badge count increments.
+  - **完成标准**: Push failure does not drop the message; instead, it writes to a pending badge state.
 
-**Tests**: Constitution Principle V (NON-NEGOTIABLE) — test-first for all new behaviors.
+## Phase 2: Narrative Extraction & Templates (US1, US2)
+**Goal:** Cleanly separate clinical and companion narrative templates.
+**Independent Test Criteria:** Templates generate string outputs with explicit uncertainty and no clinical jargon.
 
-**Organization**: Tasks grouped by user story (US1=narrative, US2=hypothesis, US3=escalation).
+- [ ] T005 [P] [US2] Create `src/hermes_cgm_agent/services/reports/narrative_templates.py`, add Hypothesis state templates, and implement `validate_companion_text()`.
+  - **测试方式**: `pytest` matching templates against SOUL.md styles, and testing `validate_companion_text()` with text containing clinical abbreviations (TIR, TAR, TBR, GMI, CV, LBGI, HBGI) or assertive phrases.
+  - **完成标准**: 4 templates exist using协商式词汇; `validate_companion_text()` correctly blocks blacklisted abbreviations and assertive/causal phrases, and enforces ≤100 char limit for push messages.
+- [ ] T006 [P] [US1] Extract companion tone translations (TIR -> life language) into `narrative_templates.py`.
+  - **测试方式**: Pass mock TIR=75% and verify output is "大部分时间都在范围里".
+  - **完成标准**: All raw clinical metric translations are isolated here.
 
-## Format: `[ID] [P?] [Story] Description`
+## Phase 3: Builder Isolation & Safety (US1, US3)
+**Goal:** Hook the new templates into the report builder and enforce strict F3/F4 physical isolation and safety blockers.
+**Independent Test Criteria:** F3 output is pure clinical; F4 output is pure companion; vulnerable users get blocked until acknowledged.
 
-- **[P]**: Can run in parallel (different files, no dependencies)
-- **[Story]**: Which user story this task belongs to (US1, US2, US3)
+- [ ] T007 [US1] Refactor `src/hermes_cgm_agent/services/reports/builder.py` to branch cleanly into `render_clinical` and `render_companion`.
+  - **测试方式**: Generate both report types and assert tone/content differences.
+  - **完成标准**: F3 returns numbers/tables; F4 returns conversational Chinese.
+- [ ] T008 [US3] Inject "Safety Disclaimer" blocking logic in `builder.py` for vulnerable populations.
+  - **测试方式**: Generate report for user with `vulnerable_population=true` and unacknowledged disclaimer.
+  - **完成标准**: Output is ONLY the disclaimer prompt requesting "已知晓" before rendering the actual report.
+- [ ] T008a [US3] Implement Principle III Safety Override blocker in `builder.py`.
+  - **测试方式**: Generate report when SafetyRouter returns RED_ZONE.
+  - **完成标准**: Report entirely skips companion narrative and hypothesis rendering (FR-009 compliance).
 
-## Path Conventions
+## Phase 4: CLI Integration & Final Wiring (US1)
+**Goal:** Allow users to fetch F3 explicitly.
+**Independent Test Criteria:** `/report` command successfully outputs F3 clinical card in the chat interface.
 
-- Source: `src/hermes_cgm_agent/`
-- Tests: `tests/`
+- [ ] T009 [P] [US1] Expose `/report` slash command in `src/hermes_cgm_agent/cli.py` (or command router).
+  - **测试方式**: CLI end-to-end integration test simulating `/report` input.
+  - **完成标准**: Invoking the command bypasses F4 narrative and prints the F3 clinical report directly.
 
----
+## Phase 5: Polish & Regression
+**Goal:** Ensure we didn't break the world.
+**Independent Test Criteria:** CI is green.
 
-## Phase 1: Setup
-
-**Purpose**: Prepare test infrastructure and read existing code patterns.
-
-- [ ] T001 Read existing builder.py narrative patterns (`_daily_card_text`, `_overview_section`, `_metrics_section`, `_observations_section`, `_follow_up_section`, `_patterns_section`, `_doctor_appendix_section`) and document current audience-branching behavior in a test helper
-- [ ] T002 Create test fixture factory for GlucoseAggregate with configurable TIR/TAR/TBR/MBG/CV/GMI/coverage values in tests/test_narrative_templates.py
-- [ ] T003 [P] Create test fixture factory for L3Hypothesis with configurable state and evidence_count in tests/test_hypothesis_narrative.py
-- [ ] T004 [P] Create test fixture factory for consecutive anomaly day simulation in tests/test_escalation_concern.py
-
----
-
-## Phase 2: Foundational (Blocking Prerequisites)
-
-**Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented.
-
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete.
-
-- [ ] T005 Add `_tir_life_language(tir: float, audience: ReportAudience) -> str` helper in builder.py that translates TIR percentage to life-language for SELF/FAMILY audiences
-- [ ] T006 [P] Add `_tar_tbr_life_language(tar: float, tbr: float, audience: ReportAudience) -> str` helper in builder.py that translates TAR/TBR to life-language
-- [ ] T007 Verify existing test suite passes: `python -m unittest discover -s tests` → 374+ green
-
-**Checkpoint**: Translation helpers available; all user story work can begin.
-
----
-
-## Phase 3: User Story 1 — Report Narrative Quality (Priority: P1) 🎯 MVP
-
-**Goal**: Every report section uses persona-compliant conversational Chinese for SELF, simplest language for FAMILY, and clinical structure for CLINICIAN.
-
-**Independent Test**: Generate reports for each audience with known data and verify narrative quality, length norms, and absence of clinical jargon.
-
-### Tests for User Story 1 ⚠️ (test-first)
-
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
-
-- [ ] T008 [P] [US1] Test daily card SELF: TIR=75% → content contains "范围里" or equivalent life-language, NOT "TIR 75%"; length ≤50 chars — in tests/test_narrative_templates.py
-- [ ] T009 [P] [US1] Test daily card FAMILY: any scenario → content is ≤1 sentence, contains no digits, contains no "TIR"/"TAR"/"TBR" — in tests/test_narrative_templates.py
-- [ ] T010 [P] [US1] Test daily card CLINICIAN: TIR=75% → content contains "TIR 75%" (raw numbers preserved) — in tests/test_narrative_templates.py
-- [ ] T011 [P] [US1] Test overview section SELF: no data → content uses gentle life-language, not clinical jargon — in tests/test_narrative_templates.py
-- [ ] T012 [P] [US1] Test overview section FAMILY: no data → content is reassuring, ≤80 chars — in tests/test_narrative_templates.py
-- [ ] T013 [P] [US1] Test metrics section SELF: TIR=75%, TAR=20%, TBR=5% → content uses "偏高的时候" not "TAR 20%" — in tests/test_narrative_templates.py
-- [ ] T014 [P] [US1] Test observations section SELF: TAR>TBR → content uses life-language pattern description — in tests/test_narrative_templates.py
-- [ ] T015 [P] [US1] Test follow-up section SELF: unconfirmed events present → content uses gentle invitation language — in tests/test_narrative_templates.py
-- [ ] T016 [P] [US1] Test daily card normal (all in range): SELF → content is brief positive message ≤50 chars, not "TIR 100%" — in tests/test_narrative_templates.py
-
-### Implementation for User Story 1
-
-- [ ] T017 [US1] Refactor `_daily_card_text` in builder.py to use life-language translation helpers for SELF/FAMILY audiences — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T018 [US1] Refactor `_overview_section` in builder.py to use conversational Chinese for SELF audience — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T019 [US1] Refactor `_metrics_section` in builder.py to translate TIR/TAR/TBR to life-language for SELF/FAMILY — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T020 [US1] Refactor `_observations_section` in builder.py to use pattern-in-life-terms for SELF audience — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T021 [US1] Refactor `_follow_up_section` in builder.py to use gentle invitation language for SELF — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T022 [US1] Verify all US1 tests pass and existing tests still pass — `python -m unittest discover -s tests`
-
-**Checkpoint**: All report sections use persona-compliant narrative for all three audiences.
+- [ ] T010 Run full test suite to verify 374+ tests remain green.
+  - **测试方式**: Run `pytest tests/` locally.
+  - **完成标准**: 0 failures, 0 regressions.
 
 ---
 
-## Phase 4: User Story 2 — Hypothesis Negotiated Narrative (Priority: P2)
+# Remediation Tasks (源自 [remediation-plan.md](./remediation-plan.md) + 2026-06-10 /analyze §10)
 
-**Goal**: L3 hypotheses in reports use state-appropriate hedged language matching SOUL.md templates.
+> 这些任务修复审计发现的 F-1…F-9 与自审 N1…N12。**ID 用 `R*`/`RC*` 前缀**与上方 T001–T010 命名空间隔离；T001–T010 状态由 **R050** 在执行时带证据核对（不在此预先翻动复选框）。Test-First：标 `[test]` 的任务先写失败测试。**先建 feature 分支再开工（当前在 master，N11）。**
 
-**Independent Test**: Generate report sections with hypotheses in each of the 4 states and verify narrative matches the expected template.
+## R-Phase 0：Setup + 裁决（阻断一切；先行）
+**Goal:** 切到 feature 分支并就四个互斥点拍板，写入决策日志。
+**Independent Test Criteria:** 分支为 `003-companion-narrative`；`docs/DECISION_LOG.md` 含 RC1–RC4 四条新 `Dxxx`。
 
-### Tests for User Story 2 ⚠️ (test-first)
+- [ ] R000 切换/创建 feature 分支 `003-companion-narrative`（脱离 `master`）— git 工作区
+- [x] RC1 裁决升级阈值并以 SOUL.md 为准（标准 CONCERN≥day3/EXTERNAL≥day7；弱势 CONCERN≥day1/EXTERNAL≥day5）→ 已记入 `docs/DECISION_LOG.md` **D046**
+- [x] RC2 裁决 push 文案来源（为 push 单独渲染 companion 文案，不改 `synthesize_state`）→ 已记入 **D046**
+- [x] RC3 裁决 `/report` 确定性边界（工具内确定性直出纯 F3 + 提示词路由；重述 FR-011）→ 已记入 **D046**
+- [x] RC4 裁决弱势免责声明（标 KNOWN GAP + 夹具测试）→ 已记入 **D046**
 
-- [ ] T023 [P] [US2] Test hypothesis CANDIDATE narrative: content contains "看起来" or "可能" AND contains invitation ("要不要" / "留意") — in tests/test_hypothesis_narrative.py
-- [ ] T024 [P] [US2] Test hypothesis OBSERVING narrative with evidence_count=3: content references count naturally, does NOT assert causation — in tests/test_hypothesis_narrative.py
-- [ ] T025 [P] [US2] Test hypothesis STABLE narrative: content contains "比较常见" or "模式" equivalent, still hedged — in tests/test_hypothesis_narrative.py
-- [ ] T026 [P] [US2] Test hypothesis ARCHIVED narrative: content contains "最近不明显" or demotion language, NOT "失败" or "错误" — in tests/test_hypothesis_narrative.py
-- [ ] T027 [P] [US2] Test hypothesis narrative forbidden patterns: no state produces "经分析发现" / "研究表明" / "数据证明" / "你应该" — in tests/test_hypothesis_narrative.py
-- [ ] T028 [P] [US2] Test hypothesis CANDIDATE with evidence_count=0 (edge case): narrative degrades gracefully to "看起来可能有关" — in tests/test_hypothesis_narrative.py
+## R-Phase 1：校验契约重构（N9：必须先于 Phase 2/Phase 3 的调用点）
+**Goal:** 把 `validate_companion_text` 拆成可分流的纯函数，区分"黑名单硬阻断"与"超长截断"。
+**Independent Test Criteria:** 黑名单命中被硬阻断，超长被截断+审计，`CV` 按词边界匹配。
 
-### Implementation for User Story 2
+- [ ] R040 [test] 黑名单/超长/词边界用例 in `tests/services/reports/test_narrative_templates.py`
+- [ ] R041 拆分 `validate_companion_text`：纯函数返回 `violations`（带类型）+ runtime 分流（黑名单阻断/超长截断）+ `\bCV\b` 词边界 in `src/hermes_cgm_agent/services/reports/narrative_templates.py`
 
-- [ ] T029 [US2] Add `_hypothesis_narrative(self, state: HypothesisState, evidence_count: int, audience: ReportAudience) -> str` method in builder.py — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T030 [US2] Integrate `_hypothesis_narrative` into `_patterns_section` to use state-aware language instead of generic pattern summaries — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T031 [US2] Add CLINICIAN audience handling for hypothesis narrative (structured evidence summary, no hedged language) — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T032 [US2] Verify all US2 tests pass and existing tests still pass — `python -m unittest discover -s tests`
+## R-Phase 2：US2 假设叙事接线（修 F-1，CRITICAL）
+**Goal:** 让报告按 L3 状态渲染协商式话术，消除死代码。
+**Independent Test Criteria:** weekly 报告中 4 状态话术匹配 narrative-contracts；红区抑制；FR-013 结构不变。
 
-**Checkpoint**: Hypothesis narratives are state-aware and persona-compliant.
+- [ ] R001 [test] [US2] 4 状态（candidate/observing/stable/archived）话术接入 `patterns` 段的失败测试 in `tests/services/reports/test_report_builder.py`
+- [ ] R002 [US2] 在 `_patterns_section`（或新 `_hypothesis_narrative_section`）按 `state`+`evidence_count` 调 `render_hypothesis_narrative` in `src/hermes_cgm_agent/services/reports/builder.py`
+- [ ] R003 [test] [US2] 红区整段抑制假设叙事（FR-009）in `tests/services/reports/test_report_builder_safety.py`
+- [ ] R004 [test] [US2] 接线后保留 `evidence_refs/source_tracks/confidence/data_quality_warnings`（FR-013，N5）in `tests/services/reports/test_report_builder.py`
 
----
+## R-Phase 3：Push 合规（修 F-3；依赖 R041）
+**Goal:** push 投递前经 companion 渲染并强制校验，去缩写、≤100 字。
+**Independent Test Criteria:** push 内容无 TIR/TAR/… 缩写、≤100 字、过校验；badge 兜底同样投递校验后文案。
 
-## Phase 5: User Story 3 — Escalation Concern Strategy (Priority: P3)
+- [ ] R010 [test] [US1] push 无临床缩写 + ≤100 + 过校验 in `tests/services/scheduling/test_scheduler.py`
+- [ ] R011 [US1] push companion 渲染器（`translate_metric`→生活语言，组装 ≤100 字，RC2）in `src/hermes_cgm_agent/services/scheduling/scheduler.py`
+- [ ] R012 [US1] `_emit` 在 `send_os_push`/badge 前调用渲染器 + `validate_companion_text`（黑名单阻断/超长截断）in `src/hermes_cgm_agent/services/scheduling/scheduler.py`
 
-**Goal**: Report narrative escalates concern based on consecutive anomaly days; vulnerable populations get earlier escalation.
+## R-Phase 4：升级数据闭环（修 F-2 + F-5；依赖 RC1）
+**Goal:** 升级天数从 analytics/events 直接重算，阈值对齐 SOUL.md。
+**Independent Test Criteria:** 模拟 1–7 天异常（不预置 push_events），标准/弱势升级在 push 与 reports.generate 两路径都正确。
 
-**Independent Test**: Simulate 1-7 consecutive anomaly days and verify correct escalation language at each threshold.
+- [ ] R020 [test] [US3] 1–7 天升级（标准 + 弱势按 RC1）无需预置 push_events in `tests/services/scheduling/test_escalation.py`
+- [ ] R021 [US3] 重写 `consecutive_anomaly_days`：用 `CGMAnalyticsService`/`GlucoseEventDetector`，异常日=TAR/TBR>0 或非 DATA_GAP 事件 或 warning，按 `self._tz` 切日界（N6）in `src/hermes_cgm_agent/services/scheduling/scheduler.py`
+- [ ] R022 [US3] 按 RC1 同步 `EscalationState.derive` 阈值 in `src/hermes_cgm_agent/domain/memory.py`，并改 `specs/003-companion-narrative/spec.md`(US3 AS2/AS3) + `data-model.md` 阈值表
+- [ ] R023 [test] [US3] 红区整段抑制升级关心（FR-009）in `tests/services/reports/test_report_builder_safety.py`
 
-### Tests for User Story 3 ⚠️ (test-first)
+## R-Phase 5：/report 可达性 + 弱势免责声明（修 F-4 + F-9；依赖 RC3/RC4）
+**Goal:** `reports.generate` 工具确定性直出纯 F3；免责声明依 RC4 落地或显式休眠。
+**Independent Test Criteria:** 工具对临床路径确定性返回纯 F3（不经 LLM）；免责声明路径可用或有休眠用例。
 
-- [ ] T033 [P] [US3] Test escalation NORMAL (day 1): report uses standard data attribution, no concern language — in tests/test_escalation_concern.py
-- [ ] T034 [P] [US3] Test escalation CONCERN (day 3): report content contains personal concern ("你还好吗" or equivalent) — in tests/test_escalation_concern.py
-- [ ] T035 [P] [US3] Test escalation EXTERNAL_SUPPORT (day 5): report content contains gentle external support suggestion ("跟医生聊聊" or equivalent) — in tests/test_escalation_concern.py
-- [ ] T036 [P] [US3] Test vulnerable population escalation: day 3 concern language is extra gentle compared to standard — in tests/test_escalation_concern.py
-- [ ] T037 [P] [US3] Test escalation forbidden patterns: no level produces "警告" / "警报" / "危险" / "你应该去看医生" — in tests/test_escalation_concern.py
-- [ ] T038 [P] [US3] Test red-zone suppression: when safety_decision is red_zone, no escalation concern narrative appears — in tests/test_escalation_concern.py
-- [ ] T039 [P] [US3] Test escalation with missing vulnerable flag: falls back to standard timeline without error — in tests/test_escalation_concern.py
+- [ ] R030 [test] [US1] `reports.generate` 临床路径确定性纯 F3（绕过 F4 叙事）in `tests/services/reports/test_report_tools.py`
+- [ ] R031 [US1] 确认工具内确定性直出 + 在 `provider.py` 记录 `/report` 提示词路由（FR-011 重述，RC3）in `src/hermes_cgm_agent/services/reports/tools.py` + `src/hermes_cgm_agent/services/memory/provider.py`
+- [ ] R032 [US3] 依 RC4：实现 `vulnerable_disclaimer_acknowledged` 写入路径，或标 KNOWN GAP + 夹具注入用例 in `src/hermes_cgm_agent/services/reports/builder.py`
 
-### Implementation for User Story 3
+## R-Phase 6：文档/任务对齐（修 F-6 + F-7 + 追踪）
+**Goal:** 收敛单一事实源。
+**Independent Test Criteria:** tasks.md 状态有据；无幻影任务引用；plan 路径准确。
 
-- [ ] T040 [US3] Add `consecutive_anomaly_days(user_id: str, now: datetime) -> int` method to `PushSchedulerService` in scheduler.py (class verified to exist at `scheduler.py:70`) — in src/hermes_cgm_agent/services/scheduling/scheduler.py
-- [ ] T041 [US3] Add `_read_vulnerable_flag(user_id: str) -> bool` helper that reads L2ProfileItem `vulnerable_population` key — in src/hermes_cgm_agent/services/scheduling/scheduler.py. NOTE (analyze A1): no upstream currently writes this key, so the vulnerable path is dormant in production and exercised only via test fixtures — see plan.md KNOWN GAP.
-- [ ] T042 [US3] Include `escalation_level` and `consecutive_anomaly_days` in push_tick result dict — in src/hermes_cgm_agent/services/scheduling/scheduler.py
-- [ ] T042b [US3] **Wire escalation into on-demand reports (analyze D1)**: `builder.generate()` only receives a `ReportInput`, so the push-path escalation never reaches `reports.generate`. Add optional `consecutive_anomaly_days: int | None` and `escalation_level: str | None` fields to `ReportInput` (domain/report.py), and have BOTH the push path AND the `reports.generate` executor populate them by calling `PushSchedulerService.consecutive_anomaly_days(...)` + the vulnerable-flag helper before building the report. Add a test that an on-demand report at day 3 renders concern language. — in src/hermes_cgm_agent/domain/report.py, src/hermes_cgm_agent/services/tools/handlers/reports.py
-- [ ] T043 [US3] Add `_escalation_concern_narrative(self, consecutive_days: int, is_vulnerable: bool, audience: ReportAudience) -> str` method in builder.py; read `consecutive_days`/`escalation_level` from `ReportInput` (populated per T042b) — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T044 [US3] Integrate escalation concern into `_follow_up_section` (the pinned target section) in builder.py when `consecutive_days >= 3` — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T045 [US3] Ensure red-zone override suppresses escalation concern narrative (verify existing behavior preserved) — in src/hermes_cgm_agent/services/reports/builder.py
-- [ ] T045b [US3] Regression test (analyze G1 / FR-011): assert narrative refactor preserves `evidence_refs`, `source_tracks`, `confidence`, and `data_quality_warnings` on report sections (narrative is a rendering concern only) — in tests/test_report_builder.py
-- [ ] T046 [US3] Verify all US3 tests pass and existing tests still pass — `python -m unittest discover -s tests`
+- [ ] R050 [P] 带证据核对并修订 T001–T010 状态，并把 R*/RC* 行登记入 `specs/003-companion-narrative/tasks.md`
+- [ ] R051 [P] 删除/修正 `spec.md` 中幻影 `T042b`/`T044` 引用，修 `plan.md` 路径漂移（`services/scheduling/scheduler.py`、`/report` 落点）in `specs/003-companion-narrative/{spec.md,plan.md}`
 
-**Checkpoint**: Escalation concern strategy is implemented for standard and vulnerable populations.
+## R-Phase 7：回归门禁
+**Goal:** 不破坏世界。
+**Independent Test Criteria:** 全绿。
 
----
+- [ ] R060 全量测试 ≥374 绿、0 回归，新增用例 ≥15（SC-006）— `python -m unittest discover -s tests`（或 `pytest tests/`）
 
-## Phase 6: Polish & Cross-Cutting Concerns
+## Dependencies & Ordering
+- `R000 → RC1–RC4 → 实现各 Phase`。
+- **N9**：`R041`（校验契约）必须先于 `R012` 与 `R002` 的校验调用点。
+- US2：`R001 → R002 → R003/R004`。
+- 升级：`RC1 → R022`；`R021 → R020` 验证。
+- `R050/R051` 在实现后；`R060` 最后。
 
-**Purpose**: DECISION_LOG, DSG-### review notes, final validation.
+## Parallel 机会
+- 完成 R-Phase 0 + R041 后：**US2（builder.py：R001-R004）** 可与 **scheduler 改动** 并行；但 **R-Phase 3（push：R011/R012）与 R-Phase 4（升级：R021/R022）都改 `scheduler.py` → 必须串行**，勿同时并行。
+- `R050 [P]` ∥ `R051 [P]`（不同文件）。
 
-- [ ] T047 Add DECISION_LOG entry for F4 decisions: escalation derivation (not persisted), narrative template location (builder.py internal), vulnerable population detection (L2 key) — in docs/DECISION_LOG.md
-- [ ] T048 Run full test suite and verify 374+ baseline + F4 new tests (≥15) all pass — `python -m unittest discover -s tests`
-- [ ] T049 Run quickstart.md validation scenarios — verify SC-001 through SC-006
-- [ ] T050 Review all new narrative templates against SOUL.md §交互原则 and §我们不这样说 table — manual Luna review gate (DSG-001 through DSG-005)
-
----
-
-## Dependencies & Execution Order
-
-### Phase Dependencies
-
-- **Setup (Phase 1)**: No dependencies — can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion — BLOCKS all user stories
-- **User Stories (Phase 3-5)**: All depend on Foundational phase completion
-  - US1, US2, US3 can proceed in parallel after Phase 2
-- **Polish (Phase 6)**: Depends on all user stories being complete
-
-### User Story Dependencies
-
-- **User Story 1 (P1)**: Can start after Foundational (Phase 2) — No dependencies on other stories
-- **User Story 2 (P2)**: Can start after Foundational (Phase 2) — Independent of US1 (different builder methods)
-- **User Story 3 (P3)**: Can start after Foundational (Phase 2) — Touches scheduler.py (US1/US2 don't), touches different builder methods
-
-### Within Each User Story
-
-- Tests MUST be written and FAIL before implementation
-- Helper methods before section methods
-- Section methods before integration
-
-### Parallel Opportunities
-
-- US1 tests (T008-T016) can all run in parallel
-- US2 tests (T023-T028) can all run in parallel
-- US3 tests (T033-T039) can all run in parallel
-- US1, US2, US3 implementation can proceed in parallel (different builder methods + scheduler.py)
-
----
-
-## Implementation Strategy
-
-### MVP First (User Story 1 Only)
-
-1. Complete Phase 1: Setup (T001-T004)
-2. Complete Phase 2: Foundational (T005-T007)
-3. Complete Phase 3: US1 (T008-T022)
-4. **STOP and VALIDATE**: Test all report sections use persona-compliant narrative
-5. Deploy/demo if ready
-
-### Incremental Delivery
-
-1. Setup + Foundational → narrative helpers ready
-2. Add US1 → All report sections persona-compliant → Deploy/Demo (MVP!)
-3. Add US2 → Hypothesis narratives state-aware → Deploy/Demo
-4. Add US3 → Escalation concern strategy → Deploy/Demo
-5. Polish → DECISION_LOG + DSG review + final validation
-
----
-
-## Notes
-
-- All tasks follow test-first (Constitution Principle V)
-- [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story for traceability
-- builder.py is 980 lines; F4 adds ~200 lines. G1 (builder.py拆分) is tracked separately.
-- DSG-### review (T050) is a design quality gate, not a code review gate
+## 建议 MVP
+**R-Phase 0（裁决）+ R-Phase 1（校验契约）+ R-Phase 2（US2 假设叙事接线）** —— 直接消灭 CRITICAL（F-1 死代码），是第一个有价值增量；随后 push 合规（F-3）与升级闭环（F-2/F-5）。

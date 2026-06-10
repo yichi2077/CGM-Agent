@@ -15,6 +15,8 @@ from hermes_cgm_agent.domain import (
     GlucoseEvent,
     GlucosePoint,
     UserEvent,
+    EscalationState,
+    GlucoseEventType,
 )
 from hermes_cgm_agent.domain.report import (
     AuthoritativeDocument,
@@ -37,6 +39,10 @@ from hermes_cgm_agent.services.analytics import (
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.reports.renderer import render_markdown
 from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
+from hermes_cgm_agent.services.reports.narrative_templates import (
+    translate_metric,
+    render_hypothesis_narrative,
+)
 from hermes_cgm_agent.services.safety import SafetyRouter
 
 
@@ -69,6 +75,8 @@ class ReportService:
         self.analytics_service = analytics_service or CGMAnalyticsService()
         self.event_detector = event_detector or GlucoseEventDetector()
         self.safety_router = safety_router or SafetyRouter()
+        from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository
+        self.memory_repository = SQLiteMemoryRepository(self.cgm_repository.store)
 
     def generate(self, report_input: ReportInput) -> Report:
         report_type = ReportType(report_input.report_type)
@@ -92,6 +100,36 @@ class ReportService:
         detected_events = self.event_detector.detect(points=points, scope=scope)
         warnings = self._data_quality_warnings(points=points, aggregate=aggregate)
         safety_decision = self.safety_router.evaluate(scope=scope, points=points)
+
+        # Check vulnerable population
+        vulnerable_items = self.memory_repository.list_profile_items(scope.user_id, key="vulnerable_population")
+        is_vulnerable = False
+        if vulnerable_items:
+            val = vulnerable_items[0].value
+            if isinstance(val, dict):
+                is_vulnerable = bool(val.get("value") or val.get("vulnerable_population"))
+            else:
+                is_vulnerable = bool(val)
+
+        # Check disclaimer acknowledgment
+        ack_items = self.memory_repository.list_profile_items(scope.user_id, key="vulnerable_disclaimer_acknowledged")
+        acknowledged = False
+        if ack_items:
+            val = ack_items[0].value
+            if isinstance(val, dict):
+                acknowledged = bool(val.get("value") or val.get("acknowledged"))
+            else:
+                acknowledged = bool(val)
+
+        disclaimer_content = (
+            "【安全免责声明】\n"
+            "本报告包含基于您的血糖数据分析的建议。此分析仅供参考，不作为临床诊断或医疗决策依据。\n"
+            "对于孕期、长辈等脆弱人群，请务必在医生指导下进行健康管理。\n"
+            "若您已阅读并知晓上述内容，请输入“已知晓”以继续查看报告。"
+        )
+
+        is_disclaimer_mode = False
+
         if safety_decision.safety_result["status"] == "red_zone":
             sections = [
                 ReportSection(
@@ -106,6 +144,20 @@ class ReportService:
                     warnings=warnings,
                 )
             ]
+        elif is_vulnerable and not acknowledged:
+            is_disclaimer_mode = True
+            sections = [
+                ReportSection(
+                    section_id="safety_disclaimer",
+                    kind="safety",
+                    title="安全免责声明",
+                    content=disclaimer_content,
+                    data_scope=scope,
+                    evidence_refs=[],
+                    source_tracks=[ReportSourceTrack.FACT],
+                    confidence=1.0,
+                )
+            ]
         else:
             sections = self._sections(
                 report_id=report_id,
@@ -115,6 +167,7 @@ class ReportService:
                 events=events,
                 detected_events=detected_events,
                 warnings=warnings,
+                is_vulnerable=is_vulnerable,
             )
             # 🟡 Yellow zone: prepend alert prefix to the first section
             if safety_decision.safety_result["status"] == "yellow_zone" and sections:
@@ -152,9 +205,49 @@ class ReportService:
             route=safety_decision.route,
             safety_result=safety_decision.safety_result,
         )
-        report.rendered_markdown = render_markdown(report)
+        
+        if safety_decision.safety_result["status"] == "red_zone":
+            report.rendered_markdown = render_markdown(report)
+        elif is_disclaimer_mode:
+            report.rendered_markdown = disclaimer_content
+            report.route = "reports.generate.disclaimer"
+            report.safety_result = {"status": "disclaimer_pending"}
+        else:
+            if report.audience == ReportAudience.CLINICIAN or report.report_type == ReportType.DOCTOR:
+                report.rendered_markdown = self.render_clinical(report)
+            else:
+                report.rendered_markdown = self.render_companion(report)
+                
         report.output_hash = _output_hash(report.rendered_markdown)
         return self.report_repository.create_report(report)
+
+    def render_clinical(self, report: Report) -> str:
+        return render_markdown(report)
+
+    def render_companion(self, report: Report) -> str:
+        # F4 vs F3 tone isolation validation
+        from hermes_cgm_agent.services.reports.narrative_templates import validate_companion_text
+        for section in report.sections:
+            content_to_validate = section.content
+            
+            # Strip yellow zone warning prefix
+            if content_to_validate.startswith("⚠️"):
+                parts = content_to_validate.split("\n\n", 1)
+                if len(parts) > 1:
+                    content_to_validate = parts[1]
+                    
+            # Strip RAG context merge messages which are standard additions
+            content_to_validate = content_to_validate.replace("这次也带上了过往记录，看看它和今天有没有能对得上的地方。", "")
+            content_to_validate = content_to_validate.replace("也放进了参考资料，但它更像背景，不会替代你自己的记录。", "")
+            content_to_validate = content_to_validate.strip()
+            
+            max_len = 80
+            if section.section_id == "daily_card":
+                max_len = 50
+            elif section.section_id == "patterns":
+                max_len = 100
+            validate_companion_text(content_to_validate, max_len=max_len)
+        return render_markdown(report)
 
     def _sections(
         self,
@@ -166,9 +259,21 @@ class ReportService:
         events: list[UserEvent],
         detected_events: list[GlucoseEvent],
         warnings: list[DataQualityWarning],
+        is_vulnerable: bool = False,
     ) -> list[ReportSection]:
         audience = ReportAudience(report_input.audience)
         report_type = ReportType(report_input.report_type)
+
+        # Calculate escalation state
+        if report_input.consecutive_anomaly_days is not None:
+            consecutive_days = report_input.consecutive_anomaly_days
+        else:
+            from hermes_cgm_agent.services.scheduling.scheduler import PushSchedulerService
+            scheduler = PushSchedulerService(store=self.cgm_repository.store)
+            consecutive_days = scheduler.consecutive_anomaly_days(scope.user_id, scope.window_end)
+            
+        esc_state = EscalationState.derive(consecutive_days, is_vulnerable)
+
         if report_type == ReportType.DAILY and not self._daily_has_exception(
             aggregate=aggregate,
             detected_events=detected_events,
@@ -203,7 +308,7 @@ class ReportService:
                 report_input.authoritative_context,
                 audience,
             ),
-            self._follow_up_section(scope, aggregate, events, audience),
+            self._follow_up_section(scope, aggregate, events, audience, esc_state=esc_state, consecutive_days=consecutive_days),
         ]
         if report_type == ReportType.WEEKLY:
             sections.append(
@@ -298,14 +403,19 @@ class ReportService:
                 f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}。"
             )
         elif audience == ReportAudience.FAMILY:
+            tir_str = translate_metric("TIR", aggregate.tir, audience)
+            mbg_str = translate_metric("MBG", aggregate.mbg, audience)
             content = (
-                f"大部分时间都在目标范围内，平均约 {aggregate.mbg} mg/dL，"
+                f"{tir_str}，平均{mbg_str}约 {aggregate.mbg} mg/dL，"
                 "先看作今天整体还算有秩序。"
             )
         else:
+            tir_str = translate_metric("TIR", aggregate.tir, audience)
+            tar_str = translate_metric("TAR", aggregate.tar, audience)
+            tbr_str = translate_metric("TBR", aggregate.tbr, audience)
             content = (
-                f"大部分时间都在范围里，平均大约 {aggregate.mbg} mg/dL。"
-                f"偏高约占 {aggregate.tar}%，偏低约占 {aggregate.tbr}%。"
+                f"{tir_str}，平均大约 {aggregate.mbg} mg/dL。"
+                f"{tar_str}约占 {aggregate.tar}%，{tbr_str}约占 {aggregate.tbr}%。"
             )
         return ReportSection(
             section_id="metrics",
@@ -514,8 +624,15 @@ class ReportService:
         aggregate: GlucoseAggregate,
         events: list[UserEvent],
         audience: ReportAudience,
+        esc_state: EscalationState = EscalationState.NORMAL,
+        consecutive_days: int = 0,
     ) -> ReportSection:
         prompts = []
+        if audience != ReportAudience.CLINICIAN:
+            if esc_state == EscalationState.CONCERN:
+                prompts.append("最近几天都有点波动，你还好吗？")
+            elif esc_state == EscalationState.EXTERNAL_SUPPORT:
+                prompts.append("要不要下次复诊时跟医生聊聊？")
         if any(not event.user_confirmed for event in events):
             prompts.append(
                 "有几条待核实的事件留在这里，回头想起时补一句，之后对照会更准。"

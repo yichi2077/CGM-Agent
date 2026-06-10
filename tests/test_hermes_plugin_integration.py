@@ -12,6 +12,12 @@ from unittest.mock import Mock, patch
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HERMES_REPO = Path.home() / ".hermes" / "hermes-agent"
+if not HERMES_REPO.exists():
+    appdata_local = os.environ.get("LOCALAPPDATA")
+    if appdata_local:
+        candidate = Path(appdata_local) / "hermes" / "hermes-agent"
+        if candidate.exists():
+            HERMES_REPO = candidate
 
 
 def _load_module(module_name: str, path: Path):

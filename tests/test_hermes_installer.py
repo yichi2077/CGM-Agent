@@ -31,16 +31,26 @@ class HermesInstallerTests(unittest.TestCase):
                 path = Path(target)
                 self.assertTrue(path.exists())
                 self.assertTrue(path.is_symlink() or path.is_dir())
-                self.assertEqual(path.resolve(), (PROJECT_ROOT / "integrations" / "hermes" / name).resolve())
+                if path.is_symlink():
+                    self.assertEqual(path.resolve(), (PROJECT_ROOT / "integrations" / "hermes" / name).resolve())
+                else:
+                    self.assertTrue(path.is_dir())
+                    self.assertTrue((path / "plugin.yaml").exists())
 
             marker = Path(hermes_home) / ROOT_MARKER_NAME
             self.assertEqual(marker.read_text(encoding="utf-8").strip(), str(PROJECT_ROOT))
 
     def test_install_runs_hermes_runtime_configuration_commands(self) -> None:
+        import sys
         with tempfile.TemporaryDirectory() as hermes_home:
-            python_dir = Path(hermes_home) / "hermes-agent" / "venv" / "bin"
-            python_dir.mkdir(parents=True)
-            python_bin = python_dir / "python3"
+            if sys.platform.startswith("win"):
+                python_dir = Path(hermes_home) / "hermes-agent" / "venv" / "Scripts"
+                python_dir.mkdir(parents=True)
+                python_bin = python_dir / "python.exe"
+            else:
+                python_dir = Path(hermes_home) / "hermes-agent" / "venv" / "bin"
+                python_dir.mkdir(parents=True)
+                python_bin = python_dir / "python3"
             python_bin.write_text("", encoding="utf-8")
 
             with patch("hermes_cgm_agent.hermes_plugins.installer.subprocess.run") as run:

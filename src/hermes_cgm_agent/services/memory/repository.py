@@ -23,6 +23,7 @@ from hermes_cgm_agent.domain import (
     MemoryCandidate,
     MemoryLayer,
     MemorySummary,
+    PendingInteraction,
 )
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -32,6 +33,7 @@ MEMORY_TABLES = [
     "l3_hypotheses",
     "memory_candidates",
     "memory_summaries",
+    "pending_interactions",
 ]
 
 
@@ -490,6 +492,69 @@ class SQLiteMemoryRepository:
         rows = self.list_summaries(user_id, period=period, limit=1)
         return rows[0] if rows else None
 
+    # -- pending interactions ------------------------------------------------
+
+    def create_pending_interaction(self, interaction: PendingInteraction) -> PendingInteraction:
+        with self.store.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO pending_interactions (
+                    interaction_id, user_id, interaction_type, content,
+                    is_active, expires_at, created_at, resolved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    interaction.interaction_id,
+                    interaction.user_id,
+                    interaction.interaction_type,
+                    self.store.seal(interaction.content),
+                    int(interaction.is_active),
+                    _dt(interaction.expires_at),
+                    _dt(interaction.created_at),
+                    _dt(interaction.resolved_at) if interaction.resolved_at else None,
+                ),
+            )
+        return interaction
+
+    def get_pending_interaction(self, interaction_id: str) -> PendingInteraction | None:
+        with self.store.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM pending_interactions WHERE interaction_id = ?",
+                (interaction_id,),
+            ).fetchone()
+        return _row_to_pending_interaction(row, self.store) if row else None
+
+    def list_pending_interactions(
+        self,
+        user_id: str,
+        *,
+        active_only: bool = True,
+    ) -> list[PendingInteraction]:
+        clauses = ["user_id = ?"]
+        values: list[Any] = [user_id]
+        if active_only:
+            clauses.append("is_active = 1")
+        sql = "SELECT * FROM pending_interactions WHERE " + " AND ".join(clauses) + " ORDER BY created_at DESC"
+        with self.store.connect() as conn:
+            rows = conn.execute(sql, values).fetchall()
+        return [_row_to_pending_interaction(row, self.store) for row in rows]
+
+    def update_pending_interaction(self, interaction: PendingInteraction) -> PendingInteraction:
+        with self.store.connect() as conn:
+            conn.execute(
+                """
+                UPDATE pending_interactions SET
+                    is_active = ?, resolved_at = ?
+                WHERE interaction_id = ?
+                """,
+                (
+                    int(interaction.is_active),
+                    _dt(interaction.resolved_at) if interaction.resolved_at else None,
+                    interaction.interaction_id,
+                ),
+            )
+        return interaction
+
 
 # -- helpers ----------------------------------------------------------------
 
@@ -628,6 +693,19 @@ def _row_to_candidate(row: Any, store: SQLiteStore) -> MemoryCandidate:
         source_section_id=row["source_section_id"],
         evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),
         confidence=row["confidence"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        resolved_at=datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None,
+    )
+
+
+def _row_to_pending_interaction(row: Any, store: SQLiteStore) -> PendingInteraction:
+    return PendingInteraction(
+        interaction_id=row["interaction_id"],
+        user_id=row["user_id"],
+        interaction_type=row["interaction_type"],
+        content=store.unseal(row["content"]),
+        is_active=bool(row["is_active"]),
+        expires_at=datetime.fromisoformat(row["expires_at"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         resolved_at=datetime.fromisoformat(row["resolved_at"]) if row["resolved_at"] else None,
     )

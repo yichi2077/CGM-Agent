@@ -29,12 +29,17 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from hermes_cgm_agent.domain import DataScope, HypothesisState
+from hermes_cgm_agent.domain import DataScope, HypothesisState, GlucoseEventType
 from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.analytics import CGMAnalyticsService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import ConsolidationService, SQLiteMemoryRepository
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
+
+
+class PermissionDenied(Exception):
+    """Raised when the OS push notification permissions are disabled/failed."""
+    pass
 
 TIERS = ("daily", "weekly", "monthly")
 _TIER_SPAN_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
@@ -121,7 +126,12 @@ class PushSchedulerService:
         now = now or utc_now()
         consent = self.apply_silent_consent(user_id=user_id, now=now)
         pushed: list[dict[str, Any]] = []
-        for tier in self.decide_due_tiers(now, user_id):
+        
+        # Prioritize monthly, then weekly, then daily
+        due_tiers = self.decide_due_tiers(now, user_id)
+        due_tiers_sorted = sorted(due_tiers, key=lambda t: {"monthly": 0, "weekly": 1, "daily": 2}[t])
+        
+        for tier in due_tiers_sorted:
             emitted = self._emit(tier, user_id=user_id, now=now)
             if emitted is not None:
                 pushed.append(emitted)
@@ -141,13 +151,24 @@ class PushSchedulerService:
         )
 
     def _emit(self, tier: str, *, user_id: str, now: datetime) -> dict[str, Any] | None:
+        # Rate limit: Max 1 non-urgent push per day
+        if self._already_pushed_any_non_urgent_today(user_id, now):
+            return None
+
         window_start = now - timedelta(days=_TIER_SPAN_DAYS[tier])
         scope = DataScope(user_id=user_id, window_start=window_start, window_end=now)
+        points = self.cgm.list_glucose_points(scope)
         aggregate = self.analytics.compute_aggregate(
-            points=self.cgm.list_glucose_points(scope),
+            points=points,
             scope=scope,
             window_label=_TIER_WINDOW_LABEL[tier],
         )
+
+        # For daily digests, check if daily trend triggers (threshold check)
+        if tier == "daily":
+            if not self._should_trigger_daily_trend(user_id, now, aggregate.tir):
+                return None
+
         summary = self.consolidation.synthesize_state(
             user_id=user_id,
             window_start=window_start,
@@ -157,6 +178,13 @@ class PushSchedulerService:
             now=now,
         )
         period = self.period_key(tier, now)
+
+        # Try OS Push and fallback to badge count if permission is denied
+        try:
+            self.send_os_push(user_id, summary.content)
+        except PermissionDenied:
+            self.increment_badge_count(user_id)
+
         push_id = self._record_push(
             user_id=user_id, tier=tier, period_key=period, summary_id=summary.summary_id, now=now
         )
@@ -237,3 +265,134 @@ class PushSchedulerService:
             # UNIQUE(user_id, tier, period_key) violated -> already pushed.
             return None
         return push_id
+
+    def send_os_push(self, user_id: str, content: str) -> None:
+        """Attempt to send an OS push notification.
+        
+        Subclasses or mocks can override this. If it raises PermissionDenied,
+        we increment the internal badge count instead of dropping the notification.
+        """
+        pass
+
+    def increment_badge_count(self, user_id: str) -> int:
+        with self.store.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO unread_badges (user_id, badge_count)
+                VALUES (?, 1)
+                ON CONFLICT(user_id) DO UPDATE SET badge_count = badge_count + 1
+                """,
+                (user_id,),
+            )
+            row = conn.execute(
+                "SELECT badge_count FROM unread_badges WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        return row[0] if row else 0
+
+    def get_badge_count(self, user_id: str) -> int:
+        with self.store.connect() as conn:
+            row = conn.execute(
+                "SELECT badge_count FROM unread_badges WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        return row[0] if row else 0
+
+    def reset_badge_count(self, user_id: str) -> None:
+        with self.store.connect() as conn:
+            conn.execute(
+                "UPDATE unread_badges SET badge_count = 0 WHERE user_id = ?",
+                (user_id,),
+            )
+
+    def _already_pushed_any_non_urgent_today(self, user_id: str, now: datetime) -> bool:
+        local = now.astimezone(self._tz)
+        local_start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+        utc_start = local_start.astimezone(ZoneInfo("UTC"))
+        
+        with self.store.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM push_events WHERE user_id = ? AND pushed_at >= ?",
+                (user_id, utc_start.isoformat()),
+            ).fetchone()
+        return row[0] > 0
+
+    def _should_trigger_daily_trend(self, user_id: str, now: datetime, today_tir: float) -> bool:
+        # Threshold 1: TIR delta >= 5%
+        latest_summaries = self.memory.list_summaries(user_id, period="daily", limit=1)
+        if latest_summaries:
+            prev_tir = latest_summaries[0].metrics.get("tir_pct")
+            if prev_tir is not None:
+                if abs(today_tir - float(prev_tir)) >= 5.0:
+                    return True
+
+        # Threshold 2: New L3 hypothesis candidate
+        candidates = [
+            h for h in self.memory.list_hypotheses(user_id, states=[HypothesisState.CANDIDATE])
+            if h.created_at >= now - timedelta(days=1)
+        ]
+        if candidates:
+            return True
+
+        # Threshold 3: Consecutive >= 2 days same-period anomaly
+        from hermes_cgm_agent.services.analytics.events import GlucoseEventDetector
+        from hermes_cgm_agent.domain import DataScope
+        
+        window_start = now - timedelta(days=2)
+        scope = DataScope(user_id=user_id, window_start=window_start, window_end=now)
+        points = self.cgm.list_glucose_points(scope)
+        
+        detector = GlucoseEventDetector()
+        events = detector.detect(points=points, scope=scope)
+        anomalies = [e for e in events if e.event_type != GlucoseEventType.DATA_GAP]
+        
+        day1_periods = set()
+        day2_periods = set()
+        
+        day1_cutoff = now - timedelta(days=1)
+        
+        for e in anomalies:
+            local_start = e.ts_start.astimezone(self._tz)
+            period = local_start.hour // 6
+            if e.ts_start >= day1_cutoff:
+                day1_periods.add(period)
+            else:
+                day2_periods.add(period)
+                
+        if day1_periods.intersection(day2_periods):
+            return True
+
+        return False
+
+    def consecutive_anomaly_days(self, user_id: str, now: datetime) -> int:
+        consecutive_days = 0
+        for offset in range(7):
+            day = now - timedelta(days=offset)
+            period = self.period_key("daily", day)
+            
+            with self.store.connect() as conn:
+                row = conn.execute(
+                    "SELECT summary_id FROM push_events WHERE user_id = ? AND tier = 'daily' AND period_key = ?",
+                    (user_id, period),
+                ).fetchone()
+                
+            if not row or not row["summary_id"]:
+                break
+                
+            with self.store.connect() as conn:
+                summary_row = conn.execute(
+                    "SELECT metrics_json FROM memory_summaries WHERE summary_id = ?",
+                    (row["summary_id"],),
+                ).fetchone()
+                
+            if not summary_row:
+                break
+                
+            metrics = self.store.unseal(summary_row["metrics_json"], legacy="json") or {}
+            tar = float(metrics.get("tar_pct") or 0)
+            tbr = float(metrics.get("tbr_pct") or 0)
+            if tar > 0 or tbr > 0:
+                consecutive_days += 1
+            else:
+                break
+        return consecutive_days

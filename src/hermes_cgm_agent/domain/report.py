@@ -115,6 +115,8 @@ class ReportInput(CGMBaseModel):
     memory_context: MemoryContext = Field(default_factory=MemoryContext)
     authoritative_context: AuthoritativeContext = Field(default_factory=AuthoritativeContext)
     include_candidate_events: bool = True
+    consecutive_anomaly_days: int | None = None
+    escalation_level: str | None = None
 
     @model_validator(mode="after")
     def validate_user_id(self) -> ReportInput:

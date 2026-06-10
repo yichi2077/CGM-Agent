@@ -147,7 +147,10 @@ class CGMMemoryProvider:
         block = (
             "CGM memory is active. Personal episodes and hypotheses are recalled "
             "as user_memory evidence and must be cited with uncertainty, never as "
-            "authoritative medical fact."
+            "authoritative medical fact.\n"
+            "If the user inputs the '/report' command, you must invoke the "
+            "'cgm_reports_generate' tool with audience='CLINICIAN' and report_type='daily' "
+            "to serve the strictly isolated clinical report."
         )
         if self._hermes_home:
             block += f" Runtime scope: {self._hermes_home}."

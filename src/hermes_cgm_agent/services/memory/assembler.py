@@ -76,17 +76,19 @@ class MemoryContextAssembler:
             for h in self.repository.list_hypotheses(user_id)
             if h.state in (HypothesisState.OBSERVING, HypothesisState.STABLE)
         ]
+        from hermes_cgm_agent.services.reports.narrative_templates import render_hypothesis_narrative
         for hyp in active_hypotheses:
+            summary = render_hypothesis_narrative(hyp.state, hyp.statement, hyp.evidence_count)
             items.append(
                 {
-                    "summary": hyp.statement,
+                    "summary": summary,
                     "layer": "L3",
                     "score": 1.0,
                     "matched": True,
                     "hot": True,
                     "evidence_refs": [
                         EvidenceRef(
-                            kind="user_memory", ref_id=hyp.hypothesis_id, summary=hyp.statement
+                            kind="user_memory", ref_id=hyp.hypothesis_id, summary=summary
                         ).model_dump(mode="json")
                     ],
                 }

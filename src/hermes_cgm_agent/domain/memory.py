@@ -42,6 +42,32 @@ class CandidateStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class EscalationState(str, Enum):
+    NORMAL = "normal"
+    CONCERN = "concern"
+    EXTERNAL_SUPPORT = "external_support"
+
+    @classmethod
+    def derive(cls, consecutive_days: int, is_vulnerable: bool = False) -> EscalationState:
+        if is_vulnerable:
+            # Compressed thresholds for vulnerable users
+            if consecutive_days >= 3:
+                return cls.EXTERNAL_SUPPORT
+            elif consecutive_days >= 1:
+                return cls.CONCERN
+            else:
+                return cls.NORMAL
+        else:
+            # Standard thresholds
+            if consecutive_days >= 5:
+                return cls.EXTERNAL_SUPPORT
+            elif consecutive_days >= 3:
+                return cls.CONCERN
+            else:
+                return cls.NORMAL
+
+
+
 class L1Episode(CGMBaseModel):
     episode_id: str
     user_id: str
@@ -109,6 +135,34 @@ class MemoryCandidate(CGMBaseModel):
     confidence: float = Field(default=0.5, ge=0, le=1)
     created_at: datetime = Field(default_factory=utc_now)
     resolved_at: datetime | None = None
+
+
+class PendingInteraction(CGMBaseModel):
+    """F4 tracking for unanswered proactive pushes (e.g., missing data query).
+    
+    TTL is typically 3 days (Q2=B). If unresolved after expires_at, it's dropped.
+    """
+    interaction_id: str
+    user_id: str
+    interaction_type: str  # e.g., "missing_data_query", "insight_question"
+    content: str
+    is_active: bool = True
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=utc_now)
+    resolved_at: datetime | None = None
+
+    def check_active(self, now: datetime | None = None) -> bool:
+        ref_time = now or utc_now()
+        if self.resolved_at is not None:
+            return False
+        if ref_time >= self.expires_at:
+            return False
+        return self.is_active
+
+    @property
+    def is_expired(self) -> bool:
+        return utc_now() >= self.expires_at
+
 
 
 class MemorySummary(CGMBaseModel):

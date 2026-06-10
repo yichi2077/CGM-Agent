@@ -121,3 +121,13 @@
 **决策**：(1) `from_env()` 改走 `resolve_database_path(HERMES_HOME)`，`storage_key_path` 派生自 DB 同目录，密钥与库不同目录时告警；单一真实源优先级保持 `CGM_AGENT_DB_PATH` > `<hermes_home>/cgm-agent/app.db` > `.runtime`（开发回退）。(2) 旧数据迁移用户触发（`migrate-db`，DB+key 一并、拒绝静默覆盖、缺 key 即拒）。(3) `events.create` 展平内联 schema（仅 `event_type`+`ts_start` 必填），executor 在校验前**硬覆盖** `event_id/user_id/created_by=agent/user_confirmed=false`（不可被模型绕过）。(4) 解密失败抛显式错误，不静默返回 None。
 **理由**：单一存储是"在 Hermes 里能看到数据"的前置；密钥跟随库保证可解密（零数据丢失）；provenance 强制满足 agent 创建事件必须为未确认候选的不变量。详见 [ADR-0001](adr/ADR-0001-memory-and-knowledge-architecture.md) 与 spec `specs/001-hermes-runtime-usability/`。
 **影响**：`config.py`、`storage/sqlite.py`、`cli.py`、`scripts/migrate_legacy_data.py`(新增)、`services/tools/registry.py`、`services/tools/executor.py`、`integrations/hermes/cgm*`；配套回归测试。架构不变（双轨隔离/只读 KB/PHI 加密 0600 均保持）。
+
+### D046 — F4 陪伴叙事修复四裁决（升级阈值以 SOUL.md 为准 / Push 单独渲染 / /report 工具确定性 / 弱势免责休眠）
+**背景**：2026-06-10 对 F4（`specs/003-companion-narrative/`）做 post-implementation 一致性审计，发现 F-1…F-9 + 自审 N1…N12（详见 `specs/003-companion-narrative/remediation-plan.md`）。其中四个互斥决策点 RC1–RC4 经人审拍板。关键事实：现行 spec/data-model/code 的升级阈值**全部偏离权威人设源 SOUL.md**；`render_hypothesis_narrative` 为死代码；push 文案含临床缩写且未校验；聊天态 `/report` 无法在能力层硬拦截。
+**决策**：
+- **RC1（升级阈值，以 SOUL.md 为唯一真相）**：标准用户 `NORMAL 0-2天 / CONCERN 3-6天 / EXTERNAL_SUPPORT ≥7天`（"一周"）；弱势用户 `NORMAL 0天 / CONCERN 1-4天 / EXTERNAL_SUPPORT ≥5天`（触点 1/3/5）。同步改写 `spec.md` US3 AS2+AS3、`data-model.md` 阈值表、`domain/memory.py:EscalationState.derive`，修正现行 day5 标准 / day3 弱势的偏差。
+- **RC2（Push 文案来源）**：为 push **单独渲染** companion 文案（`translate_metric`→生活语言，≤100 字，过 `validate_companion_text` 黑名单），**不改** `synthesize_state`，保护其作为 warm prefetch 摘要（D034）的语义。
+- **RC3（/report 边界）**：`reports.generate` 工具内**确定性**直出纯 F3（不经 LLM）；"`/report`→调用该工具"的路由保留在 Hermes `provider.py` 提示词。**重述 FR-011**：聊天路由是 prompt 级（原则 VII：能力层不造聊天命令、不改 Hermes 安装树）。
+- **RC4（弱势免责声明）**：保留 `builder.py` 强阻断逻辑但标记**生产休眠 KNOWN GAP**（依赖上游写 `vulnerable_population`，spec 已列 out-of-scope），加夹具注入测试覆盖；不在缺触发器时上线半激活阻断流。
+**理由**：原则 IV 将人设绑定 SOUL.md，升级节奏/语气以其为准不可协商；push 是 F4 新交付物，必须同受 companion 黑名单与长度约束；原则 VII 下能力层只能把"确定性"落在工具输出，聊天路由归 Hermes；医疗产品范围克制，无触发器的阻断流不提前半上线。冲突裁决遵循宪法 **Security > Functionality > Aesthetics > Performance > Developer Convenience**。
+**影响**：待改 `domain/memory.py`、`services/reports/builder.py`、`services/reports/narrative_templates.py`、`services/scheduling/scheduler.py`、`services/reports/tools.py`、`services/memory/provider.py`、`specs/003-companion-narrative/{spec.md,data-model.md,plan.md,tasks.md}`；执行任务见 `specs/003-companion-narrative/tasks.md`（R000/RC1–RC4/R001–R060）。架构不变（双轨隔离/只读 KB/安全路由/PHI 0600 均保持）。

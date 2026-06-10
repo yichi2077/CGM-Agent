@@ -1,36 +1,20 @@
-# Specification Quality Checklist: Companion Narrative + Negotiated Interaction (F4)
+# Specification Quality Checklist: Companion Narrative (F4)
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
-**Created**: 2026-06-09
-**Feature**: [spec.md](../spec.md)
+**Purpose**: Validate specification completeness and quality for F4 Companion Narrative
+**Created**: 2026-06-10
+**Feature**: ../spec.md
 
-## Content Quality
+## Requirement Completeness & Coverage
+- [x] CHK001 Are rate limits or maximum frequency caps specified for the non-urgent proactive pushes to prevent user fatigue? [Gap, Spec §FR-007] → Resolved: 1 non-urgent push/day, criticals unlimited (Session 2026-06-10)
+- [x] CHK002 Is the time-to-live (TTL) or expiration rule defined for unanswered queries that are silently logged? [Gap, Spec §FR-008] → Resolved: 3-day TTL (Session 2026-06-10)
+- [x] CHK003 Are the interaction mechanisms for the "Safety Disclaimer" explicitly defined (e.g., requires explicit consent vs. passive viewing)? [Clarity, Spec §FR-008] → Resolved: Strong-blocking, requires "已知晓" (Session 2026-06-10)
+- [x] CHK004 Is the UI/UX boundary between F4 (conversation) and F3 (clinical report) clearly defined regarding how the user navigates between them? [Completeness, Spec §FR-001] → Resolved: `/report` slash command (Session 2026-06-10)
+- [x] CHK005 Are error handling requirements defined if OS-level push notifications are disabled or fail? [Edge Case, Gap] → Resolved: Badge accumulation fallback (Session 2026-06-10)
 
-- [x] No implementation details (languages, frameworks, APIs)
-- [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
-- [x] All mandatory sections completed
+## Requirement Consistency & Clarity
+- [x] CHK006 Does the spec clearly distinguish the definition of "non-urgent daily trends" from noise to ensure high-value Insights? [Ambiguity, Spec §FR-007] → Addressed by Clarify-1: includes non-urgent but valuable trends like "今天下午的波动比昨天平稳"
+- [x] CHK007 Do the length constraints (≤50 chars daily card) apply consistently to the new proactive push messages? [Consistency, Spec §FR-010] → Push messages follow the same SOUL.md output length norms
 
-## Requirement Completeness
-
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable
-- [x] Success criteria are technology-agnostic (no implementation details)
-- [x] All acceptance scenarios are defined
-- [x] Edge cases are identified
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
-
-## Feature Readiness
-
-- [x] All functional requirements have clear acceptance criteria
-- [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details leak into specification
-
-## Notes
-
-- Clarifications section documents 5 informed decisions made without interactive user (project context-based).
-- DSG-### design/ethics review notes are out of spec scope but noted in plan.md.
-- Vulnerable population detection (how `vulnerable_population` key gets populated) is explicitly out of scope.
+## Acceptance Criteria Measurability
+- [x] CHK008 Can the "strict isolation in tone and content formatting" be objectively and programmatically verified? [Measurability, Spec §SC-001] → Verified via builder.py branching into render_clinical vs render_companion
+- [x] CHK009 Are the simulation scenarios for testing "immediate proactive messages" fully specified with latency thresholds? [Measurability, Spec §SC-002] → Covered by T003/T004 unit tests with mock time

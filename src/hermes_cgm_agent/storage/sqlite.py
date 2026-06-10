@@ -342,6 +342,27 @@ class SQLiteStore:
 
                 CREATE INDEX IF NOT EXISTS idx_push_events_user
                     ON push_events(user_id, tier, period_key);
+
+                -- F4 pending interaction tracking (with TTL)
+                CREATE TABLE IF NOT EXISTS pending_interactions (
+                    interaction_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    interaction_type TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    expires_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    resolved_at TEXT
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_pending_interactions_user
+                    ON pending_interactions(user_id, is_active);
+
+                -- F4 OS push failure fallback state
+                CREATE TABLE IF NOT EXISTS unread_badges (
+                    user_id TEXT PRIMARY KEY,
+                    badge_count INTEGER NOT NULL DEFAULT 0
+                );
                 """
             )
             self._ensure_column(
