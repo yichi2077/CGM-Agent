@@ -113,6 +113,10 @@ def render_hypothesis_narrative(state: str, statement: str, evidence_count: int 
     if state_str == "candidate":
         return f"看起来可能和{behavior_cn}有关，你觉得可能是因为这个吗？要不要接下来多留意一下？"
     elif state_str == "observing":
+        if evidence_count <= 0:
+            # Defensive (spec Edge Case): OBSERVING with no evidence should read
+            # like a fresh candidate, not claim "0 times". Must not crash.
+            return f"看起来可能和{behavior_cn}有关，你觉得可能是因为这个吗？要不要接下来多留意一下？"
         return f"在过去几天的记录中，有{evidence_count}次类似于{behavior_cn}的情况。我们再观察看看是不是这个规律？"
     elif state_str == "stable":
         return f"在你的记录中，{behavior_cn}这个模式比较常见，这可能是一个比较固定的规律了。"

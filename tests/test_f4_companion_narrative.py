@@ -368,6 +368,65 @@ class F4CompanionNarrativeTests(unittest.TestCase):
         # Passes the strict companion guard at the push limit.
         self.assertTrue(validate_companion_text(content, max_len=100))
 
+    def test_report_includes_stable_and_archived_hypothesis(self) -> None:
+        # R001/FR-004: STABLE and ARCHIVED states also reach the report (completes
+        # the 4-state coverage alongside candidate/observing).
+        self._create_points()
+        self._seed_hypothesis("h-stable", "fasting high", HypothesisState.STABLE)
+        self._seed_hypothesis("h-arch", "post dinner spike", HypothesisState.ARCHIVED)
+
+        report = self._weekly_self()
+        self.assertIn("在你的记录中，空腹血糖偏高这个模式比较常见", report.rendered_markdown)
+        self.assertIn("之前关于晚餐后血糖偏高的规律最近不明显了", report.rendered_markdown)
+
+    def test_observing_zero_evidence_reads_like_candidate(self) -> None:
+        # Spec Edge Case: OBSERVING with evidence_count=0 must not claim "0 次"
+        # and must not crash; it reads like a fresh candidate.
+        from hermes_cgm_agent.services.reports.narrative_templates import render_hypothesis_narrative
+        text = render_hypothesis_narrative("observing", "post lunch spike", evidence_count=0)
+        self.assertNotIn("0次", text)
+        self.assertIn("看起来可能和", text)
+
+    def test_vulnerable_day0_no_concern(self) -> None:
+        # Boundary: vulnerable user with no consecutive anomalies stays NORMAL.
+        self._create_points()
+        self._set_vulnerable()
+        md = self._daily_self_md(0)
+        self.assertNotIn("你还好吗", md)
+        self.assertNotIn("跟医生聊聊", md)
+
+    def test_standard_day6_still_concern_not_external(self) -> None:
+        # Boundary: standard user at day 6 is still CONCERN; external only at day 7.
+        self._create_points()
+        md6 = self._daily_self_md(6)
+        self.assertIn("最近几天都有点波动，你还好吗？", md6)
+        self.assertNotIn("跟医生聊聊", md6)
+
+    def test_push_badge_fallback_content_compliant(self) -> None:
+        # R012: even when OS push is denied (badge fallback), the message that would
+        # have been delivered is still companion-compliant (<=100, no abbreviations).
+        now = datetime(2026, 6, 9, 9, 30, 0, tzinfo=timezone.utc)
+        for i, v in enumerate([90, 100, 150, 190]):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 6, 9, i, 0, tzinfo=timezone.utc),
+                    value=v, unit="mg/dL", source="sensor:test", quality_flag="valid",
+                )
+            )
+        self.memory_repository.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="hyp-b", user_id="user-1", statement="post lunch spike",
+                state=HypothesisState.CANDIDATE, last_checked=now, created_at=now, updated_at=now,
+            )
+        )
+        self.scheduler_service.send_os_push = lambda user_id, content: (_ for _ in ()).throw(PermissionDenied("blocked"))
+        res = self.scheduler_service.push_tick(user_id="user-1", now=now)
+        self.assertEqual(self.scheduler_service.get_badge_count("user-1"), 1)
+        content = res.pushed[0]["content"]
+        self.assertLessEqual(len(content), 100)
+        self.assertTrue(validate_companion_text(content, max_len=100))
+
     def test_clinician_report_is_pure_f3_no_companion_leakage(self) -> None:
         # R030/FR-011/FR-001: the clinical path is deterministic pure F3 — even with
         # active hypotheses and high consecutive anomalies, no companion narrative
