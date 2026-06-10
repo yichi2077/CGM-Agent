@@ -347,6 +347,37 @@ class F4CompanionNarrativeTests(unittest.TestCase):
         self.assertEqual(section.source_tracks, [ReportSourceTrack.FACT])
         self.assertEqual(section.confidence, 0.6)
 
+    def test_push_message_companion_compliant(self) -> None:
+        # R010/FR-005/007/010: the delivered push is abbreviation-free and <=100 chars,
+        # rendered in companion language (regression for F-3: push used to send "TIR ...").
+        now = datetime(2026, 6, 9, 9, 30, 0, tzinfo=timezone.utc)
+        for i, v in enumerate([90, 100, 150, 190]):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 6, 9, i, 0, tzinfo=timezone.utc),
+                    value=v,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+        # New candidate hypothesis -> daily trend trigger fires.
+        self.memory_repository.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id="hyp-push", user_id="user-1", statement="post lunch spike",
+                state=HypothesisState.CANDIDATE, last_checked=now, created_at=now, updated_at=now,
+            )
+        )
+        res = self.scheduler_service.push_tick(user_id="user-1", now=now)
+        self.assertEqual([p["tier"] for p in res.pushed], ["daily"])
+        content = res.pushed[0]["content"]
+        self.assertLessEqual(len(content), 100)
+        for abbr in ["TIR", "TAR", "TBR", "GMI", "CV", "LBGI", "HBGI"]:
+            self.assertNotIn(abbr, content.upper())
+        # Passes the strict companion guard at the push limit.
+        self.assertTrue(validate_companion_text(content, max_len=100))
+
     def test_os_push_denied_fallback(self) -> None:
         # Verify OS push fallback accumulates badge counts correctly when PermissionDenied is raised
         original_send = self.scheduler_service.send_os_push

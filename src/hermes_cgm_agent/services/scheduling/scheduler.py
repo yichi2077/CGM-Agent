@@ -179,9 +179,15 @@ class PushSchedulerService:
         )
         period = self.period_key(tier, now)
 
+        # F4 (R011/R012): the delivered push message is a companion-rendered,
+        # abbreviation-free, <=100-char text — NOT the warm-digest summary.content
+        # (which keeps "TIR ..." for prefetch/D034, NC-2). synthesize_state still
+        # runs and persists the summary for consecutive-day counting + prefetch.
+        push_text = self._companion_push_text(tier, aggregate)
+
         # Try OS Push and fallback to badge count if permission is denied
         try:
-            self.send_os_push(user_id, summary.content)
+            self.send_os_push(user_id, push_text)
         except PermissionDenied:
             self.increment_badge_count(user_id)
 
@@ -195,8 +201,32 @@ class PushSchedulerService:
             "period_key": period,
             "push_id": push_id,
             "summary_id": summary.summary_id,
-            "content": summary.content,
+            "content": push_text,
         }
+
+    def _companion_push_text(self, tier: str, aggregate: Any) -> str:
+        """Render an abbreviation-free, <=100-char companion push message
+        (FR-005 / FR-007 / FR-010). Clinical numbers stay in the report; the
+        proactive push speaks plainly. enforce_companion_text hard-blocks any
+        leaked abbreviation/assertive phrase and truncates over-length."""
+        from hermes_cgm_agent.services.reports.narrative_templates import (
+            translate_metric,
+            enforce_companion_text,
+        )
+        label = {"daily": "今天", "weekly": "这周", "monthly": "这个月"}.get(tier, "最近")
+        tir = getattr(aggregate, "tir", None)
+        if tir is None:
+            return enforce_companion_text(
+                f"{label}的记录我看了一下，想了解的话随时问我。", max_len=100
+            )
+        parts = [f"{label}{translate_metric('TIR', tir, 'SELF')}"]
+        tar = getattr(aggregate, "tar", None) or 0
+        tbr = getattr(aggregate, "tbr", None) or 0
+        if tbr > 0:
+            parts.append("有几段偏低，留意一下")
+        elif tar > 0:
+            parts.append("偶尔会偏高")
+        return enforce_companion_text("，".join(parts) + "。想聊聊可以随时找我。", max_len=100)
 
     # ── silent consent ────────────────────────────────────────────────────────
     def apply_silent_consent(
