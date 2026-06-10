@@ -72,9 +72,9 @@ Resolves gaps identified by speckit-checklist:
 
 Resolves ambiguities from a code-grounded `/speckit-analyze` pass.
 
-- Q: 升级等级在 `push_tick` 算出，但按需报告（`reports.generate`）不走 push_tick，`builder.generate(report_input)` 怎么拿到 `consecutive_days`？ → A: 在 `ReportInput` 增加可选字段 `consecutive_anomaly_days` / `escalation_level`；push 路径与 `reports.generate` 执行器**都**在构建报告前调用 `PushSchedulerService.consecutive_anomaly_days(...)` 填充。报告层只读这两个字段渲染关心话术。见 tasks T042b。
+- Q: 升级等级在 `push_tick` 算出，但按需报告（`reports.generate`）不走 push_tick，`builder.generate(report_input)` 怎么拿到 `consecutive_days`？ → A: 在 `ReportInput` 增加可选字段 `consecutive_anomaly_days` / `escalation_level`；push 路径与 `reports.generate` 执行器**都**在构建报告前调用 `PushSchedulerService.consecutive_anomaly_days(...)` 填充。报告层只读这两个字段渲染关心话术。见 tasks R020-R022（升级数据闭环）。
 - Q: `vulnerable_population` key 目前无人写入，脆弱人群路径如何处理？ → A: 本轮保留"读 + 测试夹具注入"，但在生产中该路径**休眠**，直至上游设置该 key。已在 plan.md 标为 KNOWN GAP（带风险）。
-- Q: 升级关心话术注入哪个 section？ → A: 固定注入 `_follow_up_section`（见 tasks T044），不再二选一。
+- Q: 升级关心话术注入哪个 section？ → A: 固定注入 `_follow_up_section`（见 tasks R020-R022；builder `_follow_up_section`），不再二选一。
 - Q: DSG-### 文档是"另行跟踪"还是已在本 feature？ → A: 已在 plan.md 内联为 DSG-001..005 审查门禁（Luna 合并前签核）；spec 的 out-of-scope 措辞以 plan 为准更新。
 
 ## User Scenarios & Testing *(mandatory)*
@@ -138,28 +138,30 @@ evidence without asserting causation.
 ### User Story 3 - The agent cares more when I need it most (Priority: P3)
 
 When a user experiences consecutive days of glucose anomalies, the agent's
-concern escalates naturally: day 1 is normal attribution, day 3 shifts to
-personal concern ("你还好吗？"), day 5 suggests external support ("要不要跟医生
-聊聊？"). For vulnerable populations (pregnancy, type 1 diabetes, children,
-elderly, comorbidities), the escalation happens earlier. The user never feels
-monitored — they feel cared for.
+concern escalates naturally per SOUL.md: day 1 is normal attribution, a few
+consecutive days (day 3+) shift to personal concern ("你还好吗？"), and about a
+week (day 7+) suggests external support ("要不要跟医生聊聊？"). For vulnerable
+populations (pregnancy, type 1 diabetes, children, elderly, comorbidities), the
+escalation happens earlier — concern from day 1 and external support by day 5
+(the SOUL.md "第一天/第三天/第五天" schedule). The user never feels monitored —
+they feel cared for. (Thresholds fixed by D046/RC1; see data-model.md.)
 
 **Why this priority**: This completes the companion persona by implementing the
 progressive care strategy from SOUL.md. It touches the scheduler (escalation
 calculation) and report (narrative rendering). Lower frequency than US1/US2 but
 critical for the "informed companion" identity.
 
-**Independent Test**: Simulate 5 consecutive days of anomaly data for a standard
-user. Verify the daily report on day 1 uses normal attribution, day 3 shifts to
-personal concern tone, and day 5 includes an external-support suggestion. Repeat
-for a vulnerable-population user and verify escalation starts at day 1/3/5
-(already the early schedule from SOUL.md).
+**Independent Test**: Simulate 7 consecutive days of anomaly data for a standard
+user. Verify the daily report on day 1-2 uses normal attribution, day 3-6 shifts
+to personal concern tone, and day 7+ includes an external-support suggestion.
+Repeat for a vulnerable-population user and verify concern begins at day 1 and
+external support by day 5 (the earlier SOUL.md "第一天/第三天/第五天" schedule).
 
 **Acceptance Scenarios**:
 
-1. **Given** a user has had glucose anomalies for 3 consecutive days, **When** the daily report is generated, **Then** the narrative shifts from data attribution to personal concern ("最近几天都有点波动，你还好吗？").
-2. **Given** a user has had anomalies for 5+ consecutive days, **When** the daily report is generated, **Then** the narrative gently suggests external support ("要不要下次复诊时跟医生聊聊？").
-3. **Given** a user is flagged as a vulnerable population, **When** anomalies persist for 1 day, **Then** the escalation already begins at the earlier schedule (day 1 normal, day 3 concern, day 5 external support) rather than the standard timeline.
+1. **Given** a standard user has had glucose anomalies for 3 consecutive days, **When** the daily report is generated, **Then** the narrative shifts from data attribution to personal concern ("最近几天都有点波动，你还好吗？").
+2. **Given** a standard user has had anomalies for 7+ consecutive days (about a week), **When** the daily report is generated, **Then** the narrative gently suggests external support ("要不要下次复诊时跟医生聊聊？"). (Days 3-6 remain in the concern band.)
+3. **Given** a user is flagged as a vulnerable population, **When** anomalies persist, **Then** escalation begins earlier than the standard timeline: personal concern from day 1, and external-support suggestion by day 5 (vs. day 7 for standard users).
 
 ---
 
@@ -180,12 +182,12 @@ for a vulnerable-population user and verify escalation starts at day 1/3/5
 - **FR-003**: The system MUST translate clinical metrics (TIR, TAR, TBR, MBG, CV, GMI) into life-language equivalents for SELF and FAMILY audiences (e.g., TIR → "大部分时间都在范围里", TAR → "偏高的时候").
 - **FR-004**: The system MUST render L3 hypothesis narratives using state-appropriate templates: CANDIDATE → hedged + invitation, OBSERVING → evidence-counted observation, STABLE → confirmed pattern language, ARCHIVED → "最近不明显" demotion language.
 - **FR-005**: Hypothesis and companion narratives MUST NOT use causal/assertive language ("经分析发现", "研究表明", "数据证明") in any state; all language MUST be hedged and non-directive per Principle IV. The system MUST implement a validation function `validate_companion_text()` to enforce this and strictly forbid clinical abbreviations (TIR, TAR, TBR, GMI, CV, LBGI, HBGI) in F4 outputs.
-- **FR-006**: The system MUST calculate consecutive anomaly days for each user during push_tick and store the escalation level (standard: day 1/3/5; vulnerable: day 1/3/5 with earlier thresholds).
+- **FR-006**: The system MUST calculate consecutive anomaly days for each user and derive the escalation level, grounded in SOUL.md (decision D046/RC1). **Standard users**: `NORMAL` day 0-2, `CONCERN` day 3-6, `EXTERNAL_SUPPORT` day ≥7 ("about a week"). **Vulnerable users** (earlier): `NORMAL` day 0, `CONCERN` day 1-4, `EXTERNAL_SUPPORT` day ≥5. Consecutive-day counting MUST be computed deterministically from analytics/events (not solely from persisted push summaries), using the scheduler timezone for day boundaries.
 - **FR-007**: The system MUST proactively PUSH messages upon detecting Insights or missing data. Non-urgent pushes MUST be rate-limited to 1 per day. Urgent criticals are unlimited. Unanswered queries MUST NOT be retried proactively; they are stored with a 3-day TTL and referenced in the next user-initiated interaction if valid. Proactive pushes for daily trends are triggered only when meeting explicit thresholds: TIR delta ≥ 5%, consecutive ≥ 2 days same-period anomaly, or a new L3 hypothesis candidate. Push latency is non-realtime, relying on the daily `push_tick` loop.
-- **FR-008**: Vulnerable population users MUST be identified via L2ProfileItem. The system MUST present a strong-blocking "Safety Disclaimer" requiring explicit "已知晓" (acknowledged) input before allowing further interaction.
+- **FR-008**: Vulnerable population users MUST be identified via L2ProfileItem. The system MUST present a strong-blocking "Safety Disclaimer" requiring explicit "已知晓" (acknowledged) input before allowing further interaction. **Production-dormant (D046/RC4)**: the blocking logic and acknowledgment read MUST exist and be test-covered, but the path stays dormant until an upstream process sets the `vulnerable_population` key (out of F4 scope — see Assumptions).
 - **FR-009**: The system MUST NOT emit escalation or hypothesis narratives during red-zone safety override (Principle III compliance).
 - **FR-010**: The report narrative MUST respect SOUL.md output length norms: daily card ≤50 chars, weekly pattern ≤100 chars, general default ≤80 chars (for SELF audience). Active push messages MUST have an independent limit ≤100 chars to ensure self-contained context.
-- **FR-011**: The system MUST provide a slash command (e.g., `/report`) to invoke strictly isolated F3 clinical reports within the F4 conversational interface.
+- **FR-011**: The system MUST expose strictly isolated F3 clinical reports on demand (e.g., via `/report`). Per D046/RC3 and Principle VII, the determinism guarantee lives in the `reports.generate` tool — its clinical path MUST return pure F3 (numbers/tables, no companion narrative, no LLM in the tool); routing the literal `/report` to that tool is handled by the Hermes provider prompt (the capability layer does not build a competing chat command).
 - **FR-012**: The system MUST implement a fallback mechanism accumulating internal unread badges for proactive pushes if OS-level push notifications fail or are disabled.
 - **FR-013**: All narrative changes MUST preserve existing evidence_refs, source_tracks, confidence, and data_quality_warnings structures — narrative is a rendering concern, not a data concern.
 - **FR-014**: The existing automated test suite MUST remain green (374+ tests), and new narrative/escalation behaviors MUST be covered by regression tests.

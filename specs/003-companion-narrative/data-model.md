@@ -63,19 +63,26 @@ Already has key-value storage needed for C3 vulnerable flag.
 
 | Level | Condition | Narrative Effect |
 |-------|-----------|-----------------|
-| NORMAL | consecutive_anomaly_days < 3 | Normal data attribution |
-| CONCERN | 3 ≤ consecutive_anomaly_days < 5 | Personal concern ("最近几天都有点波动，你还好吗？") |
-| EXTERNAL_SUPPORT | consecutive_anomaly_days ≥ 5 | External support suggestion ("要不要跟医生聊聊？") |
+| NORMAL | standard day 0-2 / vulnerable day 0 | Normal data attribution |
+| CONCERN | standard day 3-6 / vulnerable day 1-4 | Personal concern ("最近几天都有点波动，你还好吗？") |
+| EXTERNAL_SUPPORT | standard day ≥7 / vulnerable day ≥5 | External support suggestion ("要不要跟医生聊聊？") |
 
-**For vulnerable populations** (L2 `vulnerable_population=true`):
-- Same thresholds (1/3/5 per SOUL.md) but the language is extra gentle
-- Day 1 already gets heightened awareness (more frequent check-ins)
+**For vulnerable populations** (L2 `vulnerable_population=true`) — D046/RC1, earlier per SOUL.md "第一天/第三天/第五天":
+- `CONCERN` from day 1 (vs day 3 standard); `EXTERNAL_SUPPORT` from day 5 (vs day 7 standard)
+- Language is extra gentle in all bands
 
 **Derivation logic**:
 ```
+# standard users (SOUL.md: 第一天 / 连续几天 / 一周)
+escalation_level = (
+    EXTERNAL_SUPPORT if consecutive_days >= 7
+    else CONCERN if consecutive_days >= 3
+    else NORMAL
+)
+# vulnerable users (earlier — SOUL.md: 第一天 / 第三天 / 第五天)
 escalation_level = (
     EXTERNAL_SUPPORT if consecutive_days >= 5
-    else CONCERN if consecutive_days >= 3
+    else CONCERN if consecutive_days >= 1
     else NORMAL
 )
 ```

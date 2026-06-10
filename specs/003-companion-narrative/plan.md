@@ -3,6 +3,7 @@
 **Feature Branch**: `003-companion-narrative`
 **Status**: Approved
 **Spec Reference**: [spec.md](./spec.md)
+**Remediation**: post-implementation gaps (F-1…F-9) and their fix plan are tracked in [remediation-plan.md](./remediation-plan.md) and tasks.md (R000 / RC1-4 / R001-R060); cross-artifact decisions recorded in [DECISION_LOG D046](../../docs/DECISION_LOG.md). Escalation thresholds in this plan follow D046/RC1 (SOUL.md-grounded).
 
 ## 1. Technical Context
 
@@ -10,10 +11,10 @@ This plan details the implementation of F4, transforming the CGM agent into an "
 
 ### Core Architecture Components Involved
 - **Domain Models**: `src/hermes_cgm_agent/domain/memory.py` (New state entities)
-- **Scheduler**: `src/hermes_cgm_agent/services/scheduler.py` (Push logic, limits)
+- **Scheduler**: `src/hermes_cgm_agent/services/scheduling/scheduler.py` (Push logic, limits)
 - **Report Rendering**: `src/hermes_cgm_agent/services/reports/builder.py` (Isolation)
 - **Narrative Logic**: `src/hermes_cgm_agent/services/reports/narrative_templates.py` (New module)
-- **CLI/Command**: `src/hermes_cgm_agent/cli.py` or equivalent interaction router (for `/report`)
+- **Report tool / routing**: `src/hermes_cgm_agent/services/reports/tools.py` (deterministic pure-F3 `reports.generate`) + `src/hermes_cgm_agent/services/memory/provider.py` (Hermes `/report` prompt routing — D046/RC3; the capability layer adds no chat command)
 
 ## 2. Constitution Check
 
