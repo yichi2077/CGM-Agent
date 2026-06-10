@@ -225,28 +225,37 @@ class ReportService:
         return render_markdown(report)
 
     def render_companion(self, report: Report) -> str:
-        # F4 vs F3 tone isolation validation
-        from hermes_cgm_agent.services.reports.narrative_templates import validate_companion_text
+        # F4 vs F3 tone isolation guard (F-8/N4): clinical abbreviations and
+        # assertive phrases are a Principle IV HARD gate (raise); over-length is
+        # tolerated (logged) so a long card never crashes report generation
+        # (FR-013: narrative is a rendering concern, not a data concern).
+        from hermes_cgm_agent.services.reports.narrative_templates import check_companion_text
         for section in report.sections:
             content_to_validate = section.content
-            
+
             # Strip yellow zone warning prefix
             if content_to_validate.startswith("⚠️"):
                 parts = content_to_validate.split("\n\n", 1)
                 if len(parts) > 1:
                     content_to_validate = parts[1]
-                    
+
             # Strip RAG context merge messages which are standard additions
             content_to_validate = content_to_validate.replace("这次也带上了过往记录，看看它和今天有没有能对得上的地方。", "")
             content_to_validate = content_to_validate.replace("也放进了参考资料，但它更像背景，不会替代你自己的记录。", "")
             content_to_validate = content_to_validate.strip()
-            
+
             max_len = 80
             if section.section_id == "daily_card":
                 max_len = 50
             elif section.section_id == "patterns":
                 max_len = 100
-            validate_companion_text(content_to_validate, max_len=max_len)
+            violations = check_companion_text(content_to_validate, max_len=max_len)
+            hard = [v for v in violations if v.startswith(("abbr:", "phrase:"))]
+            if hard:
+                raise ValueError(
+                    f"Companion section '{section.section_id}' violates Principle IV: {hard}"
+                )
+            # length-only violations are tolerated here (rendering concern).
         return render_markdown(report)
 
     def _sections(

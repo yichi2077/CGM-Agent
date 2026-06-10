@@ -6,6 +6,8 @@ import unittest
 
 from hermes_cgm_agent.services.reports.narrative_templates import (
     validate_companion_text,
+    check_companion_text,
+    enforce_companion_text,
     render_hypothesis_narrative,
     translate_metric,
 )
@@ -79,6 +81,37 @@ class NarrativeTemplatesTests(unittest.TestCase):
         self.assertEqual(translate_metric("MBG", 120.0, "FAMILY"), "平均状态")
         self.assertEqual(translate_metric("CV", 32.0, "FAMILY"), "血糖起伏")
         self.assertEqual(translate_metric("GMI", 6.2, "FAMILY"), "大体水平")
+
+
+class CompanionTextGuardTests(unittest.TestCase):
+    """R040: check_/enforce_ split + CV word-boundary fix (N4, N12)."""
+
+    def test_check_returns_violation_tags(self) -> None:
+        self.assertEqual(check_companion_text("看起来今天还不错"), [])
+        self.assertIn("abbr:TIR", check_companion_text("今天的 TIR 偏低"))
+        self.assertIn("phrase:研究表明", check_companion_text("研究表明这样好"))
+        self.assertIn("length:51>50", check_companion_text("x" * 51, max_len=50))
+
+    def test_cv_word_boundary_no_false_positive(self) -> None:
+        # "CV" embedded in a larger latin token must NOT trip the guard...
+        self.assertEqual(check_companion_text("今天用了 CGM 设备"), [])
+        self.assertEqual(check_companion_text("RECV buffer 没问题"), [])
+        # ...but a standalone CV (even adjacent to CJK) must be flagged.
+        self.assertIn("abbr:CV", check_companion_text("今天CV偏高"))
+        self.assertTrue(validate_companion_text("今天用了 CGM 设备"))
+
+    def test_enforce_blocks_blacklist_but_truncates_length(self) -> None:
+        # Blacklist -> hard raise
+        with self.assertRaises(ValueError):
+            enforce_companion_text("今天的 TIR 偏低")
+        with self.assertRaises(ValueError):
+            enforce_companion_text("数据证明这样好")
+        # Over-length -> graceful truncation (no raise), result within limit
+        out = enforce_companion_text("好" * 200, max_len=50)
+        self.assertLessEqual(len(out), 50)
+        self.assertTrue(out.endswith("…"))
+        # Clean text passes through unchanged
+        self.assertEqual(enforce_companion_text("今天整体还行"), "今天整体还行")
 
 
 if __name__ == "__main__":

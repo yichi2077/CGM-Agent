@@ -8,36 +8,79 @@ Includes:
 
 from __future__ import annotations
 
+import re
 from typing import Any
+
+# Clinical abbreviations forbidden in F4 companion output (CHK008 / FR-005).
+_BLACKLIST_ABBRS: tuple[str, ...] = ("TIR", "TAR", "TBR", "GMI", "CV", "LBGI", "HBGI")
+# Assertive/causal phrases forbidden by the Informed-Companion persona (Principle IV).
+_BLACKLIST_PHRASES: tuple[str, ...] = (
+    "经分析发现", "研究表明", "数据证明", "可以确定", "证明了", "明显表明", "确实是", "绝对",
+)
+# Match an abbreviation only as a standalone ASCII token (not embedded in a larger
+# latin word like CGM/RECV), regardless of adjacent CJK characters. Fixes the
+# substring false-positive where bare ``"CV" in text`` flagged any latin "cv".
+_ABBR_PATTERNS: dict[str, re.Pattern[str]] = {
+    abbr: re.compile(rf"(?<![A-Za-z]){re.escape(abbr)}(?![A-Za-z])")
+    for abbr in _BLACKLIST_ABBRS
+}
+
+
+def check_companion_text(text: str, max_len: int = 80) -> list[str]:
+    """Return a list of violation tags (empty == clean). Pure; never raises.
+
+    Tags: ``abbr:<X>`` (clinical abbreviation), ``phrase:<X>`` (assertive/causal),
+    ``length:<n>>max`` (over length). Callers decide how to react per tag type.
+    """
+    violations: list[str] = []
+    upper = text.upper()
+    for abbr, pattern in _ABBR_PATTERNS.items():
+        if pattern.search(upper):
+            violations.append(f"abbr:{abbr}")
+    for phrase in _BLACKLIST_PHRASES:
+        if phrase in text:
+            violations.append(f"phrase:{phrase}")
+    if len(text) > max_len:
+        violations.append(f"length:{len(text)}>{max_len}")
+    return violations
 
 
 def validate_companion_text(text: str, max_len: int = 80) -> bool:
-    """Validate that companion narrative text conforms to style and safety rules.
-    
-    1. Forbids clinical abbreviations (TIR, TAR, TBR, GMI, CV, LBGI, HBGI).
-    2. Forbids assertive/causal phrases.
-    3. Enforces length constraints.
-    
-    Raises ValueError on violation.
+    """Strict validator (test/guard layer): raises ValueError on ANY violation.
+
+    Forbids clinical abbreviations, assertive/causal phrases, and over-length.
+    Used as the hard guard in tests to protect the templates themselves.
     """
-    # 1. Check blacklisted clinical abbreviations
-    blacklist_abbrs = ["TIR", "TAR", "TBR", "GMI", "CV", "LBGI", "HBGI"]
-    text_upper = text.upper()
-    for abbr in blacklist_abbrs:
-        if abbr in text_upper:
+    upper = text.upper()
+    for abbr, pattern in _ABBR_PATTERNS.items():
+        if pattern.search(upper):
             raise ValueError(f"Clinical abbreviation '{abbr}' is forbidden in companion narratives.")
-            
-    # 2. Check blacklisted assertive/causal phrases
-    blacklist_phrases = ["经分析发现", "研究表明", "数据证明", "可以确定", "证明了", "明显表明", "确实是", "绝对"]
-    for phrase in blacklist_phrases:
+    for phrase in _BLACKLIST_PHRASES:
         if phrase in text:
             raise ValueError(f"Assertive/causal phrase '{phrase}' is forbidden in companion narratives.")
-            
-    # 3. Check length
     if len(text) > max_len:
         raise ValueError(f"Text length ({len(text)}) exceeds the maximum allowed length of {max_len} characters.")
-        
     return True
+
+
+def enforce_companion_text(text: str, max_len: int = 80) -> str:
+    """Runtime guard (N4 split): blacklist is a hard gate, length degrades gracefully.
+
+    - Clinical abbreviation / assertive phrase -> **raise** (Principle IV hard gate;
+      such content must never reach the user as companion narrative).
+    - Over-length -> **truncate** with an ellipsis and return, so an over-long card
+      never crashes report/push generation (FR-013: narrative is a rendering concern).
+    """
+    upper = text.upper()
+    for abbr, pattern in _ABBR_PATTERNS.items():
+        if pattern.search(upper):
+            raise ValueError(f"Clinical abbreviation '{abbr}' is forbidden in companion narratives.")
+    for phrase in _BLACKLIST_PHRASES:
+        if phrase in text:
+            raise ValueError(f"Assertive/causal phrase '{phrase}' is forbidden in companion narratives.")
+    if len(text) > max_len:
+        return text[: max(0, max_len - 1)].rstrip() + "…"
+    return text
 
 
 def render_hypothesis_narrative(state: str, statement: str, evidence_count: int = 0) -> str:
