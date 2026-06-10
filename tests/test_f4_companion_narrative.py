@@ -15,7 +15,7 @@ from hermes_cgm_agent.domain import (
     L2ProfileItem,
     PendingInteraction,
 )
-from hermes_cgm_agent.domain.report import ReportAudience, ReportInput, ReportType
+from hermes_cgm_agent.domain.report import ReportAudience, ReportInput, ReportType, ReportSourceTrack
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import SQLiteMemoryRepository
 from hermes_cgm_agent.services.reports import (
@@ -283,6 +283,69 @@ class F4CompanionNarrativeTests(unittest.TestCase):
             )
         )
         self.assertIn("要不要下次复诊时跟医生聊聊？", rep_support.rendered_markdown)
+
+    def _seed_hypothesis(self, hid: str, statement: str, state: HypothesisState, evidence_count: int = 0) -> None:
+        now = datetime(2026, 6, 1, 0, 0, tzinfo=timezone.utc)
+        self.memory_repository.upsert_hypothesis(
+            L3Hypothesis(
+                hypothesis_id=hid,
+                user_id="user-1",
+                statement=statement,
+                state=state,
+                evidence_count=evidence_count,
+                last_checked=now,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+    def _weekly_self(self):
+        return self.report_service.generate(
+            ReportInput(
+                report_type="weekly",
+                user_id="user-1",
+                audience=ReportAudience.SELF,
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-07T00:00:00+00:00",
+                },
+            )
+        )
+
+    def test_report_includes_hypothesis_narrative(self) -> None:
+        # R001/FR-004: state-aware hypothesis narrative actually reaches the report
+        # (regression for F-1: render_hypothesis_narrative was dead code).
+        self._create_points()
+        self._seed_hypothesis("h-cand", "post lunch spike", HypothesisState.CANDIDATE)
+        self._seed_hypothesis("h-obs", "overnight low", HypothesisState.OBSERVING, evidence_count=3)
+
+        report = self._weekly_self()
+        self.assertIn("看起来可能和午餐后血糖偏高有关", report.rendered_markdown)
+        self.assertIn("在过去几天的记录中，有3次类似于夜间低血糖的情况", report.rendered_markdown)
+
+    def test_red_zone_suppresses_hypothesis_narrative(self) -> None:
+        # R003/FR-009: red zone replaces sections wholesale -> no hypothesis leakage.
+        self._create_points(values=[40, 45, 50])  # all < 54 mg/dL -> red zone
+        self._seed_hypothesis("h-cand", "post lunch spike", HypothesisState.CANDIDATE)
+
+        report = self._weekly_self()
+        self.assertEqual(report.safety_result["status"], "red_zone")
+        self.assertNotIn("看起来可能和", report.rendered_markdown)
+
+    def test_hypothesis_narrative_personal_track_only(self) -> None:
+        # R004/FR-013 + Principle II: hypothesis section carries the personal FACT
+        # track only (never the authoritative KB track) and preserves structure.
+        self._create_points()
+        self._seed_hypothesis("h-cand", "post lunch spike", HypothesisState.CANDIDATE)
+
+        report = self._weekly_self()
+        section = next(
+            (s for s in report.sections if s.section_id == "hypothesis_narrative"), None
+        )
+        self.assertIsNotNone(section)
+        self.assertEqual(section.source_tracks, [ReportSourceTrack.FACT])
+        self.assertEqual(section.confidence, 0.6)
 
     def test_os_push_denied_fallback(self) -> None:
         # Verify OS push fallback accumulates badge counts correctly when PermissionDenied is raised

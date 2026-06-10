@@ -319,6 +319,12 @@ class ReportService:
             ),
             self._follow_up_section(scope, aggregate, events, audience, esc_state=esc_state, consecutive_days=consecutive_days),
         ]
+        # US2/FR-004: state-aware L3 hypothesis narrative (companion audiences only;
+        # clinician reports stay pure clinical, Principle IV / F3 isolation).
+        if audience != ReportAudience.CLINICIAN:
+            hyp_section = self._hypothesis_narrative_section(scope, audience)
+            if hyp_section is not None:
+                sections.append(hyp_section)
         if report_type == ReportType.WEEKLY:
             sections.append(
                 self._patterns_section(report_id, scope, aggregate, events, detected_events, audience)
@@ -720,6 +726,42 @@ class ReportService:
             source_tracks=[ReportSourceTrack.FACT],
             confidence=_coverage_confidence(aggregate.data_coverage),
             g8_memory_candidates=candidates,
+        )
+
+    def _hypothesis_narrative_section(
+        self,
+        scope: DataScope,
+        audience: ReportAudience,
+    ) -> ReportSection | None:
+        """US2/FR-004: render active L3 hypotheses in state-appropriate companion
+        language (candidate/observing/stable/archived).
+
+        Personal-track only — hypotheses are individualized inferences from the
+        user's own data and MUST NOT be merged with the authoritative KB track
+        (Principle II). Suppressed in red zone by construction (only built on the
+        normal `_sections` path, never in the red-zone/disclaimer branches).
+        """
+        hypotheses = self.memory_repository.list_hypotheses(scope.user_id)
+        rendered: list[str] = []
+        evidence_refs: list[EvidenceRef] = []
+        for hyp in hypotheses:
+            if hyp.valid_to is not None:
+                continue  # superseded / closed bi-temporal window
+            rendered.append(
+                render_hypothesis_narrative(hyp.state, hyp.statement, hyp.evidence_count)
+            )
+            evidence_refs.extend(hyp.evidence_refs)
+        if not rendered:
+            return None
+        return ReportSection(
+            section_id="hypothesis_narrative",
+            kind="hypothesis_narrative",
+            title="我们在一起观察的",
+            content=" ".join(rendered[:3]),
+            data_scope=scope,
+            evidence_refs=_unique_evidence_refs(evidence_refs),
+            source_tracks=[ReportSourceTrack.FACT],
+            confidence=0.6,
         )
 
     def _pattern_signal(
