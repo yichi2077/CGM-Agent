@@ -368,6 +368,30 @@ class F4CompanionNarrativeTests(unittest.TestCase):
         # Passes the strict companion guard at the push limit.
         self.assertTrue(validate_companion_text(content, max_len=100))
 
+    def test_clinician_report_is_pure_f3_no_companion_leakage(self) -> None:
+        # R030/FR-011/FR-001: the clinical path is deterministic pure F3 — even with
+        # active hypotheses and high consecutive anomalies, no companion narrative
+        # leaks. (/report routes here via provider audience='CLINICIAN'.)
+        self._create_points()
+        self._seed_hypothesis("h-cand", "post lunch spike", HypothesisState.CANDIDATE)
+        rep = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                audience=ReportAudience.CLINICIAN,
+                consecutive_anomaly_days=7,
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        self.assertIn("TIR", rep.rendered_markdown)               # clinical content present
+        self.assertNotIn("看起来可能和", rep.rendered_markdown)     # no hypothesis companion narrative
+        self.assertNotIn("你还好吗", rep.rendered_markdown)         # no escalation concern
+        self.assertNotIn("跟医生聊聊", rep.rendered_markdown)
+
     def test_os_push_denied_fallback(self) -> None:
         # Verify OS push fallback accumulates badge counts correctly when PermissionDenied is raised
         original_send = self.scheduler_service.send_os_push
