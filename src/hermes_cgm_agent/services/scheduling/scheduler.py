@@ -394,34 +394,43 @@ class PushSchedulerService:
 
         return False
 
-    def consecutive_anomaly_days(self, user_id: str, now: datetime) -> int:
+    def consecutive_anomaly_days(self, user_id: str, now: datetime, max_lookback: int = 8) -> int:
+        """Count consecutive anomaly days ending today (F-2 / R021).
+
+        Computed deterministically from CGM analytics + event detection per
+        local day — NOT from persisted push summaries (the old version read
+        ``tar_pct``/``tbr_pct`` that ``_emit`` never wrote, so it always returned
+        0 in production). A day is "anomalous" if it has TAR>0 or TBR>0 or any
+        non-DATA_GAP glucose event. Day boundaries use the scheduler timezone.
+        A day with no data (or no anomaly) ends the streak.
+        """
+        from hermes_cgm_agent.services.analytics.events import GlucoseEventDetector
+
+        detector = GlucoseEventDetector()
+        utc = ZoneInfo("UTC")
+        today_local = now.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0)
         consecutive_days = 0
-        for offset in range(7):
-            day = now - timedelta(days=offset)
-            period = self.period_key("daily", day)
-            
-            with self.store.connect() as conn:
-                row = conn.execute(
-                    "SELECT summary_id FROM push_events WHERE user_id = ? AND tier = 'daily' AND period_key = ?",
-                    (user_id, period),
-                ).fetchone()
-                
-            if not row or not row["summary_id"]:
-                break
-                
-            with self.store.connect() as conn:
-                summary_row = conn.execute(
-                    "SELECT metrics_json FROM memory_summaries WHERE summary_id = ?",
-                    (row["summary_id"],),
-                ).fetchone()
-                
-            if not summary_row:
-                break
-                
-            metrics = self.store.unseal(summary_row["metrics_json"], legacy="json") or {}
-            tar = float(metrics.get("tar_pct") or 0)
-            tbr = float(metrics.get("tbr_pct") or 0)
-            if tar > 0 or tbr > 0:
+        for offset in range(max_lookback):
+            day_start_local = today_local - timedelta(days=offset)
+            day_end_local = day_start_local + timedelta(days=1)
+            scope = DataScope(
+                user_id=user_id,
+                window_start=day_start_local.astimezone(utc),
+                window_end=day_end_local.astimezone(utc),
+            )
+            points = self.cgm.list_glucose_points(scope)
+            if not points:
+                break  # no data -> cannot confirm anomaly -> streak ends
+            aggregate = self.analytics.compute_aggregate(
+                points=points, scope=scope, window_label="day"
+            )
+            tar = float(getattr(aggregate, "tar", 0) or 0)
+            tbr = float(getattr(aggregate, "tbr", 0) or 0)
+            anomalous = tar > 0 or tbr > 0
+            if not anomalous:
+                events = detector.detect(points=points, scope=scope)
+                anomalous = any(e.event_type != GlucoseEventType.DATA_GAP for e in events)
+            if anomalous:
                 consecutive_days += 1
             else:
                 break

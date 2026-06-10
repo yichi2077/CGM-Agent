@@ -178,87 +178,91 @@ class F4CompanionNarrativeTests(unittest.TestCase):
         self.assertEqual(report_after.safety_result["status"], "clear")
         self.assertNotIn("【安全免责声明】", report_after.rendered_markdown)
 
+    def _daily_self_md(self, consecutive: int) -> str:
+        rep = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                audience=ReportAudience.SELF,
+                consecutive_anomaly_days=consecutive,
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        return rep.rendered_markdown
+
+    def _set_vulnerable(self) -> None:
+        self.memory_repository.upsert_profile_item(
+            L2ProfileItem(item_id="vuln-1", user_id="user-1", key="vulnerable_population", value={"value": True})
+        )
+        self.memory_repository.upsert_profile_item(
+            L2ProfileItem(item_id="ack-1", user_id="user-1", key="vulnerable_disclaimer_acknowledged", value={"value": True})
+        )
+
     def test_progressive_concern_escalation(self) -> None:
+        # Standard cadence per D046/RC1 (SOUL.md): concern from day 3, external from day 7.
         self._create_points()
-        
-        # Test standard user (non-vulnerable) daily report concern phrasing
-        # Day 1 of anomalies (NORMAL)
-        rep_normal = self.report_service.generate(
-            ReportInput(
-                report_type="daily",
-                user_id="user-1",
-                audience=ReportAudience.SELF,
-                consecutive_anomaly_days=1,
-                data_scope={
-                    "user_id": "user-1",
-                    "window_start": "2026-05-31T00:00:00+00:00",
-                    "window_end": "2026-06-01T00:00:00+00:00",
-                },
-            )
-        )
-        self.assertNotIn("你还好吗", rep_normal.rendered_markdown)
-        self.assertNotIn("跟医生聊聊", rep_normal.rendered_markdown)
+        md1 = self._daily_self_md(1)
+        self.assertNotIn("你还好吗", md1)
+        self.assertNotIn("跟医生聊聊", md1)
 
-        # Day 3 of anomalies (CONCERN)
-        rep_concern = self.report_service.generate(
-            ReportInput(
-                report_type="daily",
-                user_id="user-1",
-                audience=ReportAudience.SELF,
-                consecutive_anomaly_days=3,
-                data_scope={
-                    "user_id": "user-1",
-                    "window_start": "2026-05-31T00:00:00+00:00",
-                    "window_end": "2026-06-01T00:00:00+00:00",
-                },
-            )
-        )
-        self.assertIn("最近几天都有点波动，你还好吗？", rep_concern.rendered_markdown)
+        md3 = self._daily_self_md(3)
+        self.assertIn("最近几天都有点波动，你还好吗？", md3)
 
-        # Day 5 of anomalies (EXTERNAL_SUPPORT)
-        rep_support = self.report_service.generate(
-            ReportInput(
-                report_type="daily",
-                user_id="user-1",
-                audience=ReportAudience.SELF,
-                consecutive_anomaly_days=5,
-                data_scope={
-                    "user_id": "user-1",
-                    "window_start": "2026-05-31T00:00:00+00:00",
-                    "window_end": "2026-06-01T00:00:00+00:00",
-                },
-            )
-        )
-        self.assertIn("要不要下次复诊时跟医生聊聊？", rep_support.rendered_markdown)
+        # Day 5 is still CONCERN for standard users (external only at ~a week).
+        md5 = self._daily_self_md(5)
+        self.assertIn("最近几天都有点波动，你还好吗？", md5)
+        self.assertNotIn("跟医生聊聊", md5)
+
+        # Day 7+ -> external support.
+        md7 = self._daily_self_md(7)
+        self.assertIn("要不要下次复诊时跟医生聊聊？", md7)
 
     def test_progressive_concern_escalation_vulnerable(self) -> None:
+        # Vulnerable cadence per D046/RC1: concern from day 1, external from day 5.
         self._create_points()
-        
-        # Set vulnerable flag
-        self.memory_repository.upsert_profile_item(
-            L2ProfileItem(
-                item_id="vuln-1",
-                user_id="user-1",
-                key="vulnerable_population",
-                value={"value": True},
-            )
-        )
-        self.memory_repository.upsert_profile_item(
-            L2ProfileItem(
-                item_id="ack-1",
-                user_id="user-1",
-                key="vulnerable_disclaimer_acknowledged",
-                value={"value": True},
-            )
-        )
+        self._set_vulnerable()
 
-        # Day 1 of anomalies for vulnerable user (escalated early -> CONCERN)
-        rep_concern = self.report_service.generate(
+        md1 = self._daily_self_md(1)
+        self.assertIn("最近几天都有点波动，你还好吗？", md1)
+
+        # Day 3 is still CONCERN for vulnerable users (external only at day 5).
+        md3 = self._daily_self_md(3)
+        self.assertIn("最近几天都有点波动，你还好吗？", md3)
+        self.assertNotIn("跟医生聊聊", md3)
+
+        md5 = self._daily_self_md(5)
+        self.assertIn("要不要下次复诊时跟医生聊聊？", md5)
+
+    def test_consecutive_anomaly_days_from_analytics(self) -> None:
+        # R021/F-2: counted from CGM analytics, not from persisted push summaries.
+        now = datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)
+        for d in (9, 8, 7):  # 3 consecutive anomaly days ending today (TAR via 200 mg/dL)
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 6, d, 12, 0, tzinfo=timezone.utc),
+                    value=200,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+        # No data on 2026-06-06 -> streak stops at 3.
+        self.assertEqual(self.scheduler_service.consecutive_anomaly_days("user-1", now), 3)
+
+    def test_red_zone_suppresses_escalation_concern(self) -> None:
+        # R023/FR-009: red zone replaces sections wholesale; no escalation leakage.
+        self._create_points(values=[40, 45, 50])  # red zone (<54 mg/dL)
+        rep = self.report_service.generate(
             ReportInput(
                 report_type="daily",
                 user_id="user-1",
                 audience=ReportAudience.SELF,
-                consecutive_anomaly_days=1,
+                consecutive_anomaly_days=7,  # would be EXTERNAL_SUPPORT if not suppressed
                 data_scope={
                     "user_id": "user-1",
                     "window_start": "2026-05-31T00:00:00+00:00",
@@ -266,23 +270,9 @@ class F4CompanionNarrativeTests(unittest.TestCase):
                 },
             )
         )
-        self.assertIn("最近几天都有点波动，你还好吗？", rep_concern.rendered_markdown)
-
-        # Day 3 of anomalies for vulnerable user (escalated early -> EXTERNAL_SUPPORT)
-        rep_support = self.report_service.generate(
-            ReportInput(
-                report_type="daily",
-                user_id="user-1",
-                audience=ReportAudience.SELF,
-                consecutive_anomaly_days=3,
-                data_scope={
-                    "user_id": "user-1",
-                    "window_start": "2026-05-31T00:00:00+00:00",
-                    "window_end": "2026-06-01T00:00:00+00:00",
-                },
-            )
-        )
-        self.assertIn("要不要下次复诊时跟医生聊聊？", rep_support.rendered_markdown)
+        self.assertEqual(rep.safety_result["status"], "red_zone")
+        self.assertNotIn("你还好吗", rep.rendered_markdown)
+        self.assertNotIn("跟医生聊聊", rep.rendered_markdown)
 
     def _seed_hypothesis(self, hid: str, statement: str, state: HypothesisState, evidence_count: int = 0) -> None:
         now = datetime(2026, 6, 1, 0, 0, tzinfo=timezone.utc)

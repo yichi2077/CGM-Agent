@@ -79,21 +79,21 @@ class CGMDomainModelTests(unittest.TestCase):
         self.assertAlmostEqual(mmol_l, 6.0, places=4)
 
     def test_escalation_state_derivation(self) -> None:
-        # Standard escalation
+        # Standard escalation per D046/RC1 (SOUL.md): concern from day 3, external from day 7.
         self.assertEqual(EscalationState.derive(0), EscalationState.NORMAL)
-        self.assertEqual(EscalationState.derive(1), EscalationState.NORMAL)
         self.assertEqual(EscalationState.derive(2), EscalationState.NORMAL)
         self.assertEqual(EscalationState.derive(3), EscalationState.CONCERN)
-        self.assertEqual(EscalationState.derive(4), EscalationState.CONCERN)
-        self.assertEqual(EscalationState.derive(5), EscalationState.EXTERNAL_SUPPORT)
-        self.assertEqual(EscalationState.derive(6), EscalationState.EXTERNAL_SUPPORT)
+        self.assertEqual(EscalationState.derive(5), EscalationState.CONCERN)
+        self.assertEqual(EscalationState.derive(6), EscalationState.CONCERN)
+        self.assertEqual(EscalationState.derive(7), EscalationState.EXTERNAL_SUPPORT)
+        self.assertEqual(EscalationState.derive(8), EscalationState.EXTERNAL_SUPPORT)
 
-        # Vulnerable escalation (compressed thresholds)
+        # Vulnerable escalation per D046/RC1: concern from day 1, external from day 5.
         self.assertEqual(EscalationState.derive(0, is_vulnerable=True), EscalationState.NORMAL)
         self.assertEqual(EscalationState.derive(1, is_vulnerable=True), EscalationState.CONCERN)
-        self.assertEqual(EscalationState.derive(2, is_vulnerable=True), EscalationState.CONCERN)
-        self.assertEqual(EscalationState.derive(3, is_vulnerable=True), EscalationState.EXTERNAL_SUPPORT)
-        self.assertEqual(EscalationState.derive(4, is_vulnerable=True), EscalationState.EXTERNAL_SUPPORT)
+        self.assertEqual(EscalationState.derive(4, is_vulnerable=True), EscalationState.CONCERN)
+        self.assertEqual(EscalationState.derive(5, is_vulnerable=True), EscalationState.EXTERNAL_SUPPORT)
+        self.assertEqual(EscalationState.derive(6, is_vulnerable=True), EscalationState.EXTERNAL_SUPPORT)
 
     def test_pending_interaction_ttl(self) -> None:
         from datetime import datetime, timedelta, timezone

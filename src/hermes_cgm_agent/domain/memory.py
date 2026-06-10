@@ -50,16 +50,18 @@ class EscalationState(str, Enum):
     @classmethod
     def derive(cls, consecutive_days: int, is_vulnerable: bool = False) -> EscalationState:
         if is_vulnerable:
-            # Compressed thresholds for vulnerable users
-            if consecutive_days >= 3:
+            # D046/RC1 — vulnerable, earlier (SOUL.md "第一天/第三天/第五天"):
+            # concern from day 1, external support from day 5.
+            if consecutive_days >= 5:
                 return cls.EXTERNAL_SUPPORT
             elif consecutive_days >= 1:
                 return cls.CONCERN
             else:
                 return cls.NORMAL
         else:
-            # Standard thresholds
-            if consecutive_days >= 5:
+            # D046/RC1 — standard (SOUL.md 第一天 / 连续几天 / 一周):
+            # concern from day 3, external support from about a week (day 7).
+            if consecutive_days >= 7:
                 return cls.EXTERNAL_SUPPORT
             elif consecutive_days >= 3:
                 return cls.CONCERN
