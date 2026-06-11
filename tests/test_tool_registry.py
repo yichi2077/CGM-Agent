@@ -114,6 +114,18 @@ class ExecutorDispatchCoverageTests(unittest.TestCase):
                 f"{tool_name} -> {method_name} is not a callable handler",
             )
 
+    def test_push_tick_is_dispatch_wired(self) -> None:
+        # F5 T003 / FR-012: scheduling.push_tick must be wired in _DISPATCH and
+        # map to a real callable handler method, so Hermes cron can invoke it.
+        from hermes_cgm_agent.services.tools import ToolExecutor
+
+        self.assertIn("scheduling.push_tick", ToolExecutor._DISPATCH)
+        method_name = ToolExecutor._DISPATCH["scheduling.push_tick"]
+        self.assertTrue(
+            callable(getattr(ToolExecutor, method_name, None)),
+            f"scheduling.push_tick -> {method_name} is not a callable handler",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

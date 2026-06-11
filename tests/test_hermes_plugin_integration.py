@@ -86,6 +86,7 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_kb_approve",
                 "cgm_delivery_send",
                 "cgm_data_dexcom_sync",
+                "cgm_scheduling_push_tick",
             },
         )
         for call in collector.calls:
@@ -123,6 +124,32 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 elif stripped and not line.startswith((" ", "\t")):
                     break  # next top-level key ends the list
         self.assertEqual(declared, runtime_names)
+
+    def test_push_tick_tool_registered_and_declared(self) -> None:
+        # F5 T004 / FR-003 / FR-012: cgm_scheduling_push_tick (= "cgm_" +
+        # "scheduling.push_tick".replace(".", "_")) must appear in the runtime
+        # registration set AND be declared in plugin.yaml provides_tools.
+        collector = _ToolCollector()
+        self.cgm_plugin.register(collector)
+        runtime_names = {call["name"] for call in collector.calls}
+        self.assertIn("cgm_scheduling_push_tick", runtime_names)
+
+        manifest = (
+            PROJECT_ROOT / "integrations" / "hermes" / "cgm" / "plugin.yaml"
+        ).read_text(encoding="utf-8")
+        declared: set[str] = set()
+        in_block = False
+        for line in manifest.splitlines():
+            if line.strip().startswith("provides_tools:"):
+                in_block = True
+                continue
+            if in_block:
+                stripped = line.strip()
+                if stripped.startswith("- "):
+                    declared.add(stripped[2:].strip())
+                elif stripped and not line.startswith((" ", "\t")):
+                    break  # next top-level key ends the list
+        self.assertIn("cgm_scheduling_push_tick", declared)
 
     def test_cgm_tool_handler_executes_internal_tool_in_process(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

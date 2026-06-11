@@ -15,6 +15,7 @@ from hermes_cgm_agent.services.tools.handlers import (
     DexcomHandlerMixin,
     EventHandlerMixin,
     MemoryHandlerMixin,
+    PushTickHandlerMixin,
     RagHandlerMixin,
     ReportHandlerMixin,
     TimeseriesHandlerMixin,
@@ -35,6 +36,7 @@ class ToolExecutor(
     RagHandlerMixin,
     DeliveryHandlerMixin,
     DexcomHandlerMixin,
+    PushTickHandlerMixin,
 ):
     """Routes a tool call to its per-domain handler (defined in the handler
     mixins) and owns the shared wiring: repository, audit service, registry,
@@ -73,6 +75,7 @@ class ToolExecutor(
         "hypothesis.update": "_hypothesis_update",
         "delivery.send": "_delivery_send",
         "data.dexcom_sync": "_dexcom_sync",
+        "scheduling.push_tick": "_push_tick",
     }
 
     def execute(

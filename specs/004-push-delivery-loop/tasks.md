@@ -18,7 +18,7 @@ description: "Task list for F5 — Push Delivery Loop"
 
 ## Phase 1: Setup
 
-- [ ] T001 Record the current green test baseline (`PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests`) and note the count in `specs/004-push-delivery-loop/plan.md` (Notes) — guards SC-006 (no regressions). Expected: 374 tests.
+- [ ] T001 Record the current green test baseline (`PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests`) and note the count in `specs/004-push-delivery-loop/plan.md` (Notes) — guards SC-006 (no regressions). Expected: ≥407 tests (post-F4 baseline).
 
 ---
 
@@ -90,10 +90,10 @@ description: "Task list for F5 — Push Delivery Loop"
 
 ### Implementation
 
-- [ ] T017 [US2] Implement webhook HTTP POST in `src/hermes_cgm_agent/services/tools/handlers/delivery.py`: in the existing `_delivery_send` method, replace the `else: delivery_status = "queued"` branch for `channel == "webhook"` with: (1) read `CGM_WEBHOOK_URL` from `os.environ`; (2) if unset, return failed with message; (3) **require `https://` scheme — reject `http://`/other schemes with `failed` + clear message (analyze S1; aggregate health metrics must not go cleartext)**; (4) build delivery manifest dict; (5) apply PHI allowlist filter; (6) `urllib.request.urlopen` POST with 10s timeout, using an opener that **does NOT follow redirects** (a 30x must NOT divert the payload to another host — analyze S1); (7) 2xx → sent, else → failed. (FR-005, FR-008, FR-009, FR-011, R3)
+- [ ] T017 [US2] Implement webhook HTTP POST in `src/hermes_cgm_agent/services/tools/handlers/delivery.py`: in the existing `_delivery_send` method, replace the `else: delivery_status = "queued"` branch for `channel == "webhook"` with: (1) read `CGM_WEBHOOK_URL` from `os.environ`; (2) if unset, return failed with message; (3) **require `https://` scheme — reject `http://`/other schemes with `failed` + clear message (analyze S1; aggregate health metrics must not go cleartext)**; (4) build delivery manifest dict using `payload_ref` as the `push_id` and extracting `tier` from arguments (analyze U4); (5) apply PHI allowlist filter; (6) `urllib.request.urlopen` POST with 10s timeout, using an opener that **does NOT follow redirects** (a 30x must NOT divert the payload to another host — analyze S1); (7) 2xx → sent, else → failed. (FR-005, FR-008, FR-009, FR-011, R3)
 - [ ] T017b [US2] Add FAILING security tests in `tests/test_webhook_delivery.py` (analyze S1): (a) `CGM_WEBHOOK_URL=http://…` → `failed`, no request made; (b) endpoint returns a 302 redirect → NOT followed, treated as `failed` (no POST to the redirect target). (FR-011, SC-005)
 
-- [ ] T018 [US2] Implement PHI allowlist filter as a standalone function `_filter_webhook_payload(manifest: dict) -> dict` in `src/hermes_cgm_agent/services/tools/handlers/delivery.py`: hard-coded allowlist of permitted keys/paths; deny-by-default; strip nested objects to allowed subsets. (FR-006, FR-007, C3, R4)
+- [ ] T018 [US2] Implement PHI allowlist filter as a standalone function `_filter_webhook_payload(manifest: dict) -> dict` in `src/hermes_cgm_agent/services/tools/handlers/delivery.py`: hard-coded allowlist of permitted keys/paths matching exactly the list in `plan.md` §"PHI Protection" (`delivery_id`, `push_id`, `tier`, `period_key`, `metrics.tir_pct`, `metrics.mean_mgdl`, `metrics.gmi`, `event_summaries[].type`, `event_summaries[].count`, `delivered_at`) (analyze U3); deny-by-default; strip nested objects to allowed subsets. (FR-006, FR-007, C3, R4)
 
 - [ ] T019 [US2] Implement audit logging for webhook delivery in `src/hermes_cgm_agent/services/tools/handlers/delivery.py`: parse `delivery_url_domain` from URL via `urllib.parse.urlparse`; log `http_status_code` on success, `error_type` on failure; ensure no PHI, no full URL, no raw payload in audit. (FR-010, C4, R6)
 
@@ -109,7 +109,7 @@ description: "Task list for F5 — Push Delivery Loop"
 
 - [ ] T021 [P] Update `specs/004-push-delivery-loop/plan.md` Notes section with final test count after F5 implementation.
 
-- [ ] T022 Run the full suite (`PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests`); confirm green ≥ 374 baseline from T001 (SC-006). Record count in plan.md Notes.
+- [ ] T022 Run the full suite (`PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests`); confirm green ≥407 baseline from T001 (SC-006). Record count in plan.md Notes.
 
 - [ ] T023 Run quickstart V1–V7 end-to-end; confirm Constitution Check (plan.md) still holds. Verify blast-radius guard tests pass (ExecutorDispatchCoverageTests, plugin.yaml drift guard, plugin integration tests).
 

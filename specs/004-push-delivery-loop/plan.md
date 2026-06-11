@@ -163,8 +163,9 @@ No constitution violations — section intentionally empty.
 
 ## Notes
 
-- **Test baseline (pre-F5)**: 374 tests green. F5's green standard = 374 do not
-  regress, F5's new tests pass, and no NEW failures appear.
+- **Test baseline (pre-F5)**: **440 tests green** (measured 2026-06-11 on `main`, after F3/D047
+  committed: `PYTHONPATH=src .venv/Scripts/python.exe -m unittest discover -s tests` → `Ran 440 tests … OK`).
+  F5's green standard = these 440 do not regress, F5's new tests pass, and no NEW failures appear (SC-006).
 - **PushSchedulerService is already complete**: `services/scheduling/scheduler.py`
   implements `push_tick()`, `decide_due_tiers()`, `apply_silent_consent()`,
   `_emit()`, `_record_push()`. F5 does not modify this module.
@@ -182,3 +183,4 @@ No constitution violations — section intentionally empty.
   dotted `scheduling.push_tick` (external `cgm_scheduling_push_tick`) to match every
   other tool; plus a cron-registration doc task (FR-004) and an empty-window test.
   See spec Clarifications 2026-06-09.
+- **Analyze remediation (2026-06-10)**: (U3) Webhook payload allowlist must strictly follow the explicit list in this plan. (U4) The v1 delivery manifest dictionary should be constructed using `payload_ref` as the `push_id` and `tier` from arguments. (I3) Updated test baseline to 407.

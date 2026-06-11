@@ -18,6 +18,7 @@ from hermes_cgm_agent.services.tools.handlers.delivery import DeliveryHandlerMix
 from hermes_cgm_agent.services.tools.handlers.dexcom import DexcomHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.events import EventHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.memory import MemoryHandlerMixin
+from hermes_cgm_agent.services.tools.handlers.push_tick import PushTickHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.rag import RagHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.reports import ReportHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.timeseries import TimeseriesHandlerMixin
@@ -30,6 +31,7 @@ __all__ = [
     "DexcomHandlerMixin",
     "EventHandlerMixin",
     "MemoryHandlerMixin",
+    "PushTickHandlerMixin",
     "RagHandlerMixin",
     "ReportHandlerMixin",
     "TimeseriesHandlerMixin",

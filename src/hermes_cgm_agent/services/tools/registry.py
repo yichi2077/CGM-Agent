@@ -610,5 +610,58 @@ def build_default_tool_registry() -> ToolRegistry:
             status="active",
         )
     )
+    registry.register(
+        ToolSpec(
+            name="scheduling.push_tick",
+            group="scheduling",
+            owner_module="push_scheduler",
+            description=(
+                "Run a tiered-push scheduling tick for a user: evaluate which "
+                "digest tiers (daily/weekly/monthly) are due, generate and record "
+                "their pushes idempotently, and advance unobjected behavioral "
+                "hypotheses via silent-consent. Hermes cron drives the cadence; "
+                "the model only triggers the tick — it cannot control scheduling "
+                "policy, tier selection, content, or silent-consent logic."
+            ),
+            input_schema=_object_schema(
+                required=["user_id"],
+                properties={
+                    "user_id": {"type": "string"},
+                    "now": {
+                        "type": ["string", "null"],
+                        "format": "date-time",
+                        "description": (
+                            "Optional ISO-8601 override for the current time "
+                            "(testing/replay). Omit to use the wall clock."
+                        ),
+                    },
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "user_id": {"type": "string"},
+                    "now": {"type": "string"},
+                    "pushed": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                        "description": (
+                            "Tiers pushed this tick "
+                            "(tier/period_key/push_id/summary_id/content)."
+                        ),
+                    },
+                    "silent_consent": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                        "description": (
+                            "Hypotheses advanced candidate->observing "
+                            "(hypothesis_id/statement/to)."
+                        ),
+                    },
+                }
+            ),
+            risk_level="write",
+            status="active",
+        )
+    )
 
     return registry
