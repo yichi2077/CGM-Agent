@@ -19,6 +19,19 @@ HERMES_HOME = HERMES_REPO.parent
 sys.path.insert(0, str(HERMES_REPO))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+# Skip entire module if Hermes runtime dependencies are not available.
+# The CGM venv does not include Hermes's full dependency tree.
+# E2E tests must run with the Hermes venv:
+#   %LOCALAPPDATA%\hermes\hermes-agent\venv\Scripts\python.exe -m pytest tests/test_hermes_e2e.py -v
+try:
+    import requests  # noqa: F401 — Hermes dependency
+    import httpx  # noqa: F401 — Hermes dependency
+except ImportError as _e:
+    raise unittest.SkipTest(
+        f"Hermes runtime dependencies missing ({_e}). "
+        f"Run E2E tests with Hermes venv, not CGM venv."
+    ) from _e
+
 
 def _build_store(db_path: Path):
     from hermes_cgm_agent.storage.sqlite import SQLiteStore
