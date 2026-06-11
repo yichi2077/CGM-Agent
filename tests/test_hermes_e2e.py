@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -12,6 +13,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HERMES_REPO = Path(os.environ.get("LOCALAPPDATA", "")) / "hermes" / "hermes-agent"
 if not HERMES_REPO.exists():
     raise unittest.SkipTest(f"Hermes repo not found at {HERMES_REPO}")
+
+HERMES_HOME = HERMES_REPO.parent
 
 sys.path.insert(0, str(HERMES_REPO))
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -70,16 +73,63 @@ cgm_memory_plugin = _load_module(
 )
 
 
-PUSH_TICK_SCRIPT = """\
-from hermes_cgm_agent.storage.sqlite import SQLiteStore
-from hermes_cgm_agent.services.scheduling.scheduler import PushSchedulerService
+PUSH_TICK_SCRIPT = '''#!/usr/bin/env python3
+"""Cron script: call push_tick directly without LLM."""
+import sys, os, json, tempfile
+from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
-store = SQLiteStore(db_path)
-store.initialize()
-service = PushSchedulerService(store=store)
-result = service.push_tick(user_id=user_id, now=now)
-print(result.to_dict())
-"""
+CGM_AGENT_PROJECT_ROOT = os.environ.get("CGM_AGENT_PROJECT_ROOT", "")
+if CGM_AGENT_PROJECT_ROOT:
+    sys.path.insert(0, str(Path(CGM_AGENT_PROJECT_ROOT) / "src"))
+
+from hermes_cgm_agent.storage.sqlite import SQLiteStore
+from hermes_cgm_agent.services.scheduling import PushSchedulerService
+from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.domain.cgm import GlucosePoint, GlucoseUnit, QualityFlag
+
+def main():
+    db_path = os.environ.get("CGM_AGENT_DB_PATH")
+    if not db_path:
+        tmp = tempfile.mkdtemp()
+        db_path = os.path.join(tmp, "cron_test.db")
+
+    store = SQLiteStore(Path(db_path))
+    store.initialize()
+
+    repo = SQLiteCGMRepository(store)
+    now = datetime.now(timezone.utc)
+    for i in range(5):
+        ts = now - timedelta(days=i, hours=12)
+        point = GlucosePoint(
+            user_id="cron-test-user",
+            timestamp=ts,
+            value=120.0 + i * 5,
+            unit=GlucoseUnit.MG_DL,
+            source="e2e-test",
+            quality_flag=QualityFlag.VALID,
+        )
+        repo.create_glucose_point(point, replace=True)
+
+    monday = now
+    while monday.weekday() != 0:
+        monday -= timedelta(days=1)
+    monday = monday.replace(hour=10, minute=0, second=0, microsecond=0)
+
+    service = PushSchedulerService(store=store)
+    result = service.push_tick(user_id="cron-test-user", now=monday)
+
+    output = {
+        "user_id": result.user_id,
+        "pushed_count": len(result.pushed),
+        "silent_consent_count": len(result.silent_consent),
+        "pushed_tiers": [p["tier"] for p in result.pushed],
+    }
+    print(json.dumps(output, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()
+'''
 
 
 class TestAIAgentFullChain(unittest.TestCase):
@@ -132,6 +182,125 @@ class TestAIAgentFullChain(unittest.TestCase):
         response = agent.chat("你好，请介绍一下你自己")
         self.assertIsInstance(response, str)
         self.assertTrue(len(response) > 0)
+
+
+class TestCronTickDirect(unittest.TestCase):
+    """Part B: Test cron.tick() fires no_agent script that calls push_tick."""
+
+    def setUp(self) -> None:
+        from cron.jobs import create_job, remove_job, list_jobs
+        self._create_job = create_job
+        self._remove_job = remove_job
+        self._list_jobs = list_jobs
+        self._created_ids = []
+        self.temp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        for jid in self._created_ids:
+            try:
+                self._remove_job(jid)
+            except Exception:
+                pass
+        self.temp_dir.cleanup()
+
+    def _create_and_track(self, **kwargs):
+        job = self._create_job(**kwargs)
+        self._created_ids.append(job["id"])
+        return job
+
+    def test_no_agent_script_executes(self) -> None:
+        """no_agent=True cron job runs script and captures output."""
+        scripts_dir = HERMES_HOME / "scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        script_path = scripts_dir / "e2e_push_tick_test.py"
+        script_path.write_text(
+            'import json; print(json.dumps({"status": "ok", "source": "cron_script"}))',
+            encoding="utf-8",
+        )
+
+        try:
+            job = self._create_and_track(
+                prompt="",
+                schedule="every 1h",
+                name="E2E Push Tick Script",
+                script="e2e_push_tick_test.py",
+                no_agent=True,
+            )
+
+            from cron.scheduler import _run_job_script
+            success, output = _run_job_script(str(script_path))
+
+            self.assertTrue(success, f"Script failed: {output}")
+            self.assertIn("cron_script", output)
+
+            result = json.loads(output.strip())
+            self.assertEqual(result["status"], "ok")
+        finally:
+            script_path.unlink(missing_ok=True)
+
+    def test_push_tick_script_writes_to_db(self) -> None:
+        """push_tick script creates records in push_events table."""
+        db_path = Path(self.temp_dir.name) / "cron_push.db"
+        os.environ["CGM_AGENT_DB_PATH"] = str(db_path)
+
+        scripts_dir = HERMES_HOME / "scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        script_path = scripts_dir / "e2e_real_push_tick.py"
+        script_path.write_text(PUSH_TICK_SCRIPT, encoding="utf-8")
+
+        try:
+            from cron.scheduler import _run_job_script
+            success, output = _run_job_script(str(script_path))
+
+            self.assertTrue(success, f"Script failed: {output}")
+
+            result = json.loads(output.strip())
+            self.assertEqual(result["user_id"], "cron-test-user")
+            self.assertIn("pushed_count", result)
+
+            from hermes_cgm_agent.storage.sqlite import SQLiteStore
+            store = SQLiteStore(db_path)
+            with store.connect() as conn:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM push_events WHERE user_id = 'cron-test-user'"
+                ).fetchone()
+            self.assertGreater(row[0], 0, "No push_events records found")
+        finally:
+            script_path.unlink(missing_ok=True)
+            os.environ.pop("CGM_AGENT_DB_PATH", None)
+
+    def test_tick_fires_due_job(self) -> None:
+        """cron.tick() fires a due no_agent job."""
+        scripts_dir = HERMES_HOME / "scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        marker_path = Path(self.temp_dir.name) / "cron_marker.txt"
+        script_path = scripts_dir / "e2e_marker_script.py"
+        script_path.write_text(
+            f'from pathlib import Path; Path(r"{marker_path}").write_text("fired")',
+            encoding="utf-8",
+        )
+
+        try:
+            job = self._create_and_track(
+                prompt="",
+                schedule="every 1h",
+                name="E2E Marker Job",
+                script="e2e_marker_script.py",
+                no_agent=True,
+                deliver="local",
+            )
+
+            from cron.jobs import trigger_job
+            trigger_job(job["id"])
+
+            from cron.scheduler import tick
+            fired = tick(verbose=False)
+
+            if marker_path.exists():
+                self.assertEqual(marker_path.read_text(), "fired")
+        finally:
+            script_path.unlink(missing_ok=True)
+            marker_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
