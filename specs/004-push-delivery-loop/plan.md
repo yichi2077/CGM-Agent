@@ -166,6 +166,10 @@ No constitution violations — section intentionally empty.
 - **Test baseline (pre-F5)**: **440 tests green** (measured 2026-06-11 on `main`, after F3/D047
   committed: `PYTHONPATH=src .venv/Scripts/python.exe -m unittest discover -s tests` → `Ran 440 tests … OK`).
   F5's green standard = these 440 do not regress, F5's new tests pass, and no NEW failures appear (SC-006).
+- **Test count (post-F5)**: **464 tests green** (+24 from F5 — Foundational 5, US1 5, US2 14),
+  measured 2026-06-11 and verified stable across 5 consecutive full-suite runs (SC-006: no
+  regressions). A repo-existing `test_hermes_e2e` module-skips when run under the CGM venv
+  (httpx/Hermes-venv guard, not an F5 test) → `Ran 465 tests … OK (skipped=1)`.
 - **PushSchedulerService is already complete**: `services/scheduling/scheduler.py`
   implements `push_tick()`, `decide_due_tiers()`, `apply_silent_consent()`,
   `_emit()`, `_record_push()`. F5 does not modify this module.

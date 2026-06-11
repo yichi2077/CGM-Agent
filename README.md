@@ -184,6 +184,22 @@ python -m hermes_cgm_agent push-tick --user-id user-1
 python -m hermes_cgm_agent memory-synthesize --user-id user-1 --window-start 2026-05-31T00:00:00+00:00 --window-end 2026-06-01T00:00:00+00:00 --period daily
 ```
 
+**Hermes cron 注册（主动推送节奏 / F5 D1）**
+
+主动推送的**节奏（cadence）由 Hermes cron 驱动**，能力层只拥有策略/内容/状态（决定哪个 tier 到期、生成什么、幂等记录）。`push-tick` 已工具化为 `cgm_scheduling_push_tick`（= `cgm_` + `scheduling.push_tick`.replace(".","_")）；在 Hermes 侧把它注册为每日定时任务即可闭环主动推送——本层**不**驻留调度进程（符合 `AGENTS.md` 的 Hermes 边界 + 宪法原则 VII）：
+
+```yaml
+# Hermes cron 条目（示意）：每日 09:00 Asia/Shanghai 触发一次 push_tick
+- name: cgm-daily-push
+  schedule: "0 9 * * *"            # 标准 cron 表达式
+  timezone: "Asia/Shanghai"
+  tool: cgm_scheduling_push_tick    # 调度策略/内容/静默即认可均在能力层内部完成
+  arguments:
+    user_id: "user-1"              # 仅此二参；可选 now 覆盖仅用于测试/回放
+```
+
+模型 / cron 只**触发** tick；分层选择、内容生成、静默即认可均在 `PushSchedulerService` 内，外部无法干预。幂等由 `push_events` UNIQUE 约束兜底——同一 `(user, tier, period)` 被重复触发不会重复推送。
+
 ### 数据库路径合并迁移
 将老旧本地开发数据库与密钥同步迁移合并到官方规范的 Hermes Home 存储路径下：
 ```bash
