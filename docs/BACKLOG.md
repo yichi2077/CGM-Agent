@@ -38,9 +38,9 @@
 ### B. 医学安全与可信（→ F3）
 | # | 条目 | 状态 | 说明 |
 |---|---|---|---|
-| B1 | verify_quotes 硬校验 | `OPEN` | 当前仅 SKILL 软约束 + 工具存在；把"医学数字必须有来源"做成代码硬门 |
-| B2 | KB 临床签核流程 + `kb.approve` | `OPEN`（外部依赖） | 578 卡全 `verified=false`；建签核流程，核心 ~100 卡先 `verified=true` |
-| B3 | 红区恢复二次确认 / 三区规则补全 | `VERIFY` | router 三区已有；核实"红区后 2h 恢复需二次确认"等 PRD §2.3 细则是否落地 |
+| B1 | verify_quotes 硬校验 | `CLOSED`（F3/D047） | citation guard 在报告交付闸强制 `strict=True`（`builder.py:_apply_citation_gate`），未支撑数字阻断交付返回"无法确认"persona 文案；仅作用于外部医学叙事，不碰确定性指标段 |
+| B2 | KB 临床签核流程 + `kb.approve` | `PARTIAL`（F3/D047，工具就绪待临床审核者） | `kb.approve`（限 curated + reviewer provenance + 幂等 + 写回 KB）+ `assert_kb_readonly` 收紧已上线；本轮**零卡核验**（无临床审核者，KNOWN GAP） |
+| B3 | 红区恢复二次确认 / 三区规则补全 | `CLOSED`（F3/D047） | `SafetyRouter` 有状态化，红区后 2h 窗口内比对存档原始红区 vs 当前，附 `recovery_check` 渲染进报告头；env 可覆盖窗口 |
 
 ### C. 产品叙事与交互（→ F4）
 | # | 条目 | 状态 | 说明 |

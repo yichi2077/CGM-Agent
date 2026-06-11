@@ -516,6 +516,39 @@ def build_default_tool_registry() -> ToolRegistry:
     )
     registry.register(
         ToolSpec(
+            name="kb.approve",
+            group="rag",
+            owner_module="rag",
+            description=(
+                "Record clinical sign-off on a curated knowledge card: set "
+                "verified=true with reviewer + reviewed_at provenance. Restricted "
+                "to tier=curated cards; this is the ONLY sanctioned KB write path."
+            ),
+            input_schema=_object_schema(
+                required=["card_id", "reviewer"],
+                properties={
+                    "card_id": {"type": "string", "minLength": 1},
+                    "reviewer": {"type": "string", "minLength": 1},
+                    "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "approval_id": {"type": "string"},
+                    "card_id": {"type": "string"},
+                    "verified": {"type": "boolean"},
+                    "reviewer": {"type": ["string", "null"]},
+                    "reviewed_at": {"type": ["string", "null"]},
+                    "tier": {"type": "string"},
+                }
+            ),
+            risk_level="sensitive",
+            evidence_required=False,
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
             name="data.dexcom_sync",
             group="data",
             owner_module="dexcom_sync",

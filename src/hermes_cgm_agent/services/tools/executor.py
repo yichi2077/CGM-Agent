@@ -69,6 +69,7 @@ class ToolExecutor(
         "memory.correct": "_memory_correct",
         "rag.authoritative_search": "_rag_search",
         "rag.verify_quotes": "_verify_quotes",
+        "kb.approve": "_kb_approve",
         "hypothesis.update": "_hypothesis_update",
         "delivery.send": "_delivery_send",
         "data.dexcom_sync": "_dexcom_sync",

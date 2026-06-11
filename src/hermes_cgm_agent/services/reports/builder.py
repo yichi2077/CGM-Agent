@@ -4,6 +4,7 @@ import hashlib
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from collections import Counter
@@ -37,13 +38,13 @@ from hermes_cgm_agent.services.analytics import (
     GlucoseEventDetector,
 )
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
-from hermes_cgm_agent.services.reports.renderer import render_markdown
+from hermes_cgm_agent.services.reports.renderer import CITATION_BLOCK_TEMPLATE, render_markdown
 from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
 from hermes_cgm_agent.services.reports.narrative_templates import (
     translate_metric,
     render_hypothesis_narrative,
 )
-from hermes_cgm_agent.services.safety import SafetyRouter
+from hermes_cgm_agent.services.safety import SafetyRouter, assert_authoritative_quotes
 
 
 REPORT_WINDOW_DAYS = {
@@ -69,12 +70,16 @@ class ReportService:
         analytics_service: CGMAnalyticsService | None = None,
         event_detector: GlucoseEventDetector | None = None,
         safety_router: SafetyRouter | None = None,
+        audit_logger: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         self.cgm_repository = cgm_repository
         self.report_repository = report_repository
         self.analytics_service = analytics_service or CGMAnalyticsService()
         self.event_detector = event_detector or GlucoseEventDetector()
         self.safety_router = safety_router or SafetyRouter()
+        # F3-B1: optional sink for citation-guard violations. The audit payload
+        # carries counts only — never claim text, glucose values, or narrative.
+        self.audit_logger = audit_logger
         from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository
         self.memory_repository = SQLiteMemoryRepository(self.cgm_repository.store)
 
@@ -175,6 +180,11 @@ class ReportService:
                 sections[0] = sections[0].model_copy(
                     update={"content": alert_prefix + "\n\n" + sections[0].content}
                 )
+        # F3-B3 (US3): carry the recovery double-check into the report so the
+        # renderer can surface it in the header (analyze L1: only when present).
+        safety_result_payload = dict(safety_decision.safety_result)
+        if safety_decision.recovery_check is not None:
+            safety_result_payload["recovery_check"] = safety_decision.recovery_check
         candidates = [
             candidate
             for section in sections
@@ -203,7 +213,7 @@ class ReportService:
                 "authoritative_context": _context_version(report_input.authoritative_context),
             },
             route=safety_decision.route,
-            safety_result=safety_decision.safety_result,
+            safety_result=safety_result_payload,
         )
         
         if safety_decision.safety_result["status"] == "red_zone":
@@ -217,9 +227,55 @@ class ReportService:
                 report.rendered_markdown = self.render_clinical(report)
             else:
                 report.rendered_markdown = self.render_companion(report)
-                
+            # F3-B1 (US1, C4): mandatory strict citation gate on the medical-claim
+            # narrative before delivery. Runs only on the normal narrative path —
+            # red-zone / disclaimer already replaced content wholesale (Principle
+            # III), and the deterministic metric sections are never guarded
+            # (analyze I2/I3/U1).
+            self._apply_citation_gate(report_input, report)
+
         report.output_hash = _output_hash(report.rendered_markdown)
         return self.report_repository.create_report(report)
+
+    def _apply_citation_gate(self, report_input: ReportInput, report: Report) -> None:
+        """Block delivery if the medical-claim narrative has an unbacked number.
+
+        The guarded text is the externally-generated ``medical_narrative`` only;
+        the backing set is the retrieved authoritative cards (regardless of
+        ``verified`` this cycle — analyze I2). On failure the report is replaced
+        with the persona "cannot confirm" response and a content-free violation
+        is logged (analyze C1/C4).
+        """
+        narrative = (report_input.medical_narrative or "").strip()
+        if not narrative:
+            return
+        documents = [
+            {"text": doc.text} for doc in report_input.authoritative_context.documents
+        ]
+        # Correct positional order: documents FIRST, then generated_text (analyze
+        # C1 — the prior draft swapped them, silently no-op'ing the guard).
+        result = assert_authoritative_quotes(documents, narrative, strict=True)
+        if result.ok:
+            report.rendered_markdown = (
+                report.rendered_markdown.rstrip() + "\n\n## 医学参考\n\n" + narrative + "\n"
+            )
+            return
+        report.rendered_markdown = CITATION_BLOCK_TEMPLATE
+        report.route = "reports.generate.citation_blocked"
+        report.safety_result = {
+            "status": "citation_blocked",
+            "violation_count": len(result.violations),
+        }
+        if self.audit_logger is not None:
+            self.audit_logger(
+                "citation_guard_blocked",
+                {
+                    "report_id": report.report_id,
+                    "user_id": report.user_id,
+                    "violation_count": len(result.violations),
+                    "mode": result.mode,
+                },
+            )
 
     def render_clinical(self, report: Report) -> str:
         return render_markdown(report)

@@ -51,9 +51,28 @@ def assert_track_isolation(
             )
 
 
-def assert_kb_readonly(rag_service: Any) -> None:
-    """The medical KB must expose no mutation API (personal can never write it)."""
-    for attr in ("add", "write", "insert", "upsert", "update", "delete", "save"):
+# Denylist of write method names that may never appear on the authoritative KB
+# service. ``approve`` is included (F3-B2, analyze I1) so the single sanctioned
+# clinical sign-off path is caught by default and can only be exempted via an
+# explicit ``allow_methods`` allowlist — never silently bypass the guard.
+_KB_MUTATORS = frozenset(
+    {"add", "write", "insert", "upsert", "update", "delete", "save", "approve"}
+)
+
+
+def assert_kb_readonly(
+    rag_service: Any, allow_methods: frozenset[str] | set[str] = frozenset()
+) -> None:
+    """The medical KB must expose no mutation API (personal can never write it).
+
+    ``allow_methods`` exempts the named methods from the denylist. The only
+    sanctioned use is ``AuthoritativeRAGService`` exempting ``approve`` (the
+    clinical sign-off write path, F3-B2/G1); every other mutator stays blocked
+    even when an allowlist is supplied.
+    """
+    for attr in _KB_MUTATORS:
+        if attr in allow_methods:
+            continue
         if hasattr(rag_service, attr):
             raise MemoryTrackViolation(
                 f"authoritative KB must be read-only; found mutator '{attr}'"

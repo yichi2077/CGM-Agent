@@ -1,11 +1,14 @@
 """Tests for the three-zone safety router."""
 from __future__ import annotations
 
+import os
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 from hermes_cgm_agent.domain import DataScope, EvidenceKind, GlucosePoint, GlucoseUnit, QualityFlag
 from hermes_cgm_agent.services.safety.router import (
+    RECOVERY_WINDOW_SECONDS,
     RED_ZONE_HIGH_MGDL,
     RED_ZONE_LOW_MGDL,
     YELLOW_ZONE_HIGH_MGDL,
@@ -141,6 +144,122 @@ class RedZoneTests(unittest.TestCase):
         points = [_point(v) for v in [40, 42, 44, 46, 48, 50, 52]]
         decision = SafetyRouter().evaluate(scope=_scope(), points=points)
         self.assertEqual(len(decision.evidence_refs), 5)
+
+
+class RecoveryDoubleCheckTests(unittest.TestCase):
+    """F3-B3 / US3 (analyze D1): a red-zone event arms a recovery double-check.
+
+    A LATER evaluation within the 2-hour window compares the STORED original red
+    result against the CURRENT result — it never re-evaluates the same data and
+    never recurses into ``evaluate()``.
+    """
+
+    def setUp(self) -> None:
+        self.router = SafetyRouter()
+        self.t0 = datetime(2026, 6, 6, 12, 0, tzinfo=UTC)
+
+    def test_recovery_confirmed_when_green_after_red_in_window(self) -> None:
+        self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+        later = self.router.evaluate(
+            scope=_scope(), points=[_point(100)], now=self.t0 + timedelta(hours=1)
+        )
+        self.assertIsNotNone(later.recovery_check)
+        self.assertEqual(later.recovery_check["original"]["status"], "red_zone")
+        self.assertEqual(later.recovery_check["recovery"]["status"], "clear")
+        self.assertTrue(later.recovery_check["recovery_confirmed"])
+        self.assertTrue(later.recovery_check["active"])
+
+    def test_no_recovery_after_window_expires_and_state_cleared(self) -> None:
+        self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+        later = self.router.evaluate(
+            scope=_scope(),
+            points=[_point(100)],
+            now=self.t0 + timedelta(seconds=RECOVERY_WINDOW_SECONDS + 1),
+        )
+        self.assertIsNone(later.recovery_check)
+        # State was cleared: a further green eval still has no recovery check.
+        again = self.router.evaluate(
+            scope=_scope(),
+            points=[_point(100)],
+            now=self.t0 + timedelta(seconds=RECOVERY_WINDOW_SECONDS + 2),
+        )
+        self.assertIsNone(again.recovery_check)
+
+    def test_green_without_prior_red_has_no_recovery(self) -> None:
+        decision = self.router.evaluate(scope=_scope(), points=[_point(100)], now=self.t0)
+        self.assertIsNone(decision.recovery_check)
+
+    def test_recovery_not_confirmed_when_still_red(self) -> None:
+        self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+        later = self.router.evaluate(
+            scope=_scope(), points=[_point(40)], now=self.t0 + timedelta(hours=1)
+        )
+        self.assertIsNotNone(later.recovery_check)
+        self.assertFalse(later.recovery_check["recovery_confirmed"])
+
+    def test_original_equals_stored_t0_red_not_a_reeval(self) -> None:
+        self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+        later = self.router.evaluate(
+            scope=_scope(), points=[_point(100)], now=self.t0 + timedelta(hours=1)
+        )
+        self.assertEqual(later.recovery_check["original"]["min_value_mgdl"], 40.0)
+
+    def test_window_boundary_exactly_at_limit_is_expired(self) -> None:
+        self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+        later = self.router.evaluate(
+            scope=_scope(),
+            points=[_point(100)],
+            now=self.t0 + timedelta(seconds=RECOVERY_WINDOW_SECONDS),
+        )
+        self.assertIsNone(later.recovery_check)
+
+    def test_env_override_changes_window(self) -> None:
+        with mock.patch.dict(os.environ, {"CGM_AGENT_RECOVERY_WINDOW_SECONDS": "60"}):
+            self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+            expired = self.router.evaluate(
+                scope=_scope(), points=[_point(100)], now=self.t0 + timedelta(seconds=61)
+            )
+            self.assertIsNone(expired.recovery_check)
+            self.router.evaluate(
+                scope=_scope(), points=[_point(40)], now=self.t0 + timedelta(minutes=10)
+            )
+            within = self.router.evaluate(
+                scope=_scope(),
+                points=[_point(100)],
+                now=self.t0 + timedelta(minutes=10, seconds=30),
+            )
+            self.assertIsNotNone(within.recovery_check)
+
+    def test_evaluation_does_not_recurse(self) -> None:
+        # The inner zone re-eval is non-recursive: exactly one red-zone state
+        # entry is recorded per user (no runaway / double tracking).
+        self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+        self.assertEqual(len(self.router._last_red_zone), 1)
+
+    def test_internal_red_zone_state_is_not_serialized(self) -> None:
+        # SEC-004 / T021: the router's private last-red-zone timestamp state must
+        # never leak into a serialized SafetyDecision (no raw datetimes, no
+        # internal dict name).
+        from dataclasses import asdict
+        from datetime import datetime as _dt
+
+        self.router.evaluate(scope=_scope(), points=[_point(40)], now=self.t0)
+        later = self.router.evaluate(
+            scope=_scope(), points=[_point(100)], now=self.t0 + timedelta(hours=1)
+        )
+        blob = asdict(later)
+        self.assertNotIn("_last_red_zone", blob)
+
+        def _no_datetime(obj: object) -> bool:
+            if isinstance(obj, _dt):
+                return False
+            if isinstance(obj, dict):
+                return all(_no_datetime(v) for v in obj.values())
+            if isinstance(obj, (list, tuple)):
+                return all(_no_datetime(v) for v in obj)
+            return True
+
+        self.assertTrue(_no_datetime(blob))
 
 
 if __name__ == "__main__":

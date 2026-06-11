@@ -83,6 +83,7 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_hypothesis_update",
                 "cgm_rag_authoritative_search",
                 "cgm_rag_verify_quotes",
+                "cgm_kb_approve",
                 "cgm_delivery_send",
                 "cgm_data_dexcom_sync",
             },

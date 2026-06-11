@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from hermes_cgm_agent.services.rag import AuthoritativeRAGToolService
@@ -47,6 +48,49 @@ class RagHandlerMixin(BaseToolHandler):
             evidence_refs=result.evidence_refs,
             audit_id=audit_id,
             payload=result.payload,
+        )
+
+    def _kb_approve(
+        self,
+        *,
+        arguments: dict[str, Any],
+        session_id: str,
+    ) -> ToolExecutionResponse:
+        spec = self.registry.get("kb.approve")
+        try:
+            if self._rag_tool_service is None:
+                self._rag_tool_service = AuthoritativeRAGToolService()
+            result = self._rag_tool_service.approve(arguments)
+        except (KeyError, TypeError, ValueError) as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope=None,
+                message=str(exc),
+            )
+        approval_id = uuid.uuid4().hex
+        # Audit records the sign-off provenance only — never claim text (FR-013 /
+        # SEC-003): card_id + reviewer + verified flag, no card body.
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": None,
+                "risk_level": spec.risk_level,
+                "approval_id": approval_id,
+                "card_id": result["card_id"],
+                "reviewer": result["reviewer"],
+                "verified": result["verified"],
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=[],
+            audit_id=audit_id,
+            payload={"approval_id": approval_id, **result},
         )
 
     def _verify_quotes(

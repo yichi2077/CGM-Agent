@@ -1,0 +1,593 @@
+# KB Verify Triage (2026-06-10) — READ-ONLY, no KB changes applied
+
+- Source: authoritative_kb.json (kb_version=kb-2026-06-auto-v2), 578 cards
+
+## Summary
+
+- keep: 577
+- reject:threshold_no_number: 1
+- **KEEP (survivors): 577**, REJECT: 1
+
+## REJECT list (card_id | tier | reason | snippet)
+
+- `cgm-compression-low-artifact` | curated | reject:threshold_no_number — threshold claim missing numeric value | 压迫性低值(compression low)是传感器受压(如睡眠时压住佩戴部位)导致的短暂假性低血糖读数,并非真实低血糖
+
+## KEEP list (survivors — candidates for verified=true with provenance)
+
+- `battelino-2019-tir-adults` | curated | 对多数 1 型或 2 型糖尿病成人:目标范围内时间(TIR,70–180 mg/dL / 3.9–10.0 mmol/L
+- `battelino-2019-tir-older-highrisk` | curated | 对老年或高危糖尿病成人(以避免低血糖为优先):目标范围内时间(TIR,70–180 mg/dL)目标 >50%;低于范围
+- `battelino-2019-tir-pregnancy-t1d` | curated | 妊娠合并 1 型糖尿病:目标范围采用 63–140 mg/dL(3.5–7.8 mmol/L),TIR 目标 >70%;
+- `battelino-2019-cv-gmi` | curated | 血糖变异性以变异系数(%CV)衡量,目标 ≤36%(更低更稳定)。GMI(血糖管理指标)由平均血糖推算,用于估计糖化血红
+- `ada-2025-hypoglycemia-levels` | curated | 低血糖分级:1 级 54–70 mg/dL(3.0–3.9 mmol/L);2 级 <54 mg/dL(<3.0 mmo
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tir-general-pct` | auto | 成人1型或2型糖尿病患者，目标范围内时间（TIR，70–180 mg/dL）目标为>70%的读数，即每天>16小时48分
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tir-elderly-pct` | auto | 老年或高危1型/2型糖尿病患者，目标范围内时间（TIR，70–180 mg/dL）目标为>50%的读数，即每天>12小时
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l1-general-pct` | auto | 成人1型或2型糖尿病患者，1级低血糖（<70 mg/dL）目标为<4%的读数，即每天<1小时。
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l1-elderly-pct` | auto | 老年或高危1型/2型糖尿病患者，1级低血糖（<70 mg/dL）目标为<1%的读数，即每天<15分钟。
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l2-general-pct` | auto | 成人1型或2型糖尿病患者，2级低血糖（<54 mg/dL）目标为<1%的读数，即每天<15分钟。
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tbr-l2-elderly-pct` | auto | 老年或高危1型/2型糖尿病患者，2级低血糖（<54 mg/dL）目标为0%的读数，即每天0分钟。
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l1-general-pct` | auto | 成人1型或2型糖尿病患者，1级高血糖（>180 mg/dL）目标为<25%的读数，即每天<6小时。
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l1-elderly-pct` | auto | 老年或高危1型/2型糖尿病患者，1级高血糖（>180 mg/dL）目标为<50%的读数，即每天<12小时。
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l2-general-pct` | auto | 成人1型或2型糖尿病患者，2级高血糖（>250 mg/dL）目标为<5%的读数，即每天<1小时12分钟。
+- `auto-aace-2024-hypo-p1-aace-2024-hypo-p001-tar-l2-elderly-pct` | auto | 老年或高危1型/2型糖尿病患者，2级高血糖（>250 mg/dL）目标为<10%的读数，即每天<2小时24分钟。
+- `auto-ada-2025-updates-p2-ada2025-p02-001` | auto | 非妊娠个体糖尿病诊断标准：A1C ≥ 6.5%（≥ 48 mmol/mol）。通常需要同一检测两次异常结果或两项不同检测
+- `auto-ada-2025-updates-p2-ada2025-p02-002` | auto | 非妊娠个体糖尿病诊断标准：空腹血浆葡萄糖（FPG）≥ 126 mg/dL（≥ 7.0 mmol/L），空腹定义为 ≥ 8
+- `auto-ada-2025-updates-p2-ada2025-p02-003` | auto | 非妊娠个体糖尿病诊断标准：口服葡萄糖耐量试验（OGTT，75g无水葡萄糖负荷）2小时血浆葡萄糖 ≥ 200 mg/dL（
+- `auto-ada-2025-updates-p2-ada2025-p02-004` | auto | 非妊娠个体糖尿病诊断标准：经典高血糖症状或高血糖危象 + 随机血浆葡萄糖 ≥ 200 mg/dL（≥ 11.1 mmol
+- `auto-ada-2025-updates-p2-ada2025-p02-005` | auto | 对有外周动脉疾病（PAD）风险的无症状人群或糖尿病病程 > 10 年且心血管风险高的患者，使用踝肱指数筛查PAD。
+- `auto-ada-2025-updates-p2-ada2025-p02-006` | auto | Teplizumab-mzwv输注可用于延缓 ≥ 8 岁2期1型糖尿病患者的1型糖尿病发病。新增强调：对有家族史或遗传风
+- `auto-ada-2025-updates-p2-ada2025-p02-008` | auto | 对经活检证实的MASH（代谢功能障碍相关脂肪性肝炎）成人患者或纤维化高风险者，使用吡格列酮/GLP-1受体激动剂联合治疗
+- `auto-ada-2025-updates-p3-ada2025-p03-screening-age` | auto | 所有成年人应从35岁开始筛查糖尿病。
+- `auto-ada-2025-updates-p3-ada2025-p03-screening-overweight-risk` | auto | 所有超重/肥胖成人（BMI > 25 kg/m²）伴有危险因素（家族史、高风险种族、ASCVD、高血压、高脂血症、PCO
+- `auto-ada-2025-updates-p3-ada2025-p03-screening-normal-rescreen` | auto | 若筛查结果正常，每3年重新筛查。
+- `auto-ada-2025-updates-p3-ada2025-p03-screening-predm-annual` | auto | 若处于糖尿病前期水平（A1C 5.7–6.4%），每年复查。
+- `auto-ada-2025-updates-p3-ada2025-p03-screening-youth` | auto | 筛查所有超重且伴有1个或以上额外危险因素的青少年。
+- `auto-ada-2025-updates-p3-ada2025-p03-screening-medications` | auto | 对使用具有高血糖风险药物的人群进行筛查：糖皮质激素、他汀类、噻嗪类、HIV药物（基线及每3-6个月）、第二代抗精神病药（
+- `auto-ada-2025-updates-p3-ada2025-p03-sleep-new` | auto | 睡眠被强调为糖尿病预防管理的核心组成部分（与饮食模式和体力活动同等重要）。
+- `auto-ada-2025-updates-p3-ada2025-p03-prevention-weight-loss` | auto | 护理目标包括减轻体重3–7%或防止体重增加，并关注心血管风险。
+- `auto-ada-2025-updates-p3-ada2025-p03-intensive-goals` | auto | 若BMI > 35 kg/m²、A1C > 6%或有GDM病史，推荐强化目标。
+- `auto-ada-2025-updates-p3-ada2025-p03-vitamind-new` | auto | 讨论使用维生素D预防2型糖尿病（由美国内分泌学会倡导）。剂量尚不明确，需更多研究。
+- `auto-ada-2025-updates-p3-ada2025-p03-metformin-prevention` | auto | 考虑对25-59岁、BMI ≥ 35 kg/m²、空腹血糖 > 110 mg/dL、A1C > 6%或有GDM病史的女性
+- `auto-ada-2025-updates-p3-ada2025-p03-pioglitazone-stroke` | auto | 推荐吡格列酮降低有卒中病史且处于糖尿病前期人群的卒中/心梗风险，需权衡体重增加、水肿和骨折风险（使用较低剂量）。
+- `auto-ada-2025-updates-p3-ada2025-p03-immunization-update` | auto | 表4.3包括考虑接种：COVID-19、乙型肝炎、流感、肺炎球菌、RSV、Tdap、带状疱疹疫苗。
+- `auto-ada-2025-updates-p3-ada2025-p03-bmd-testing` | auto | 初始骨密度检测：所有老年人（≥65岁）及有多个危险因素的较年轻人群。每2-3年复查。
+- `auto-ada-2025-updates-p3-ada2025-p03-calcium-intake` | auto | 推荐钙摄入量1000-1200 mg/天，同时补充维生素D，用于有骨病风险的糖尿病患者。
+- `auto-ada-2025-updates-p3-ada2025-p03-fracture-high-risk` | auto | 高骨折风险定义为：FRAX风险评估工具评分≥3%（髋部）或≥20%（骨质疏松性骨折）、骨密度T值≤2、或有骨折史（髋/骨
+- `auto-ada-2025-updates-p3-ada2025-p03-dental-care-new` | auto | 糖尿病患者每年至少进行一次牙科检查。
+- `auto-ada-2025-updates-p3-ada2025-p03-liver-masld-new` | auto | 非酒精性脂肪肝病（NAFLD）现更名为代谢功能障碍相关脂肪性肝病（MASLD）。
+- `auto-ada-2025-updates-p3-ada2025-p03-liver-mash-new` | auto | 非酒精性脂肪性肝炎（NASH）现更名为代谢功能障碍相关脂肪性肝炎（MASH）。
+- `auto-ada-2025-updates-p4-ada2025-p04-001` | auto | 使用纤维化-4指数(FIB-4)评估肝脏风险；FIB-4 > 1.3时转诊至消化科或肝病专家。
+- `auto-ada-2025-updates-p4-ada2025-p04-002` | auto | 新增MASLD治疗算法：通过减重和有循证证据的药物管理，包括GLP-1受体激动剂、双重GLP/GIP激动剂和吡格列酮。
+- `auto-ada-2025-updates-p4-ada2025-p04-003` | auto | 新增：甲状腺激素受体β激动剂(Resmetirom)用于合并糖尿病前期、2型糖尿病和中度或重度肝纤维化的MASLD成人患
+- `auto-ada-2025-updates-p4-ada2025-p04-004` | auto | 2024更新：所有糖尿病患者应在至少5个关键时间点接受糖尿病自我管理教育与支持(DSMES)：诊断时、每年、未达标/出现
+- `auto-ada-2025-updates-p4-ada2025-p04-005` | auto | 减重目标：基于营养、体力活动和行为治疗，减重3-7%。
+- `auto-ada-2025-updates-p4-ada2025-p04-006` | auto | 减重达15%可能支持糖尿病缓解(REMISSION)。
+- `auto-ada-2025-updates-p4-ada2025-p04-007` | auto | 新增建议：指导正在减重的患者加入肌肉强化运动以预防肌少症。
+- `auto-ada-2025-updates-p4-ada2025-p04-008` | auto | 非营养性甜味剂：有条件推荐——仍优于含糖产品，但仅建议短期适度使用。
+- `auto-ada-2025-updates-p4-ada2025-p04-009` | auto | 水优于营养性和非营养性甜味饮料(包括无糖/DIET饮料)。
+- `auto-ada-2025-updates-p4-ada2025-p04-010` | auto | 新增：宗教斋戒前建议进行风险分层，依据糖尿病与斋戒国际联盟指南。
+- `auto-ada-2025-updates-p4-ada2025-p04-011` | auto | 新增：建议避免使用大麻，因其有大麻剧吐综合征风险及可能诱发糖尿病酮症酸中毒(DKA)。
+- `auto-ada-2025-updates-p4-ada2025-p04-013` | auto | 新增关于DKA和HHS流行病学、诊断标准及门诊预防的子章节，包含危险因素和临床表现的新表格。
+- `auto-ada-2025-updates-p4-ada2025-p04-014` | auto | 新增A1C个体化目标图：支持在治疗危害(低血糖)可能大于获益时降级药物治疗，尤其适用于预期寿命缩短或合并症较多的患者。
+- `auto-ada-2025-updates-p5-ada2025-p05-001` | auto | A1C目标<6.5%适用于健康状况良好、功能正常、治疗风险和负担低的成人。
+- `auto-ada-2025-updates-p5-ada2025-p05-002` | auto | A1C目标<7.0%适用于大多数成人糖尿病患者。
+- `auto-ada-2025-updates-p5-ada2025-p05-003` | auto | A1C目标<7.5%适用于健康的老年人。
+- `auto-ada-2025-updates-p5-ada2025-p05-004` | auto | A1C目标<8.0%适用于健康状况复杂或中等的老年人。
+- `auto-ada-2025-updates-p5-ada2025-p05-005` | auto | 对于健康状况极差/非常复杂的老年人或预期寿命有限的成人，不设定A1C目标。
+- `auto-ada-2025-updates-p5-ada2025-p05-007` | auto | 在积极减重期间，至少每3个月监测一次人体测量指标。
+- `auto-ada-2025-updates-p5-ada2025-p05-008` | auto | 超过90%的2型糖尿病患者合并肥胖。
+- `auto-ada-2025-updates-p5-ada2025-p05-010` | auto | 使用GLP-1受体激动剂或GIP类药物时，口服避孕药的疗效降低。
+- `auto-ada-2025-updates-p5-ada2025-p05-011` | auto | 对于化疗引起的糖尿病（特定化疗药物增加胰岛素抵抗），二甲双胍是首选治疗，其次是吡格列酮或SGLT2抑制剂。
+- `auto-ada-2025-updates-p6-ada2025-p06-02` | auto | 对于合并症状性射血分数保留型心力衰竭(HFpEF)且肥胖的糖尿病患者，无论A1C水平如何，推荐使用GLP-1RA。
+- `auto-ada-2025-updates-p6-ada2025-p06-03` | auto | 避免将DPP-4抑制剂与GLP-1RA联用（无额外获益）。
+- `auto-ada-2025-updates-p6-ada2025-p06-05` | auto | 对于ASCVD或心血管高风险患者（无论A1C水平）：使用GLP-1RA（度拉糖肽/利拉鲁肽/司美格鲁肽）或SGLT2抑制
+- `auto-ada-2025-updates-p6-ada2025-p06-06` | auto | 对于心力衰竭患者：首选SGLT2抑制剂（卡格列净/达格列净/恩格列净/艾托格列净）。若为症状性HFpEF且肥胖，加用GL
+- `auto-ada-2025-updates-p6-ada2025-p06-07` | auto | 对于CKD患者（eGFR 20–60 ml/min/1.73m²和/或白蛋白尿ACR>30，已使用最大耐受剂量ACEi或
+- `auto-ada-2025-updates-p6-ada2025-p06-08` | auto | 对于MASLD或MASH患者：使用GLP-1RA或GIP/GLP-1RA（尤其合并肥胖时）。吡格列酮（肥胖者不适用）。或
+- `auto-ada-2025-updates-p6-ada2025-p06-09` | auto | 推荐使用SGLT2抑制剂预防CKD进展，但在eGFR < 45 ml/min/1.73m²时降糖获益减少。
+- `auto-ada-2025-updates-p6-ada2025-p06-10` | auto | 若eGFR < 30 ml/min/1.73m²，优先选择GLP-1RA。
+- `auto-ada-2025-updates-p6-ada2025-p06-11` | auto | 在无胰岛素缺乏证据时，GLP-1RA或GLP/GIP双激动剂优先于胰岛素。
+- `auto-ada-2025-updates-p6-ada2025-p06-12` | auto | 当A1C > 10%或出现高血糖症状（多尿/多饮、体重减轻、高甘油三酯血症、酮症）时推荐使用胰岛素。
+- `auto-ada-2025-updates-p6-ada2025-p06-13` | auto | 若使用胰岛素，推荐与GLP-1RA或GLP/GIP联合使用。
+- `auto-ada-2025-updates-p6-ada2025-p06-14` | auto | 基础胰岛素换药时：通常按等单位转换。对于血糖管理严格或低血糖高风险者，换药时减量10-20%。
+- `auto-ada-2025-updates-p6-ada2025-p06-15` | auto | 评估基础胰岛素过量时，已移除基础剂量 > 0.5 U/kg/day的标准。改为通过以下指标评估：睡前至晨起血糖显著差异、
+- `auto-ada-2025-updates-p6-ada2025-p06-16` | auto | 启用胰岛素时：继续使用二甲双胍、SGLT2抑制剂和GLP-1RA。停用磺脲类、格列奈类和DPP-4抑制剂——这些药物对心
+- `auto-ada-2025-updates-p6-ada2025-p06-17` | auto | 为减少心血管并发症，需包含全部4项：(a)血糖管理，(b)血压管理，(c)血脂管理，(d)使用具有心血管和肾脏获益的药物
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-diagnosis` | auto | 血压升高定义为收缩压>130 mmHg或舒张压>80 mmHg，或单次血压读数>180/110 mmHg
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-goal` | auto | 血压目标为<130/80 mmHg（如果可以安全达到）
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-lifestyle` | auto | 如果血压>120/80 mmHg，启动生活方式干预
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-acei-arb-firstline` | auto | 如果有冠心病或UACR>30 mg/g，ACE-I或ARB是一线选择
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-acei-arb-monitor` | auto | 使用ACE-I或ARB时需监测血清肌酐和钾
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-acei-arb-avoid` | auto | 如果有生育能力且未避孕，避免使用ACE-I、ARB、MRA、脑啡肽酶抑制剂
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-diuretics-monitor` | auto | 利尿剂：启动后7-14天监测血清肌酐/钾
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-mra-resistant` | auto | MRA（螺内酯/依普利酮）– 用于顽固性高血压（如果已在使用3种推荐药物类别，且排除继发性原因）
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-beta-blocker` | auto | β受体阻滞剂 – 仅用于既往心肌梗死、活动性心绞痛或射血分数降低的心力衰竭
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-pregnancy` | auto | 妊娠期：如果血压>140/90 mmHg，启动治疗
+- `auto-ada-2025-updates-p7-ada2025-p7-htn-pregnancy-drugs` | auto | 妊娠期被认为有效且安全的药物：甲基多巴、拉贝洛尔、缓释硝苯地平
+- `auto-ada-2025-updates-p7-ada2025-p7-statin-pregnancy` | auto | 新 – 避免在有生育能力且未使用可靠避孕措施的人群中使用他汀类药物
+- `auto-ada-2025-updates-p8-ada2025-p08-001` | auto | 高甘油三酯血症定义为空腹甘油三酯 >150 mg/dL 或非空腹甘油三酯 >175 mg/dL。
+- `auto-ada-2025-updates-p8-ada2025-p08-002` | auto | 空腹甘油三酯 >500 mg/dL：评估继发性病因，考虑使用贝特类或鱼油以降低胰腺炎风险。
+- `auto-ada-2025-updates-p8-ada2025-p08-003` | auto | 对于合并ASCVD的患者，若甘油三酯为150-499 mg/dL，可考虑加用二十碳五烯酸乙酯（icosapent eth
+- `auto-ada-2025-updates-p8-ada2025-p08-004` | auto | 糖尿病ASCVD二级预防：使用生活方式干预+高强度他汀治疗，将LDL-C从基线降低≥50%，目标<55 mg/dL（<1
+- `auto-ada-2025-updates-p8-ada2025-p08-005` | auto | 对他汀不耐受的糖尿病ASCVD患者，使用替代降脂治疗：PCSK9抑制剂单克隆抗体、贝培多酸（bempedoic acid
+- `auto-ada-2025-updates-p8-ada2025-p08-006` | auto | 降低糖尿病患者有症状性心衰风险：对高血压、近期MI/ACS或LVEF≤40%者使用ACEi/ARB+β受体阻滞剂。高心血
+- `auto-ada-2025-updates-p8-ada2025-p08-007` | auto | 对所有使用SGLT2抑制剂并采用生酮饮食的患者，教育其糖尿病酮症酸中毒（DKA）的症状和管理方法，包括生病时停药。
+- `auto-ada-2025-updates-p8-ada2025-p08-008` | auto | 通过同时测量eGFR和白蛋白尿对糖尿病肾病（DKD）患者进行分类。需要3次尿白蛋白/肌酐比值（UACR）中2次异常才能确
+- `auto-ada-2025-updates-p8-ada2025-p08-009` | auto | 对于CKD且尿白蛋白>300 mg/天的患者，目标是将白蛋白尿降低≥30%并减缓CKD进展。
+- `auto-ada-2025-updates-p8-ada2025-p08-010` | auto | CKD合并白蛋白尿（UACR >30 mg/g）患者应使用ACE-I或ARB。血压正常、UACR正常且eGFR正常者无需
+- `auto-ada-2025-updates-p8-ada2025-p08-011` | auto | 若已使用最大耐受剂量ACEI或ARB，且eGFR >25 ml/min，加用非奈利酮（finerenone，NSMRA）
+- `auto-ada-2025-updates-p8-ada2025-p08-012` | auto | 使用ACE-I、ARB或NSMRA（非奈利酮）的患者：监测血清肌酐（SCr）和血钾。
+- `auto-ada-2025-updates-p8-ada2025-p08-013` | auto | 推荐eGFR <60 ml/min且UACR ≥200 mg/g（或任何白蛋白尿水平）的患者使用SGLT2抑制剂。eGF
+- `auto-ada-2025-updates-p8-ada2025-p08-014` | auto | CKD患者的血糖管理应使用经证实有效的GLP-1受体激动剂（目前为司美格鲁肽/semaglutide）。
+- `auto-ada-2025-updates-p8-ada2025-p08-015` | auto | 以下情况转诊肾内科：尿白蛋白持续升高或eGFR持续下降，或eGFR <30 ml/min。
+- `auto-ada-2025-updates-p9-ada2025-p09-001` | auto | 诊断时进行首次散瞳全面眼科检查，若无视网膜病变证据且血糖达标，则每1至2年复查一次。
+- `auto-ada-2025-updates-p9-ada2025-p09-002` | auto | 建议增加自主神经病变筛查标准：询问直立性头晕、晕厥、早饱、勃起功能障碍、出汗模式改变、四肢皮肤干裂、静息心动过速；通过足
+- `auto-ada-2025-updates-p9-ada2025-p09-003` | auto | 神经病变治疗药物包括加巴喷丁类、SNRIs、三环类抗抑郁药、钠通道阻滞剂。新建议：避免使用阿片类药物。
+- `auto-ada-2025-updates-p9-ada2025-p09-004` | auto | 每年进行远端对称性多发性神经病变评估：单丝试验、振动觉和血管评估。若存在任何感觉缺失，建议每次就诊时检查足部。
+- `auto-ada-2025-updates-p9-ada2025-p09-005` | auto | 再次强调：戒烟对预防外周动脉疾病的重要性。
+- `auto-ada-2025-updates-p9-ada2025-p09-006` | auto | 健康状况良好且合并症少的老年人可采用成人血糖目标：A1C < 7-7.5%，TIR ~ 70%。使用4Ms框架进行个体化
+- `auto-ada-2025-updates-p9-ada2025-p09-007` | auto | 对老年糖尿病患者采用老年友好健康系统的4Ms框架：认知（Mentation）、用药（Medications）、活动能力（
+- `auto-ada-2025-updates-p9-ada2025-p09-008` | auto | 糖尿病合并CKD的一线药物治疗包括SGLT2抑制剂和二甲双胍（仅T2D）、RAS抑制剂、中高强度他汀。每3-6个月定期重
+- `auto-ada-2025-updates-p9-ada2025-p09-009` | auto | 糖尿病合并CKD的基于风险的附加治疗包括GLP-1 RA（仅T2D）、非甾体MRA（仅T2D）、二氢吡啶类CCB、抗血栓
+- `auto-ada-2025-updates-p10-ada2025-p10-001` | auto | 大多数儿童和青少年糖尿病患者的A1C目标 < 6.5%（新增）。
+- `auto-ada-2025-updates-p10-ada2025-p10-002` | auto | 减量目标：将A1C目标提高至 < 7.5% 或 < 8% 以降低低血糖风险。避免使用导致低血糖的药物，改用低风险药物。
+- `auto-ada-2025-updates-p10-ada2025-p10-003` | auto | 对于超重/肥胖青少年新发糖尿病疑诊T2D：若A1C < 8.5%（无酸中毒/酮症），开始二甲双胍治疗，滴定至2,000 
+- `auto-ada-2025-updates-p10-ada2025-p10-004` | auto | 对于超重/肥胖青少年新发糖尿病，A1C >= 8.5%（无酸中毒/酮症）：开始二甲双胍（最高2,000 mg/天）联合长
+- `auto-ada-2025-updates-p10-ada2025-p10-005` | auto | 所有疑诊T2D的青少年新发糖尿病患者均应检测胰岛自身抗体。若阳性，按T1D治疗（多针注射或胰岛素泵），停用二甲双胍。
+- `auto-ada-2025-updates-p10-ada2025-p10-006` | auto | 若仅使用长效胰岛素且A1C目标未达标，可加用餐时胰岛素；每日总胰岛素量可超过1单位/kg/天。
+- `auto-ada-2025-updates-p10-ada2025-p10-007` | auto | 儿童和青少年糖尿病患者LDL目标 < 100 mg/dL。使用年龄批准的他汀类药物（> 6岁可用瑞舒伐他汀）联合生活方式
+- `auto-ada-2025-updates-p10-ada2025-p10-008` | auto | GLP-1受体激动剂批准用于> 12岁青少年（联合二甲双胍）：利拉鲁肽（诺和力）、艾塞那肽（百达达）、司美格鲁肽（诺和盈
+- `auto-ada-2025-updates-p10-ada2025-p10-009` | auto | 度拉糖肽（度易达）批准用于> 10岁青少年，作为二甲双胍的联合用药。
+- `auto-ada-2025-updates-p10-ada2025-p10-010` | auto | SGLT2抑制剂恩格列净（欧唐静）可用于>= 10岁青少年。在强化胰岛素治疗前优先考虑非胰岛素药物（GLP-1 RA或S
+- `auto-ada-2025-updates-p10-ada2025-p10-012` | auto | 新增建议：儿童和青少年糖尿病患者应避免电子烟和大麻。
+- `auto-ada-2025-updates-p11-ada2025-p11-001` | auto | 所有合并糖尿病的孕妇（1型、2型、GDM），空腹血糖目标 <95 mg/dL（范围 70–95 mg/dL）。
+- `auto-ada-2025-updates-p11-ada2025-p11-002` | auto | 所有合并糖尿病的孕妇，餐后1小时血糖目标 <140 mg/dL（范围 110–140 mg/dL）。
+- `auto-ada-2025-updates-p11-ada2025-p11-003` | auto | 所有合并糖尿病的孕妇，餐后2小时血糖目标 <120 mg/dL（范围 100–120 mg/dL）。
+- `auto-ada-2025-updates-p11-ada2025-p11-004` | auto | 使用CGM的糖尿病孕妇，目标葡萄糖范围为 63–140 mg/dL。
+- `auto-ada-2025-updates-p11-ada2025-p11-005` | auto | 使用CGM的糖尿病孕妇，低于范围时间目标 <4%，其中低于54 mg/dL的时间 <1%。
+- `auto-ada-2025-updates-p11-ada2025-p11-006` | auto | 使用CGM的糖尿病孕妇，高于范围时间目标 <25%。
+- `auto-ada-2025-updates-p11-ada2025-p11-007` | auto | 糖尿病孕妇A1C目标 <6%，因红细胞更新加快导致A1C偏低。
+- `auto-ada-2025-updates-p11-ada2025-p11-008` | auto | 糖尿病孕妇血压目标 110–135/85 mmHg。
+- `auto-ada-2025-updates-p11-ada2025-p11-009` | auto | 糖尿病孕妇血压 >140/90 mmHg 时需启动治疗。
+- `auto-ada-2025-updates-p11-ada2025-p11-010` | auto | 妊娠期高血糖不应将二甲双胍和格列本脲作为一线治疗；推荐生活方式干预和胰岛素。
+- `auto-ada-2025-updates-p11-ada2025-p11-011` | auto | 因PCOS服用二甲双胍的孕妇，应在妊娠第一孕期后停用二甲双胍。
+- `auto-ada-2025-updates-p11-ada2025-p11-012` | auto | 糖尿病孕妇推荐补充叶酸 400–800 mcg/天。
+- `auto-ada-2025-updates-p11-ada2025-p11-013` | auto | 住院糖尿病患者，血糖 >180 mg/dL 时应启动治疗。
+- `auto-ada-2025-updates-p11-ada2025-p11-014` | auto | 危重症住院糖尿病患者血糖目标范围 140–180 mg/dL，推荐持续静脉胰岛素输注。
+- `auto-ada-2025-updates-p11-ada2025-p11-015` | auto | 非危重症住院糖尿病患者血糖目标范围 100–180 mg/dL。首选方案为基础胰岛素+餐时胰岛素+校正剂量。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-01` | auto | 佩戴CGM天数是2017年CGM指标国际共识定义的标准化CGM指标之一。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-02` | auto | CGM活跃时间百分比是2017年CGM指标国际共识定义的标准化CGM指标之一。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-03` | auto | 平均血糖是2017年CGM指标国际共识定义的标准化CGM指标之一。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-04` | auto | 估算糖化血红蛋白(eA1C)是2017年CGM指标国际共识定义的标准化CGM指标之一。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-05` | auto | 血糖变异度（%CV或SD）是2017年CGM指标国际共识定义的标准化CGM指标之一。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-06` | auto | 时间>250 mg/dL（>13.9 mmol/L）是2017年CGM指标国际共识定义的重度高血糖标准化CGM指标。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-07` | auto | 时间>180 mg/dL（>10.0 mmol/L）是2017年CGM指标国际共识定义的高血糖时间（TAR）标准化指标。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-08` | auto | 时间70-180 mg/dL（3.9-10.0 mmol/L）即目标范围内时间（TIR），是2017年CGM指标国际共识
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-09` | auto | 时间<70 mg/dL（<3.9 mmol/L）是2017年CGM指标国际共识定义的低血糖时间（TBR 1级）标准化指标
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-10` | auto | 时间<54 mg/dL（<3.0 mmol/L）是2017年CGM指标国际共识定义的临床显著低血糖时间（TBR 2级）标
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-11` | auto | 低血糖指数（LBGI）和高血糖指数（HBGI）是2017年CGM指标国际共识定义的标准化风险指数。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-12` | auto | 低血糖和高血糖发作次数（以15分钟为阈值）是2017年CGM指标国际共识定义的标准化CGM指标。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-13` | auto | 曲线下面积（AUC）是2017年CGM指标国际共识定义的标准化CGM指标之一。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-metric-14` | auto | 时间段（24小时、白天、夜间）是2017年CGM指标国际共识定义的标准化CGM指标之一。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-agp` | auto | 动态血糖谱（AGP）被推荐作为CGM报告的可视化工具，为2017年CGM指标国际共识的一部分。
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-interpretation` | auto | 有效利用CGM数据以优化临床结局需要：1）评估CGM血糖状态的共同指标；2）血糖数据和CGM每日图谱的图形化可视化；3）
+- `auto-battelino-2019-tir-p9-battelino-2019-p09-attd-2017` | auto | 2017年2月，糖尿病先进技术与治疗大会（ATTD）召集了国际专家临床医生和研究人员小组，定义了评估CGM数据的核心指标
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c01` | auto | 为确保血糖数据解读的准确性，建议连续佩戴CGM至少14天。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c02` | auto | CGM在14天佩戴期间应至少有70%的时间处于活跃状态，以确保数据可靠性。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c03` | auto | 血糖变异性目标为%CV ≤36%。部分研究表明，对于使用胰岛素或磺脲类药物的患者，更低的目标（<33%）可提供额外的低血
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c04` | auto | 高于范围时间2级定义为血糖读数及时间 >250 mg/dL（>13.9 mmol/L）的百分比。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c05` | auto | 高于范围时间1级定义为血糖读数及时间 181-250 mg/dL（10.1-13.9 mmol/L）的百分比。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c06` | auto | 目标范围内时间（TIR）定义为血糖读数及时间 70-180 mg/dL（3.9-10.0 mmol/L）的百分比。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c07` | auto | 低于范围时间1级定义为血糖读数及时间 54-69 mg/dL（3.0-3.8 mmol/L）的百分比。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c08` | auto | 低于范围时间2级定义为血糖读数及时间 <54 mg/dL（<3.0 mmol/L）的百分比。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c09` | auto | 近14天内CGM使用率>70%与3个月的平均血糖、范围内时间和高血糖指标强相关。
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c10` | auto | 在1型糖尿病患者中，14天CGM数据与3个月结局在低血糖和血糖变异性方面的相关性较弱；更长的采样周期并未显示能提高这些相
+- `auto-battelino-2019-tir-p10-battelino-2019-p10-c11` | auto | 对于血糖控制变异性较大的个体，可能需要更长的CGM数据采集周期（如4周）以评估低血糖暴露。
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tir-t1t2` | auto | 对于1型/2型糖尿病，推荐的葡萄糖目标范围内时间（TIR）目标为>70%的读数（>16小时48分钟/天），目标血糖范围为
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tbr-t1t2-hypo70` | auto | 对于1型/2型糖尿病，血糖<70 mg/dL（<3.9 mmol/L）的低于目标范围时间（TBR）应<4%（<1小时/天
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tbr-t1t2-severe54` | auto | 对于1型/2型糖尿病，血糖<54 mg/dL（<3.0 mmol/L）的低于目标范围时间（TBR）应<1%（<15分钟/
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tar-t1t2-180` | auto | 对于1型/2型糖尿病，血糖>180 mg/dL（>10.0 mmol/L）的高于目标范围时间（TAR）应<25%（<6小
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tar-t1t2-250` | auto | 对于1型/2型糖尿病，血糖>250 mg/dL（>13.9 mmol/L）的高于目标范围时间（TAR）应<5%（<1小时
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tir-older` | auto | 对于老年/高风险1型/2型糖尿病患者，推荐的TIR目标为>50%的读数（>12小时/天），目标血糖范围为70–180 m
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tbr-older` | auto | 对于老年/高风险1型/2型糖尿病患者，血糖<70 mg/dL（<3.9 mmol/L）的TBR应<1%（<15分钟/天）
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tar-older` | auto | 对于老年/高风险1型/2型糖尿病患者，血糖>250 mg/dL（>13.9 mmol/L）的TAR应<10%（<2小时2
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tir-5pct-benefit` | auto | TIR每增加5个百分点，与1型/2型糖尿病的临床显著获益相关。
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tir-pregnancy-t1` | auto | 对于妊娠期1型糖尿病，推荐的TIR目标为>70%（>16小时48分钟/天），目标血糖范围为63–140 mg/dL（3.
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tbr-pregnancy-t1-63` | auto | 对于妊娠期1型糖尿病，血糖<63 mg/dL（<3.5 mmol/L）的TBR应<4%（<1小时/天）。妊娠期间血糖水平
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tbr-pregnancy-t1-severe` | auto | 对于妊娠期1型糖尿病，血糖<54 mg/dL（<3.0 mmol/L）的TBR应<1%（<15分钟/天）。
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tar-pregnancy-t1` | auto | 对于妊娠期1型糖尿病，血糖>140 mg/dL（>7.8 mmol/L）的TAR应<25%（<6小时/天）。
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tir-pregnancy-t2gdm` | auto | 对于妊娠期2型/GDM，目标血糖范围为63–140 mg/dL（3.5–7.8 mmol/L）。具体的TIR/TBR/T
+- `auto-battelino-2019-tir-p12-battelino-2019-p12-tir-5pct-benefit-pregnancy` | auto | TIR每增加5个百分点，与妊娠期1型糖尿病的临床显著获益相关。
+- `auto-battelino-2019-tir-p13-battelino-2019-p13-002` | auto | 2型糖尿病患者的血糖变异性通常低于1型糖尿病(46)。因此，2型糖尿病患者通常可以在减少低血糖的同时获得更多目标范围内时
+- `auto-battelino-2019-tir-p13-battelino-2019-p13-003` | auto | Beck等人研究显示，2型糖尿病患者在使用CGM 24周后，TIR提高了10.3%（从55.6%升至61.3%），同时T
+- `auto-battelino-2019-tir-p13-battelino-2019-p13-004` | auto | 1型和2型糖尿病的目标值足够接近，因此合并为一组目标（妊娠期除外）。
+- `auto-battelino-2019-tir-p13-battelino-2019-p13-005` | auto | 对于1型糖尿病患者，其目标值的设定参考了混合闭环疗法达到这些目标的能力(11)，首个商业化混合闭环系统已经上市。
+- `auto-battelino-2019-tir-p13-battelino-2019-p13-006` | auto | 近期研究表明，使用多次每日注射(MDI)的个体也有可能通过CGM达到这些目标(6)。
+- `auto-battelino-2019-tir-p13-battelino-2019-p13-007` | auto | 新型药物如钠-葡萄糖协同转运蛋白2(SGLT-2)抑制剂的有益效果已帮助1型糖尿病患者提高TIR(49-51)。
+- `auto-battelino-2019-tir-p14-batt19-p14-001` | auto | 对于1型和2型糖尿病成人患者，推荐的目标范围内时间（TIR）为70-180 mg/dL（3.9-10.0 mmol/L）
+- `auto-battelino-2019-tir-p14-batt19-p14-002` | auto | 对于1型和2型糖尿病成人患者，低于70 mg/dL（<3.9 mmol/L）的低血糖时间（TBR）应<4%。
+- `auto-battelino-2019-tir-p14-batt19-p14-007` | auto | 对于老年和/或高风险的1型或2型糖尿病患者，推荐的目标范围内时间（TIR）为70-180 mg/dL（3.9-10.0 
+- `auto-battelino-2019-tir-p14-batt19-p14-008` | auto | 对于老年和/或高风险的1型或2型糖尿病患者，低于70 mg/dL（<3.9 mmol/L）的低血糖时间（TBR）应<1%
+- `auto-battelino-2019-tir-p14-batt19-p14-010` | auto | 对于妊娠期糖尿病或2型糖尿病妊娠期患者，目标范围内时间（TIR）目标为>70%，范围为更严格的63-140 mg/dL（
+- `auto-battelino-2019-tir-p14-batt19-p14-017` | auto | 近期研究表明，TIR（70-180 mg/dL [3.9-10.0 mmol/L]）与糖尿病并发症存在相关性，且TIR与
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-001` | auto | 基于DCCT数据集（7点血糖谱），TIR每降低10%，糖尿病视网膜病变进展的风险比增加64%（Beck等）。
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-002` | auto | 基于DCCT数据集，TIR每降低10%，微量白蛋白尿发生的风险比增加40%（Beck等）。
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-003` | auto | 对DCCT数据集的事后分析显示，血糖水平<70 mg/dL（<3.9 mmol/L）和<54 mg/dL（<3.0 mm
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-004` | auto | 在一项针对3,262名2型糖尿病患者的研究中，视网膜病变程度越严重的患者（VTDR、中度NPDR、轻度NPDR）在目标血
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-005` | auto | 在一项涵盖545名1型糖尿病成人的四项随机试验分析中，TIR（70-180 mg/dL [3.9-10.0 mmol/L
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-006` | auto | 在同一项四项随机试验分析中（545名1型糖尿病成人），TIR 50%与A1C约8%（64 mmol/mol）强相关。
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-007` | auto | TIR每增加10%（每天2.4小时），A1C约降低0.5%（5.0 mmol/mol），基于四项1型糖尿病随机试验数据。
+- `auto-battelino-2019-tir-p15-battelino-2019-p15-008` | auto | Vigersky等对18项随机对照试验（纳入超过2,500名1型和2型糖尿病患者，覆盖广泛年龄和A1C水平）的分析显示了
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-001` | auto | 在1型糖尿病患者中（n=545），TIR（70-180 mg/dL）每增加10%，A1C约降低0.5%（5.5 mmol
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-002` | auto | 在1型和2型糖尿病患者中（n=1,137），TIR（70-180 mg/dL）每增加10%，A1C约降低0.8%（8.7
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-003` | auto | 在1型糖尿病中，TIR 70%（70-180 mg/dL）对应的A1C约为7.0%（53 mmol/mol）（95% C
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-004` | auto | 在1型糖尿病中，TIR 80%（70-180 mg/dL）对应的A1C约为6.5%（48 mmol/mol）（95% C
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-005` | auto | 在1型糖尿病孕妇中（瑞典/CONCEPTT数据），TIR（63-140 mg/dL / 3.5-7.8 mmol/L）在
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-006` | auto | 对于1型糖尿病孕妇，TBR <63 mg/dL（<3.5 mmol/L）<4%的目标是安全可达到的，尤其是在妊娠早期之后
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-007` | auto | 33%的1型糖尿病孕妇在妊娠最后（>34周）达到了推荐的70% TIR（63-140 mg/dL / 3.5-7.8 m
+- `auto-battelino-2019-tir-p16-battelino-2019-tir-p016-008` | auto | 妊娠期首个纵向CGM数据显示TIR增加了13个百分点（TIR 70-140 mg/dL / 3.9-7.8 mmol/L
+- `auto-battelino-2019-tir-p17-battelino-2019-p17-c01` | auto | 第二和第三孕期TIR提高5-7%与LGA及新生儿不良结局风险降低相关，包括巨大儿、肩难产、新生儿低血糖和NICU入院。
+- `auto-battelino-2019-tir-p17-battelino-2019-p17-c02` | auto | 妊娠期2型糖尿病女性TIR可达90%，高血糖时间比1型糖尿病女性少三分之一。
+- `auto-battelino-2019-tir-p17-battelino-2019-p17-c03` | auto | 对于老年和/或高风险糖尿病患者，血糖目标应个体化且保守，重点关注减少低于70 mg/dL（<3.9 mmol/L）的时间
+- `auto-battelino-2019-tir-p21-battelino-2019-tir-p021-01` | auto | 将血糖<70 mg/dL（<3.9 mmol/L）的时间减少到每天少于1小时。
+- `auto-battelino-2019-tir-p21-battelino-2019-tir-p021-02` | auto | 将血糖<54 mg/dL（<3.0 mmol/L）的时间减少到每天少于15分钟。
+- `auto-battelino-2019-tir-p21-battelino-2019-tir-p021-03` | auto | 对于有综合医疗条件的儿童、青少年和≤25岁成人，A1C目标为7.0%（53 mmol/mol）（ISPAD推荐）。
+- `auto-battelino-2019-tir-p21-battelino-2019-tir-p021-04` | auto | 在以下情况下，更高的A1C目标（如<7.5%[<58 mmol/mol]）可能更合适：无法表达低血糖症状、低血糖感知缺失
+- `auto-battelino-2019-tir-p21-battelino-2019-tir-p021-05` | auto | A1C目标<7.5%（<58 mmol/mol）对应TIR目标约60%（表4）。
+- `auto-battelino-2019-tir-p21-battelino-2019-tir-p021-06` | auto | 即使是小的、渐进性的改善也能产生显著的血糖获益。TIR提高5%在改善血糖控制方面具有临床意义。
+- `auto-battelino-2019-tir-p22-battelino-2019-tir-p22-002` | auto | 利用标准化数据管理工具（如AGP）对CGM数据进行回顾性分析，使临床医生和糖尿病患者能够协作识别问题领域并设定可实现的目
+- `auto-battelino-2019-tir-p22-battelino-2019-tir-p22-003` | auto | 时间在范围内（目标范围内、低于范围、高于范围）作为临床目标和结局测量指标是适当且有用的，可补充A1C用于广泛的糖尿病人群
+- `auto-cds-2024-guideline-p3-cds2024-p3-001` | auto | 依据2018年美国糖尿病学会诊断标准，60~69岁糖尿病患病率为28.8%，糖尿病前期患病率为47.8%。
+- `auto-cds-2024-guideline-p3-cds2024-p3-002` | auto | 在≥70岁的人群中糖尿病患病率为31.8%，糖尿病前期的患病率为47.6%。
+- `auto-cds-2024-guideline-p3-cds2024-p3-003` | auto | 2019年国际糖尿病联盟数据显示，中国≥65岁的老年糖尿病患者数量约为3550万，居世界首位，占全球老年糖尿病患者的1/
+- `auto-cds-2024-guideline-p3-cds2024-p3-004` | auto | 老年T2DM患者合并高血压和/或血脂异常的比例高达79%。
+- `auto-cds-2024-guideline-p3-cds2024-p3-005` | auto | 老年女性糖尿病患病率高于男性。
+- `auto-cds-2024-guideline-p3-cds2024-p3-006` | auto | 采用世界卫生组织(1999年)糖尿病诊断标准。(A)
+- `auto-cds-2024-guideline-p3-cds2024-p3-007` | auto | 老年糖尿病分为1型糖尿病(T1DM)、T2DM和特殊类型糖尿病。(A)
+- `auto-cds-2024-guideline-p3-cds2024-p3-008` | auto | 老年糖尿病具有其自身特点，包括症状不典型、并发症和/或合并症多等。(B)
+- `auto-cds-2024-guideline-p3-cds2024-p3-009` | auto | 建议对初诊的老年糖尿病患者进行肿瘤相关筛查。(C)
+- `auto-cds-2024-guideline-p3-cds2024-p3-010` | auto | 与其他年龄段相比，60岁以上年龄段的糖尿病患病率及糖尿病前期患病率均最高。
+- `auto-cds-2024-guideline-p4-cds-2024-004-001` | auto | 老年糖尿病的诊断标准：典型糖尿病症状（烦渴多饮、多尿、多食、不明原因体质量下降）加上空腹静脉血浆葡萄糖≥7.0 mmol
+- `auto-cds-2024-guideline-p4-cds-2024-004-002` | auto | 典型糖尿病症状加上随机静脉血浆葡萄糖≥11.1 mmol/L可诊断糖尿病。随机血糖指不考虑上次用餐时间、一天中任意时间的
+- `auto-cds-2024-guideline-p4-cds-2024-004-003` | auto | 典型糖尿病症状加上葡萄糖负荷后（75g OGTT）2h静脉血浆葡萄糖≥11.1 mmol/L可诊断糖尿病。
+- `auto-cds-2024-guideline-p4-cds-2024-004-004` | auto | 2011 WHO建议在条件具备的国家和地区采用HbA1c≥6.5%作为糖尿病诊断切点。国内采用标准化检测方法且有严格质量
+- `auto-cds-2024-guideline-p4-cds-2024-004-005` | auto | 空腹状态指至少8小时没有摄入能量。
+- `auto-cds-2024-guideline-p4-cds-2024-004-006` | auto | 老年糖尿病是指年龄≥65岁（包括65岁以前诊断和65岁以后诊断的糖尿病患者）。以T2DM为主，也包含T1DM和其他类型糖
+- `auto-cds-2024-guideline-p4-cds-2024-004-007` | auto | 68%的胰腺癌患者存在血糖升高、糖耐量减低或糖尿病。建议对初诊的老年糖尿病患者进行肿瘤筛查。
+- `auto-cds-2024-guideline-p4-cds-2024-004-008` | auto | 对于使用他汀类药物的老年患者应定期进行血糖监测（一级预防心血管危险因素管理）。
+- `auto-cds-2024-guideline-p5-cds2024-p5-c01` | auto | 依托多学科团队（临床医师、营养师、康复治疗师和护士）对老年糖尿病患者进行老年综合评估。证据等级A。
+- `auto-cds-2024-guideline-p5-cds2024-p5-c02` | auto | 根据评估结果，把老年糖尿病患者的健康状态分为良好（Group 1）、中等（Group 2）、差（Group 3）3个等级
+- `auto-cds-2024-guideline-p5-cds2024-p5-c03` | auto | 依据健康状态分层制定个体化的综合治疗、护理及康复策略。证据等级A。
+- `auto-cds-2024-guideline-p5-cds2024-p5-c04` | auto | 良好（Group 1）：患者无共病或合并≤2种除糖尿病外的慢性疾病（包括卒中、高血压、1-3期慢性肾脏病、骨关节炎等），
+- `auto-cds-2024-guideline-p5-cds2024-p5-c05` | auto | 中等（Group 2）：患者合并≥3种除糖尿病外的慢性疾病（包括卒中、高血压、1-3期慢性肾脏病、骨关节炎等）和/或患者
+- `auto-cds-2024-guideline-p5-cds2024-p5-c06` | auto | 差（Group 3）：患者满足以下任意一项：(1)合并≥1种治疗受限的慢性疾病且预期寿命较短（转移性恶性肿瘤、需氧疗的肺
+- `auto-cds-2024-guideline-p5-cds2024-p5-c07` | auto | 结合每位患者的特点（受教育程度、经济状况、既往治疗状况、血糖水平、合并症、认知功能及有无看护者等）进行个体化健康教育。证
+- `auto-cds-2024-guideline-p6-cds2024-06-003` | auto | 以HbA1c和点血糖值作为老年糖尿病患者血糖控制的评估指标。
+- `auto-cds-2024-guideline-p6-cds2024-06-005` | auto | 未使用低血糖风险较高的药物、健康状态良好（Group 1）的老年糖尿病患者，HbA1c目标为<7.5%。
+- `auto-cds-2024-guideline-p6-cds2024-06-006` | auto | 未使用低血糖风险较高的药物、健康状态良好（Group 1）的老年糖尿病患者，空腹或餐前血糖目标为5.0～7.2 mmol
+- `auto-cds-2024-guideline-p6-cds2024-06-007` | auto | 未使用低血糖风险较高的药物、健康状态中等（Group 2）的老年糖尿病患者，HbA1c目标为<8.0%。
+- `auto-cds-2024-guideline-p6-cds2024-06-008` | auto | 未使用低血糖风险较高的药物、健康状态中等（Group 2）的老年糖尿病患者，空腹或餐前血糖目标为5.0～8.3 mmol
+- `auto-cds-2024-guideline-p6-cds2024-06-009` | auto | 未使用低血糖风险较高的药物、健康状态差（Group 3）的老年糖尿病患者，HbA1c目标为<8.5%。
+- `auto-cds-2024-guideline-p6-cds2024-06-010` | auto | 未使用低血糖风险较高的药物、健康状态差（Group 3）的老年糖尿病患者，空腹或餐前血糖目标为5.6～10.0 mmol
+- `auto-cds-2024-guideline-p6-cds2024-06-011` | auto | 使用低血糖风险较高的药物、健康状态良好（Group 1）的老年糖尿病患者，HbA1c目标为7.0～7.5%。
+- `auto-cds-2024-guideline-p6-cds2024-06-012` | auto | 使用低血糖风险较高的药物、健康状态良好（Group 1）的老年糖尿病患者，空腹或餐前血糖目标为5.0～8.3 mmol/
+- `auto-cds-2024-guideline-p6-cds2024-06-013` | auto | 使用低血糖风险较高的药物、健康状态中等（Group 2）的老年糖尿病患者，HbA1c目标为7.5～8.0%。
+- `auto-cds-2024-guideline-p6-cds2024-06-014` | auto | 使用低血糖风险较高的药物、健康状态中等（Group 2）的老年糖尿病患者，空腹或餐前血糖目标为5.6～8.3 mmol/
+- `auto-cds-2024-guideline-p6-cds2024-06-015` | auto | 使用低血糖风险较高的药物、健康状态差（Group 3）的老年糖尿病患者，HbA1c目标为8.0～8.5%。
+- `auto-cds-2024-guideline-p6-cds2024-06-016` | auto | 使用低血糖风险较高的药物、健康状态差（Group 3）的老年糖尿病患者，空腹或餐前血糖目标为5.6～10.0 mmol/
+- `auto-cds-2024-guideline-p6-cds2024-06-017` | auto | 老年糖尿病患者葡萄糖在目标范围内时间（TIR，血糖范围3.9～10.0 mmol/L）目标为占全天时间>50%（>12小
+- `auto-cds-2024-guideline-p6-cds2024-06-018` | auto | 老年糖尿病患者葡萄糖低于目标范围时间（TBR，血糖<3.9 mmol/L）目标为占全天时间<1%（<15分钟）。
+- `auto-cds-2024-guideline-p6-cds2024-06-019` | auto | 老年糖尿病患者葡萄糖高于目标范围时间（TAR，血糖>13.9 mmol/L）目标为占全天时间<10%（<144分钟）。
+- `auto-cds-2024-guideline-p6-cds2024-06-020` | auto | 老年糖尿病患者血糖变异系数（CV）目标为≤36%。
+- `auto-cds-2024-guideline-p6-cds2024-06-021` | auto | 健康状态差（Group 3）的老年糖尿病患者可适当放宽血糖控制目标，但应遵循以下原则：(1)不因血糖过高而出现明显的糖尿
+- `auto-cds-2024-guideline-p6-cds2024-06-022` | auto | 生活方式干预是老年糖尿病患者的基础治疗，所有老年糖尿病患者均应接受生活方式干预。
+- `auto-cds-2024-guideline-p6-cds2024-06-023` | auto | 根据老年糖尿病患者的健康状态分层结果给予个体化的生活方式指导。
+- `auto-cds-2024-guideline-p6-cds2024-06-024` | auto | 评估老年糖尿病患者的营养状态并尽早发现营养不良，在制定营养治疗方案时应注意适度增加蛋白质和能量摄入。
+- `auto-cds-2024-guideline-p7-cds2024-p7-001` | auto | 健康的老年糖尿病患者需每日摄入蛋白质1.0～1.3 g/kg。
+- `auto-cds-2024-guideline-p7-cds2024-p7-002` | auto | 合并急慢性疾病的老年糖尿病患者需每日摄入蛋白质1.2～1.5 g/kg。
+- `auto-cds-2024-guideline-p7-cds2024-p7-003` | auto | 合并肌少症或严重营养不良的老年人每日至少摄入蛋白质1.5 g/kg。
+- `auto-cds-2024-guideline-p7-cds2024-p7-004` | auto | 每周运动5～7 d，最好每天都运动。
+- `auto-cds-2024-guideline-p7-cds2024-p7-005` | auto | 运动的最佳时段是餐后1 h，每餐餐后运动20 min左右。
+- `auto-cds-2024-guideline-p7-cds2024-p7-008` | auto | 老年糖尿病患者首选的运动是中等强度的有氧运动，运动能力较差者可选用低强度有氧运动。具体形式包括快走、健身舞、韵律操、骑自
+- `auto-cds-2024-guideline-p7-cds2024-p7-009` | auto | 应对老年糖尿病患者的营养状态进行评估，采用营养风险筛查2002、微型营养评价简表等营养筛查工具确认患者营养风险。
+- `auto-cds-2024-guideline-p7-cds2024-p7-010` | auto | 老年糖尿病患者与非糖尿病人群相比营养不良发生风险更高，更易发生肌少症和衰弱，应避免过度限制能量摄入，强调合理膳食、均衡营
+- `auto-cds-2024-guideline-p7-cds2024-p7-011` | auto | 对于一部分健康状态良好（Group 1）、血糖水平升高不明显的老年糖尿病患者，单纯的生活方式干预即可达到预期血糖控制目标
+- `auto-cds-2024-guideline-p7-cds2024-p7-013` | auto | 在中等强度运动中常感觉心跳加快、微微出汗、轻微疲劳感，也可以是运动中能说出完整句子但不能唱歌。
+- `auto-cds-2024-guideline-p9-cds2024-p009-01` | auto | 磺脲类药物是老年T2DM患者的三级推荐降糖药物，该类药物在老年患者中不良反应更常见，应慎用。
+- `auto-cds-2024-guideline-p9-cds2024-p009-02` | auto | 磺脲类药物与经CYP2C9和CYP2C19等肝脏P450酶代谢药物（如他汀类、抗菌药物、部分心血管药物及质子泵抑制剂等）
+- `auto-cds-2024-guideline-p9-cds2024-p009-03` | auto | 格列喹酮血浆半衰期为1.5 h，仅5%的代谢产物经肾脏排泄，轻中度肾功能不全的老年T2DM患者选择磺脲类药物时应选择格列
+- `auto-cds-2024-guideline-p9-cds2024-p009-04` | auto | 格列奈类药物降糖效果与磺脲类药物相近，体质量增加的风险相似，而低血糖风险较低，是老年T2DM患者的二级推荐降糖药物。该类
+- `auto-cds-2024-guideline-p9-cds2024-p009-06` | auto | α-糖苷酶抑制剂是老年T2DM患者的二级推荐降糖药物。常见不良反应包括腹胀、腹泻、排气增多等胃肠道反应，一定程度上影响了
+- `auto-cds-2024-guideline-p9-cds2024-p009-08` | auto | 噻唑烷二酮类（罗格列酮、吡格列酮）是老年T2DM患者的三级推荐降糖药物。单独使用时不易诱发低血糖，但与胰岛素或胰岛素促泌
+- `auto-cds-2024-guideline-p9-cds2024-p009-09` | auto | 吡格列酮可以降低大血管事件高风险的T2DM患者的全因死亡率、非致死性心肌梗死和卒中的复合终点事件风险。Meta分析结果显
+- `auto-cds-2024-guideline-p9-cds2024-p009-10` | auto | 回顾性队列研究显示，使用吡格列酮可能降低老年T2DM患者主要心脑血管事件及痴呆的发生风险。
+- `auto-cds-2024-guideline-p9-cds2024-p009-11` | auto | 噻唑烷二酮类药物可能导致体质量增加、水肿、骨折和HF的风险增加。使用胰岛素及有充血性HF、骨质疏松、跌倒或骨折风险的老年
+- `auto-cds-2024-guideline-p9-cds2024-p009-12` | auto | DPP-4i是近年来国内外指南和/或共识推荐的老年T2DM患者一线降糖药之一。该类药物通过抑制二肽基肽酶Ⅳ活性提高内源性
+- `auto-cds-2024-guideline-p9-cds2024-p009-13` | auto | DPP-4i单独应用时一般不出现低血糖，对体质量影响中等，胃肠道反应少，较适用于老年患者。
+- `auto-cds-2024-guideline-p9-cds2024-p009-15` | auto | 西格列汀、利格列汀和沙格列汀的心血管结局试验老年亚组结果显示，不增加老年患者的3P或4P主要心血管不良事件（MACE）的
+- `auto-cds-2024-guideline-p9-cds2024-p009-16` | auto | 利格列汀不增加老年患者肾脏复合结局（因肾病死亡、进展为终末期肾病或持续eGFR下降≥40%）的风险。
+- `auto-cds-2024-guideline-p9-cds2024-p009-17` | auto | 沙格列汀会增加患者因心力衰竭（HF）住院的风险。
+- `auto-cds-2024-guideline-p9-cds2024-p009-18` | auto | 利格列汀、替格列汀可用于任何肾功能状态的老年患者，无需调整药物剂量。沙格列汀在肝功能受损的患者中应用时无需调整药物剂量。
+- `auto-cds-2024-guideline-p9-cds2024-p009-19` | auto | 若怀疑患者出现胰腺炎，应停止使用DPP-4i此类药物。
+- `auto-cds-2024-guideline-p9-cds2024-p009-20` | auto | 目前在国内上市的DPP-4i有西格列汀、维格列汀、沙格列汀、阿格列汀、利格列汀、曲格列汀、瑞格列汀和替格列汀，其中多数为
+- `auto-cds-2024-guideline-p10-cds2024-p10-001` | auto | 我国目前批准临床使用的SGLT2i包括达格列净、恩格列净、卡格列净、艾托格列净和恒格列净。
+- `auto-cds-2024-guideline-p10-cds2024-p10-002` | auto | SGLT2i对老年患者有效且耐受性可，由于其降糖机制并不依赖胰岛素，因此极少发生低血糖，还有减重的作用，特别是减少内脏脂
+- `auto-cds-2024-guideline-p10-cds2024-p10-003` | auto | EMPA-ELDERLY研究显示，恩格列净可在不影响老年患者肌肉量与体能的情况下降低体质量。
+- `auto-cds-2024-guideline-p10-cds2024-p10-004` | auto | Meta分析结果显示，SGLT2i能够降低患者3P-MACE、HF住院及肾脏结局风险，且在老年和非老年患者中均一致。
+- `auto-cds-2024-guideline-p10-cds2024-p10-005` | auto | SGLT2i是老年T2DM患者的一级推荐降糖药物，推荐作为合并ASCVD或高危因素、HF及CKD的老年患者首选用药。
+- `auto-cds-2024-guideline-p10-cds2024-p10-006` | auto | SGLT2i eGFR阈值：eGFR<45 mL/[min·(1.73 m²)]不建议使用卡格列净、艾托格列净，以降糖为
+- `auto-cds-2024-guideline-p10-cds2024-p10-007` | auto | SGLT2i常见的不良反应为泌尿生殖系统感染、血容量减少等。上市后临床监测中发现有酮症酸中毒的报告，老年患者使用时风险有
+- `auto-cds-2024-guideline-p10-cds2024-p10-008` | auto | GLP-1RA通过与GLP-1受体结合发挥作用，以葡萄糖浓度依赖的方式促进胰岛素分泌和抑制胰高血糖素分泌进行降低血糖，并
+- `auto-cds-2024-guideline-p10-cds2024-p10-009` | auto | GLP-1RA在老年人群（>65岁）中的安全性和有效性与成人相似。
+- `auto-cds-2024-guideline-p10-cds2024-p10-010` | auto | 目前国内上市的GLP-1RA有艾塞那肽、利拉鲁肽、利司那肽、度拉糖肽、贝那鲁肽、洛塞那肽和司美格鲁肽，均需皮下注射。利拉
+- `auto-cds-2024-guideline-p10-cds2024-p10-011` | auto | Meta分析显示，GLP-1RA能够显著降低3P-MACE、心血管死亡、卒中风险，效应在老年和非老年人群中一致。GLP-
+- `auto-cds-2024-guideline-p10-cds2024-p10-012` | auto | 推荐GLP-1RA作为合并ASCVD或高危因素的老年患者首选用药，是一般老年T2DM患者的二级推荐降糖药物，但对合并AS
+- `auto-cds-2024-guideline-p12-cds2024-p12-001` | auto | 不合并ASCVD或高危因素、HF或CKD的老年T2DM患者（Group 1和Group 2），首选单药包括MET（二甲双
+- `auto-cds-2024-guideline-p12-cds2024-p12-002` | auto | 二级推荐药物：GLP-1RA、AGI（糖苷酶抑制剂）或格列奈类。
+- `auto-cds-2024-guideline-p12-cds2024-p12-003` | auto | 三级推荐药物：SU（磺脲类）或TZD（噻唑烷二酮类）。
+- `auto-cds-2024-guideline-p12-cds2024-p12-004` | auto | DPP-4i与GLP-1RA均为肠促胰素类药物，应避免同类药物联合使用。
+- `auto-cds-2024-guideline-p12-cds2024-p12-006` | auto | 当单药治疗3个月以上仍血糖控制不佳时，应联合不同机制的药物进行治疗。
+- `auto-cds-2024-guideline-p12-cds2024-p12-008` | auto | 此路径图适用于健康状态良好（Group 1）和中等（Group 2）的老年T2DM患者。
+- `auto-cds-2024-guideline-p12-cds2024-p12-009` | auto | PPAR泛激动剂代表药物西格列他钠是新一代非TZD类胰岛素增敏剂，能同时激活PPAR-α、γ和δ亚型受体；在老年糖尿病人
+- `auto-cds-2024-guideline-p12-cds2024-p12-010` | auto | GKA代表药物多格列艾汀通过葡萄糖依赖的方式调节葡萄糖激酶活性，改善血糖调节稳态；在老年糖尿病人群中的应用数据有限。
+- `auto-cds-2024-guideline-p12-cds2024-p12-012` | auto | FDC和FRC具有覆盖多种病理生理机制、简化治疗方案、减轻用药负担等优势，有助于提高老年患者治疗依从性与满意度。
+- `auto-cds-2024-guideline-p13-cds2024-p13-f2-ascvd-firstline` | auto | 合并ASCVD或高危因素的老年T2DM患者（Group 1和Group 2），非胰岛素首选药物为GLP-1RA*和/或S
+- `auto-cds-2024-guideline-p13-cds2024-p13-f2-ascvd-combo` | auto | 合并ASCVD或高危因素的老年T2DM患者，HbA1c不达标时联合治疗：一级推荐MET或DPP-4i；二级推荐AGI或格
+- `auto-cds-2024-guideline-p13-cds2024-p13-f2-hf-firstline` | auto | 合并HF的老年T2DM患者，非胰岛素首选药物为SGLT2i#。
+- `auto-cds-2024-guideline-p13-cds2024-p13-f2-hf-combo` | auto | 合并HF的老年T2DM患者，HbA1c不达标时联合治疗：一级推荐MET或DPP-4i；二级推荐GLP-1RA或AGI或格
+- `auto-cds-2024-guideline-p13-cds2024-p13-f2-ckd-firstline` | auto | 合并CKD的老年T2DM患者，非胰岛素首选药物为SGLT2i#和/或GLP-1RA*。
+- `auto-cds-2024-guideline-p13-cds2024-p13-f2-ckd-combo` | auto | 合并CKD的老年T2DM患者，HbA1c不达标时联合治疗：一级推荐MET或DPP-4i；二级推荐AGI或格列奈类；三级推
+- `auto-cds-2024-guideline-p13-cds2024-p13-f3-insulin-start` | auto | 老年T2DM患者（Group 1和Group 2），非胰岛素治疗不达标（≥3个月）时启用胰岛素治疗。
+- `auto-cds-2024-guideline-p13-cds2024-p13-f3-insulin-firstline` | auto | 老年T2DM患者启用胰岛素（Group 1和Group 2）：一级推荐为基础胰岛素、双胰岛素（1~2次/d）或基础胰岛素
+- `auto-cds-2024-guideline-p13-cds2024-p13-f3-insulin-progression` | auto | 老年T2DM胰岛素治疗升级路径（Group 1和Group 2）：基础胰岛素或基础/GLP-1RA复方→预混胰岛素2~3
+- `auto-cds-2024-guideline-p13-cds2024-p13-f3-no-su-glinide-with-insulin` | auto | 启用胰岛素治疗可联合非胰岛素治疗，但不建议继续使用磺脲类（SU）或格列奈类药物。
+- `auto-cds-2024-guideline-p13-cds2024-p13-f3-analog-preferred` | auto | 胰岛素包括人胰岛素和胰岛素类似物，优选胰岛素类似物。预混胰岛素注射3次/d时需选用胰岛素类似物；预混人胰岛素、双胰岛素不
+- `auto-cds-2024-guideline-p13-cds2024-p13-frail-eol-glucose-target` | auto | 虚弱或临终前老年T2DM患者，不建议依据上述路径进行方案选择，应基于重要脏器功能、药物治疗反应、低血糖风险等，制定相对宽
+- `auto-cds-2024-guideline-p13-cds2024-p13-frail-eol-insulin-choice` | auto | 虚弱或临终前老年T2DM患者，应用不易引起低血糖的口服药和/或长效（超长效）基础胰岛素（如甘精胰岛素U100、德谷胰岛素
+- `auto-cds-2024-guideline-p14-cds2024-p14-01` | auto | 老年糖尿病合并ASCVD或高危因素时，降糖药物应优选具有心血管保护作用的GLP-1RA或SGLT2i。（A）
+- `auto-cds-2024-guideline-p14-cds2024-p14-02` | auto | 老年糖尿病患者收缩压控制目标为130 mmHg（1 mmHg=0.133 kPa）以下，以降低心血管疾病风险，但应警惕低
+- `auto-cds-2024-guideline-p14-cds2024-p14-03` | auto | 降压药物首选血管紧张素转化酶抑制剂（ACEI）或血管紧张素Ⅱ受体拮抗剂（ARB）类，不建议二者联合用药，钙通道阻滞剂、利
+- `auto-cds-2024-guideline-p14-cds2024-p14-05` | auto | 老年糖尿病患者不建议常规应用阿司匹林进行ASCVD的一级预防，建议低剂量（75~150 mg/d）阿司匹林用于ASCVD
+- `auto-cds-2024-guideline-p14-cds2024-p14-06` | auto | 鼓励老年糖尿病患者积极戒烟以降低ASCVD风险。（A）
+- `auto-cds-2024-guideline-p14-cds2024-p14-07` | auto | 老年糖尿病患者的体质量管理应兼顾体质指数和身体成分。（B）
+- `auto-cds-2024-guideline-p14-cds2024-p14-08` | auto | T2DM患者心血管疾病的风险是非糖尿病患者的2倍以上。
+- `auto-cds-2024-guideline-p14-cds2024-p14-09` | auto | 收缩压每升高10 mmHg，缺血性心脏病和缺血性脑卒中的相对发病风险增加30%。
+- `auto-cds-2024-guideline-p14-cds2024-p14-10` | auto | 老年T2DM患者HbA1c>10.0%或伴有高血糖症状或有分解代谢证据或严重高血糖（空腹血糖>16.7 mmol/L）时
+- `auto-cds-2024-guideline-p15-cds2024-p785-bp01` | auto | 收缩压目标<140 mmHg并不能降低主要复合终点（非致死性心肌梗死、非致死性卒中和心血管死亡），却增加低血压、高钾血症
+- `auto-cds-2024-guideline-p15-cds2024-p785-bp02` | auto | 2021年中国STEP研究：强化降压（收缩压目标110-130 mmHg）与标准降压（130-150 mmHg）相比，使
+- `auto-cds-2024-guideline-p15-cds2024-p785-bp03` | auto | 建议健康状态良好同时年龄<80岁的老年糖尿病患者收缩压控制目标为<130 mmHg以下，以降低心血管疾病风险，但需密切监
+- `auto-cds-2024-guideline-p15-cds2024-p785-bp04` | auto | 不建议将收缩压<120 mmHg作为老年糖尿病患者的控制目标。
+- `auto-cds-2024-guideline-p15-cds2024-p785-bp05` | auto | 对于年龄≥80岁、预期寿命短或健康状态差（Group 3）的患者可适当放宽收缩压控制目标至<150 mmHg。
+- `auto-cds-2024-guideline-p15-cds2024-p785-bp06` | auto | ACEI可显著减少老年糖尿病患者的MACE、心血管死亡和全因死亡；ARB具有相似效果，在老年人中显著减少脑卒中。推荐将A
+- `auto-cds-2024-guideline-p15-cds2024-p785-bp07` | auto | 如使用ACEI或ARB单药血压控制不佳，可考虑加用钙通道阻滞剂、噻嗪类利尿剂或β受体阻滞剂协同降压。
+- `auto-cds-2024-guideline-p15-cds2024-p785-lip01` | auto | 老年糖尿病患者LDL-C应控制在2.6 mmol/L以下；合并ASCVD的老年糖尿病患者，应控制在1.8 mmol/L以
+- `auto-cds-2024-guideline-p15-cds2024-p785-lip02` | auto | 他汀类药物治疗有助于降低老年患者心血管事件和全因死亡风险。HPS-DIM研究、CARDS研究等均提示他汀类药物可降低老年
+- `auto-cds-2024-guideline-p15-cds2024-p785-lip03` | auto | IMPROVE-IT研究显示，依折麦布联合辛伐他汀可使急性冠脉综合征患者的缺血性脑卒中风险降低24%，合并糖尿病或其他高
+- `auto-cds-2024-guideline-p15-cds2024-p785-lip04` | auto | 如果单用他汀类药物效果欠佳，可考虑谨慎加用依折麦布或PCSK9抑制剂作为联合用药。老年糖尿病患者甘油三酯>5.65 mm
+- `auto-cds-2024-guideline-p15-cds2024-p785-ap01` | auto | ASPREE研究显示，在年龄≥70岁具有一定心血管疾病风险的人群中，应用阿司匹林不降低心血管疾病发生率，但却增加出血风险
+- `auto-cds-2024-guideline-p15-cds2024-p785-ap02` | auto | 推荐合并ASCVD的老年糖尿病患者应用低剂量阿司匹林（75-150 mg/d）作为二级预防。但在年龄≥80岁、预期寿命短
+- `auto-cds-2024-guideline-p15-cds2024-p785-ap03` | auto | 阿司匹林最常见的不良事件为消化道出血。出血风险因素包括：阿司匹林剂量大、应用时间长、严重肝功能不全、肾功能不全、消化道溃
+- `auto-cds-2024-guideline-p15-cds2024-p785-sm01` | auto | 吸烟增加冠心病、脑卒中等疾病的发病和死亡风险，并呈剂量反应关系；被动吸烟也可增加心血管疾病风险。在老年人中，吸烟仍是心血
+- `auto-cds-2024-guideline-p16-cds-2024-p16-01` | auto | 老年糖尿病在诊断时及诊断后每年均应对肾脏功能进行评估。（A）
+- `auto-cds-2024-guideline-p16-cds-2024-p16-02` | auto | 联合采用尿白蛋白/尿肌酐比值（UACR）和eGFR两种方法筛查及评估肾脏病变程度。（A）
+- `auto-cds-2024-guideline-p16-cds-2024-p16-03` | auto | 老年糖尿病合并CKD患者优先选用SGLT2i，如不耐受或有禁忌，应用有肾脏保护作用证据的GLP-1RA。（B）
+- `auto-cds-2024-guideline-p16-cds-2024-p16-04` | auto | 推荐采用ACEI类或ARB类药物进行降压治疗。（B）
+- `auto-cds-2024-guideline-p16-cds-2024-p16-05` | auto | 推荐合并CKD伴蛋白尿的老年糖尿病患者应用非甾体盐皮质受体阻滞剂非奈利酮，以延缓肾病进展。（A）
+- `auto-cds-2024-guideline-p16-cds-2024-p16-06` | auto | 老年糖尿病中的CKD常由多种因素导致，应进行降糖治疗为基础的综合管理。（A）
+- `auto-cds-2024-guideline-p16-cds-2024-p16-07` | auto | UACR＞30 mg/g即被认为升高，但剧烈运动、感染、发热、充血性心衰、血糖或血压明显升高等均可能导致UACR升高。
+- `auto-cds-2024-guideline-p16-cds-2024-p16-08` | auto | 对于非透析患者，推荐每日优质蛋白质摄入量0.8 g/kg。
+- `auto-cds-2024-guideline-p16-cds-2024-p16-09` | auto | 限制钠盐摄入，氯化钠＜5 g/d或钠＜2 g/d，有助于降低血压及心血管疾病风险。
+- `auto-cds-2024-guideline-p16-cds-2024-p16-10` | auto | 存在肾损伤的老年糖尿病患者中，仅1/3患者的肾损伤是单纯因糖尿病所致。
+- `auto-cds-2024-guideline-p16-cds-2024-p16-11` | auto | 部分T1DM患者病程超过5～10年后出现糖尿病肾病，T2DM可能在诊断时即已经出现肾脏病变。
+- `auto-cds-2024-guideline-p16-cds-2024-p16-13` | auto | FIDELIO-DKD研究显示，非奈利酮显著降低T2DM伴CKD患者的肾脏复合终点事件风险，中国亚组数据结果与总体人群相
+- `auto-cds-2024-guideline-p17-cds2024-p17-001` | auto | 对于eGFR≥25 mL/[min·(1.73 m²)]的老年糖尿病合并CKD的蛋白尿患者，推荐在使用最大耐受剂量ACE
+- `auto-cds-2024-guideline-p17-cds2024-p17-002` | auto | 老年糖尿病患者确诊时应进行糖尿病眼底病变筛查，此后每年复查，如存在眼底病变，增加复查频次。（A）
+- `auto-cds-2024-guideline-p17-cds2024-p17-003` | auto | 如无DR或为轻度非增殖期DR，应每年复查1次；如为中度非增殖期DR，建议每6个月复查1次；重度非增殖期DR和增殖期DR，
+- `auto-cds-2024-guideline-p17-cds2024-p17-004` | auto | CKD 1期（eGFR≥90）：A1（UACR<30 mg/g）和A2（UACR 30~300 mg/g）建议每年复查1
+- `auto-cds-2024-guideline-p17-cds2024-p17-005` | auto | CKD 1期（eGFR≥90）：A3（UACR>300 mg/g）建议每年复查2次。
+- `auto-cds-2024-guideline-p17-cds2024-p17-006` | auto | CKD 2期（eGFR 60~89）：A1和A2建议每年复查1次，A3建议每年复查2次。
+- `auto-cds-2024-guideline-p17-cds2024-p17-007` | auto | CKD 3a期（eGFR 45~59）：A1建议每年复查1次，A2建议每年复查2次，A3建议每年复查3次。
+- `auto-cds-2024-guideline-p17-cds2024-p17-008` | auto | CKD 3b期（eGFR 30~44）：A1建议每年复查2次，A2和A3建议每年复查3次。
+- `auto-cds-2024-guideline-p17-cds2024-p17-009` | auto | CKD 4期（eGFR 15~29）：A1和A2建议每年复查3次，A3建议每年复查4次。
+- `auto-cds-2024-guideline-p17-cds2024-p17-010` | auto | CKD 5期（eGFR<15）：无论A1、A2还是A3，均建议每年复查4次。
+- `auto-cds-2024-guideline-p17-cds2024-p17-011` | auto | Meta分析显示，与安慰剂相比，GLP-1RA与早期DR风险增加明显相关，但与胰岛素相比，GLP-1RA能保护晚期DR。
+- `auto-cds-2024-guideline-p17-cds2024-p17-012` | auto | 全视网膜激光光凝术是增殖期DR的主要治疗方法，玻璃腔内抗血管内皮生长因子（VEGF）也是有效的治疗方法之一。
+- `auto-cds-2024-guideline-p18-cds2024-p18-001` | auto | 老年糖尿病患者诊断时应进行远端对称性多发性神经病变筛查，此后每年进行筛查。（A）
+- `auto-cds-2024-guideline-p18-cds2024-p18-002` | auto | 应重视老年糖尿病患者糖尿病自主神经病变的筛查和治疗，尤其是心脏自主神经病变。（B）
+- `auto-cds-2024-guideline-p18-cds2024-p18-003` | auto | 糖尿病痛性神经病变严重影响老年糖尿病患者的生活质量，应予以重视。（B）
+- `auto-cds-2024-guideline-p18-cds2024-p18-004` | auto | DSPN是最常见的类型，约占糖尿病神经病变的75%，是糖尿病足溃疡的重要危险因素，也是跌倒及骨折的重要原因。
+- `auto-cds-2024-guideline-p18-cds2024-p18-005` | auto | 北京地区的数据显示，老年T2DM中DSPN患病率为42.6%，疑似DSPN患病率为26.2%。
+- `auto-cds-2024-guideline-p18-cds2024-p18-006` | auto | 对于新诊断的老年糖尿病患者，应进行DSPN评估，具体包括详细的病史、小纤维功能（温度觉、针刺痛觉）和大纤维功能（压力觉、
+- `auto-cds-2024-guideline-p18-cds2024-p18-007` | auto | 年龄是DSPN的独立危险因素。
+- `auto-cds-2024-guideline-p18-cds2024-p18-008` | auto | 北京地区的数据显示，T2DM中CAN的患病率高达62.6%，其中≥60岁的T2DM患者中CAN的患病率为67.5%，略高
+- `auto-cds-2024-guideline-p18-cds2024-p18-009` | auto | 多因素Logistic回归分析显示，年龄是CAN的独立危险因素。CAN独立于其他心血管危险因素，与死亡风险相关。对已有微
+- `auto-cds-2024-guideline-p18-cds2024-p18-010` | auto | 目前尚无有效治疗手段逆转DSPN，一旦考虑DSPN诊断时，应尽早开始治疗以延缓DSPN进展。血糖控制是预防DSPN发生和
+- `auto-cds-2024-guideline-p18-cds2024-p18-011` | auto | 光学相干断层扫描是诊断DME的金标准，也可用于DME的筛查、分类、监测以及治疗效果的评估。建议老年糖尿病患者诊断时即进行
+- `auto-cds-2024-guideline-p18-cds2024-p18-012` | auto | 如已存在有临床意义的黄斑水肿（即位于黄斑中心或威胁黄斑中心的视网膜水肿），应每3个月进行复查。
+- `auto-cds-2024-guideline-p18-cds2024-p18-013` | auto | 2017年欧洲视网膜专家协会指南推荐累及中心凹的黄斑水肿首选VEGF治疗。
+- `auto-cds-2024-guideline-p18-cds2024-p18-014` | auto | 上海一项基于社区的调查显示，平均年龄为69岁的T2DM患者中干眼症患病率为17.5%。
+- `auto-cds-2024-guideline-p20-cds-2024-p20-02` | auto | 老年T1DM患者佩戴持续葡萄糖监测（CGM）系统可能有助于降低低血糖风险。（A）
+- `auto-cds-2024-guideline-p20-cds-2024-p20-03` | auto | 老年糖尿病患者高血糖危象以高血糖高渗状态（HHS）更为多见，病死率远高于糖尿病酮症酸中毒（DKA）。补液是重要的治疗手段
+- `auto-cds-2024-guideline-p20-cds-2024-p20-04` | auto | 乳酸酸中毒发生率低，但死亡率高，应予重视。（B）
+- `auto-cds-2024-guideline-p20-cds-2024-p20-05` | auto | 接受药物治疗的糖尿病患者只要血糖<3.9 mmol/L就属于低血糖。（1）1级低血糖：<3.9 mmol/L且≥3.0 
+- `auto-cds-2024-guideline-p21-cds2024-p21-001` | auto | 随机对照试验研究结果显示，佩戴CGM系统可能有助于降低老年T1DM患者低血糖发生风险，有条件的患者需要时可考虑使用。
+- `auto-cds-2024-guideline-p21-cds2024-p21-002` | auto | HHS的诊断标准包括：血浆葡萄糖水平≥33.3 mmol/L，有效血浆渗透压≥320 mOsm/L，无明显的代谢性酸中毒
+- `auto-cds-2024-guideline-p21-cds2024-p21-003` | auto | HHS比DKA的病死率更高，约为DKA病死率的10倍。
+- `auto-cds-2024-guideline-p21-cds2024-p21-004` | auto | 30%~40%的HHS患者此前未诊断为糖尿病。
+- `auto-cds-2024-guideline-p21-cds2024-p21-005` | auto | 年龄和糖尿病均是HF的危险因素，老年糖尿病患者中HF患病率高达22.3%。
+- `auto-cds-2024-guideline-p21-cds2024-p21-006` | auto | 由于老年糖尿病患者中射血分数保留的HF较常见，老年糖尿病患者的HF易被漏诊，漏诊率高达27.7%。
+- `auto-cds-2024-guideline-p21-cds2024-p21-007` | auto | SGLT2i可降低HF患者HF住院风险，合并HF的老年糖尿病患者优先选择该类降糖药物。（A级证据）
+- `auto-cds-2024-guideline-p21-cds2024-p21-008` | auto | 具有HF风险的药物在HF高风险或合并HF的老年糖尿病患者中应慎用或禁用。（B级证据）
+- `auto-cds-2024-guideline-p22-cds2024-p22-01` | auto | 双能X线骨密度仪测定骨密度和骨折风险评估工具FRAX可提示老年糖尿病患者的骨折风险，但可能低估骨折风险。(B)
+- `auto-cds-2024-guideline-p22-cds2024-p22-02` | auto | 合并骨质疏松的老年糖尿病患者应慎重使用可能增加骨质疏松或骨折风险的药物。(B)
+- `auto-cds-2024-guideline-p22-cds2024-p22-03` | auto | 60岁以上人群骨质疏松患病率明显增高，80岁以上女性椎体骨折患病率可高达36.6%。[234]
+- `auto-cds-2024-guideline-p22-cds2024-p22-04` | auto | 糖尿病患者的骨折风险明显超过非糖尿病人群。[235]
+- `auto-cds-2024-guideline-p22-cds2024-p22-05` | auto | 北京地区2016至2018年糖尿病合并骨质疏松的患病率为13.4%～14.8%。[236]
+- `auto-cds-2024-guideline-p22-cds2024-p22-06` | auto | 跌倒史、骨折史、握力低和HbA1c升高是老年T2DM患者骨折的危险因素。[237]
+- `auto-cds-2024-guideline-p22-cds2024-p22-07` | auto | 相同骨密度下，T2DM较非糖尿病人群更易发生骨折。FRAX也同样会低估糖尿病患者的骨折风险。[238][239]
+- `auto-cds-2024-guideline-p22-cds2024-p22-08` | auto | Meta分析发现，老年T2DM患者使用磺脲类药物可能增加骨折风险，与其引发低血糖可能相关。[240]
+- `auto-cds-2024-guideline-p22-cds2024-p22-09` | auto | 中国专家共识建议，糖尿病合并骨质疏松的治疗参照非糖尿病患者，在骨质疏松药物选择上需考虑多病共存、多重用药等情况，全面评估
+- `auto-cds-2024-guideline-p22-cds2024-p22-10` | auto | 老年糖尿病患者中应积极评估老年综合征。(B)
+- `auto-cds-2024-guideline-p22-cds2024-p22-11` | auto | 老年糖尿病患者肌少症患病率高，是引起老年糖尿病患者衰弱的重要原因。(A)
+- `auto-cds-2024-guideline-p22-cds2024-p22-12` | auto | 对所有老年糖尿病患者均应进行肌少症和衰弱的评估，以早期干预、改善预后。(B)
+- `auto-cds-2024-guideline-p22-cds2024-p22-13` | auto | 中国老年糖尿病患者肌少症患病率为14.8%。[243]
+- `auto-cds-2024-guideline-p22-cds2024-p22-14` | auto | 肌少症使老年糖尿病患者的血糖更加难以控制，日常生活活动能力下降，并增加死亡率。[248]
+- `auto-cds-2024-guideline-p22-cds2024-p22-15` | auto | 80岁以上的人群中，女性和男性肌少性肥胖患病率分别达到48.0%和27.5%。[250]
+- `auto-cds-2024-guideline-p22-cds2024-p22-16` | auto | 对于社区基层医疗机构，可以通过量表（简易五项评分问卷量表或简易五项评分问卷＋小腿围量表）进行筛查，并对肌肉力量和躯体功能
+- `auto-cds-2024-guideline-p22-cds2024-p22-17` | auto | 在老年人中，糖尿病使衰弱的风险增加5倍。[252]
+- `auto-cds-2024-guideline-p22-cds2024-p22-18` | auto | 衰弱是一种残疾前状态，导致衰弱的病因在一定程度上尚可逆转。早期识别并干预衰弱的老年人有助于改善预后。
+- `auto-cds-2024-guideline-p22-cds2024-p22-19` | auto | SGLT2i能降低HF住院风险，合并HF的老年糖尿病患者应优先选择该类药物。[232]
+- `auto-cds-2024-guideline-p22-cds2024-p22-20` | auto | 老年糖尿病患者禁用TZD类降糖药。
+- `auto-cds-2024-guideline-p23-cds2024-p23-01` | auto | 老年人中衰弱和衰弱前期的患病率分别为20.1%和49.1%。
+- `auto-cds-2024-guideline-p23-cds2024-p23-04` | auto | 糖尿病增加老年人的跌倒风险，尤其是使用胰岛素的老年糖尿病患者，跌倒风险较非糖尿病老年人增加94%。
+- `auto-cds-2024-guideline-p23-cds2024-p23-06` | auto | 中国老年糖尿病患者中认知障碍的发生率为48%，在女性、年龄较大、教育水平较低、收入较低、无配偶和独居的人群中发生率更高。
+- `auto-cds-2024-guideline-p23-cds2024-p23-09` | auto | 回顾性研究显示，老年T2DM患者使用二甲双胍与痴呆风险降低显著相关，且呈现出剂量依赖效应。
+- `auto-cds-2024-guideline-p23-cds2024-p23-10` | auto | GLP-1RA的使用与老年患者阿尔茨海默病发病率降低有关。
+- `auto-cds-2024-guideline-p23-cds2024-p23-11` | auto | 一项随机临床试验发现太极拳比健身步行可更有效改善我国老年T2DM患者的认知功能。
+- `auto-cds-2024-guideline-p24-cds-2024-p24-001` | auto | 建议老年糖尿病患者接受与其年龄和性别匹配的肿瘤筛查。(B)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-002` | auto | 新发的老年糖尿病患者需警惕胰腺癌的可能。(B)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-003` | auto | 阻塞性睡眠呼吸暂停综合征（OSAS）与血糖波动、糖尿病并发症发生相关。(A)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-004` | auto | 建议肥胖的老年糖尿病患者常规进行OSAS筛查。(B)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-005` | auto | 减重、持续气道正压是治疗OSAS的有效方法，且可改善血糖控制。(B)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-006` | auto | 老年糖尿病患者存在多种可导致睡眠障碍的因素，应关注患者的睡眠情况。(B)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-007` | auto | 对睡眠障碍进行干预有助于提高老年糖尿病患者的睡眠及生活质量，同时改善血糖。(C)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-008` | auto | 老年糖尿病患者牙周炎高发，加剧了血糖控制难度。(B)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-009` | auto | 鼓励老年糖尿病患者养成良好的卫生习惯，定期进行口腔检查。(B)
+- `auto-cds-2024-guideline-p24-cds-2024-p24-010` | auto | 良好的血糖控制有利于治疗口腔病变，控制口腔病变也有利于改善血糖。(B)
+- `auto-cds-2024-guideline-p25-cds-2024-p25-01` | auto | 血糖控制不佳可加重皮肤病变，而皮肤病变可导致血糖升高。证据等级 C。
+- `auto-cds-2024-guideline-p25-cds-2024-p25-02` | auto | 多重用药（同时使用≥5种药物）在老年糖尿病患者中较为普遍且难以避免。证据等级 B。
+- `auto-cds-2024-guideline-p25-cds-2024-p25-03` | auto | 在选择降糖药物时需充分考虑药物之间的相互作用，避免不良反应。磺脲类（CYP2C9）与氟康唑、西咪替丁合用增加低血糖风险；
+- `auto-cds-2024-guideline-p25-cds-2024-p25-04` | auto | 健康状态分级为良好（Group 1）和中等（Group 2）的住院老年糖尿病患者空腹血糖控制目标为 6.1～7.8 mm
+- `auto-cds-2024-guideline-p25-cds-2024-p25-05` | auto | 择期手术的老年糖尿病患者在围术期将血糖控制在 7.8～10.0 mmol/L，急诊手术的老年糖尿病患者不建议在术前设定过
+- `auto-cds-2024-guideline-p25-cds-2024-p25-06` | auto | 老年糖尿病患者易出现感染，感染可导致血糖难以控制，甚至出现高血糖危象。证据等级 B。
+- `auto-cds-2024-guideline-p26-cds2024-p26-001` | auto | 健康状态良好(Group1)或中等(Group2)的住院老年糖尿病患者：空腹血糖6.1～7.8 mmol/L，餐后2h血
+- `auto-cds-2024-guideline-p26-cds2024-p26-002` | auto | 健康状态差(Group3)、低血糖风险高或预期寿命短的老年糖尿病患者：空腹血糖7.8～10.0 mmol/L，餐后2h血
+- `auto-cds-2024-guideline-p26-cds2024-p26-003` | auto | 老年糖尿病患者围术期血糖控制目标为7.8～10.0 mmol/L[108,307]。
+- `auto-cds-2024-guideline-p26-cds2024-p26-004` | auto | 对于有严重合并症和频繁低血糖发作的老年患者，围术期控制目标最高可为13.9 mmol/L[307]。
+- `auto-cds-2024-guideline-p26-cds2024-p26-005` | auto | 对于拟行心脏手术或其他精细手术的患者，在权衡低血糖风险的基础上，建议可考虑更为严格的血糖控制目标，即6.1～7.8 mm
+- `auto-cds-2024-guideline-p26-cds2024-p26-006` | auto | 手术当日早上停用所有口服降糖药物，禁食期间每4～6小时进行1次血糖监测。
+- `auto-cds-2024-guideline-p26-cds2024-p26-007` | auto | 手术时应暂停使用SGLT2i，以避免DKA风险[309]。
+- `auto-cds-2024-guideline-p26-cds2024-p26-008` | auto | 一项回顾性队列研究显示，相较于40～49岁的糖尿病患者，80～89岁患者住院风险高3～4倍，其中与感染有关的住院比例很高
+- `auto-cds-2024-guideline-p27-cds-2024-p27-001` | auto | 武汉一项针对住院患者（主要是老年COVID-19）的研究显示，21.6%的患者有糖尿病病史，20.8%新诊断为糖尿病，2
+- `auto-cds-2024-guideline-p27-cds-2024-p27-002` | auto | 糖尿病患者入院时的血糖水平与全因死亡风险增加有关。新诊断的糖尿病患者更可能进入重症监护病房，并需要有创机械通气、急性呼吸
+- `auto-cds-2024-guideline-p27-cds-2024-p27-003` | auto | COVID-19患者新发糖尿病的确切机制尚不明确，可能的原因包括：既往未诊断的糖尿病、应激性高血糖、病毒感染或类固醇相关
+- `auto-cds-2024-guideline-p27-cds-2024-p27-004` | auto | 对于急性COVID-19感染和持续症状（即长新冠）后糖尿病患者的长期管理，推荐使用不增加体质量且改善心肾结局的降糖药物（
+- `auto-cds-2024-guideline-p27-cds-2024-p27-005` | auto | 良好的血糖控制、加强个人卫生、进行必要的免疫接种（流感、肺炎链球菌等疫苗）可减少老年糖尿病患者住院和死亡风险，但流感疫苗
+- `auto-cds-2024-guideline-p27-cds-2024-p27-006` | auto | 当老年糖尿病患者进入生命的晚期时，主要目标并非严格的血糖、血压、血脂管理，应采取姑息治疗，减少血糖监测的频率，预防低血糖
+- `auto-cds-2024-guideline-p27-cds-2024-p27-007` | auto | 有器官损害的T2DM患者应减量使用低血糖风险高的药物，允许血糖处于正常高限或不出现急性代谢异常的可接受范围，根据进食量必
+- `auto-cds-2024-guideline-p27-cds-2024-p27-008` | auto | 老年T1DM患病率较低，但老年期LADA并不少见。与年轻起病的患者相比，老年起病的LADA患者残余的胰岛β细胞功能相对较
+- `auto-cds-2024-guideline-p27-cds-2024-p27-009` | auto | 长病程是老年T1DM患者发生低血糖的危险因素，病程超过40年的老年T1DM患者严重低血糖发生率达18.6%。
+- `auto-cds-2024-guideline-p27-cds-2024-p27-010` | auto | 对于老年T1DM患者，可使用持续葡萄糖监测（CGM）或胰岛素泵改善血糖控制、减少低血糖发生。使用CGM或胰岛素泵的患者H
+- `auto-cds-2024-guideline-p27-cds-2024-p27-011` | auto | WISDM随机对照临床试验显示，与指尖血糖监测相比，老年T1DM患者使用CGM可降低低血糖发生率，改善总体血糖控制情况。
+- `auto-cds-2024-guideline-p27-cds-2024-p27-012` | auto | 混合闭环胰岛素泵在老年T1DM患者中的安全性得到证实，与实时动态胰岛素泵组比较，混合闭环胰岛素泵组患者的TIR更优。
+- `auto-cds-2024-guideline-p27-cds-2024-p27-013` | auto | 认知能力或身体机能下降的老年T1DM患者的治疗策略应力求简便，同时应加强护理支持。（证据等级C）
+- `auto-cds-2024-guideline-p28-cds2024-p28-001` | auto | 未达标前每3个月检测1次，达标后每6～12个月检测1次。
+- `auto-cds-2024-guideline-p28-cds2024-p28-002` | auto | 胰岛素治疗或低血糖风险高的患者需进行自我血糖监测，条件允许的患者（尤其是T1DM）可佩戴CGM系统。
+- `auto-cds-2024-guideline-p28-cds2024-p28-004` | auto | 应用胰岛素泵可以改善血糖控制，但需对患者及家属进行胰岛素泵知识教育，以避免胰岛素泵相关并发症。
+- `auto-cds-2024-guideline-p28-cds2024-p28-005` | auto | 在老年糖尿病患者中，佩戴CGM系统能进一步改善HbA1c，同时降低血糖变异性，而不增加低血糖风险。
+- `auto-cds-2024-guideline-p28-cds2024-p28-006` | auto | TIR是指24h内葡萄糖在目标范围的时长或所占百分比，成人糖尿病患者中TIR的血糖范围一般界定为3.9～10.0 mmo
+- `auto-cds-2024-guideline-p28-cds2024-p28-007` | auto | 在T2DM中，TIR独立于HbA1c与糖尿病微血管并发症相关（患者平均年龄60.4岁），与心血管死亡、全因死亡相关（患者
+- `auto-cds-2024-guideline-p28-cds2024-p28-009` | auto | 中国ITIMPROVE研究显示34.7%的患者出现注射部位脂肪增生，针头重复使用以及注射部位轮换不当可分别使脂肪增生风险
+- `auto-cds-2024-guideline-p28-cds2024-p28-010` | auto | 老年T1DM的自我管理过程依赖于患者良好的认知能力，有严重低血糖的老年T1DM患者更易出现认知功能下降，应简化胰岛素治疗
+- `auto-ishne-2023-agp-p1-ishne-agp-001` | auto | 动态血糖图谱（AGP）现已被确立为标准化、实用的单页报告，用于以图形方式呈现使用连续血糖监测（CGM）系统的糖尿病患者的
+- `auto-ishne-2023-agp-p1-ishne-agp-002` | auto | AGP报告既提供血糖指标的可视化摘要，也提供统计摘要；根据2019年国际共识，所有使用CGM系统的糖尿病患者均应分析这些
+- `auto-ishne-2023-agp-p1-ishne-agp-003` | auto | AGP报告可以系统地分析，以了解当前的血糖控制情况，并实时监测治疗调整对1型糖尿病和2型糖尿病的影响。
+- `auto-ishne-2023-agp-p2-ishne-agp-p2-001` | auto | CGM系统的使用已被证实可以降低接受强化胰岛素治疗的1型糖尿病或2型糖尿病患者的HbA1c。
+- `auto-ishne-2023-agp-p2-ishne-agp-p2-002` | auto | CGM系统对仅接受基础胰岛素治疗的2型糖尿病患者同样有效。
+- `auto-ishne-2023-agp-p2-ishne-agp-p2-004` | auto | HbA1c测量和不频繁的自我血糖监测可能不足以预测或解释血糖水平的潜在有害变化，包括低血糖感知受损、夜间低血糖、反复不明
+- `auto-ishne-2023-agp-p2-ishne-agp-p2-005` | auto | 2019年发表的国际共识确定了10个评估血糖控制的指标，所有使用CGM系统的糖尿病患者均应由医疗专业人员进行分析。
+- `auto-ishne-2023-agp-p3-ishne-2023-agp-p003-01` | auto | 推荐的TIR目标（≥70%时间处于70-180 mg/dL范围内）约对应糖化血红蛋白A1c(HbA1c)水平接近7.0%
+- `auto-ishne-2023-agp-p3-ishne-2023-agp-p003-02` | auto | %TIR每增加10个百分点，HbA1c百分比约降低0.8%。
+- `auto-ishne-2023-agp-p3-ishne-2023-agp-p003-03` | auto | TIR降低10%与视网膜病变进展风险增加64%相关。
+- `auto-ishne-2023-agp-p3-ishne-2023-agp-p003-04` | auto | TIR降低10%与白蛋白尿发生风险增加40%相关。
+- `auto-ishne-2023-agp-p3-ishne-2023-agp-p003-06` | auto | 通过AGP报告评估%TIR变化，可比评估HbA1c水平更快速、更准确地调整治疗方案和建议，因为TIR可持续分析，而HbA
+- `auto-ishne-2023-agp-p3-ishne-2023-agp-p003-07` | auto | AGP图使用分布曲线汇总CGM数据：中位数线、第25至第75百分位数范围（四分位距IQR，显示为较深蓝色内带）以及第5至
+- `auto-ishne-2023-agp-p4-agp-tir-target` | auto | 对于1型或2型糖尿病患者，70–180 mg/dL目标范围内时间应>70%的读数，即每天>16小时48分钟。
+- `auto-ishne-2023-agp-p4-agp-tbr-70` | auto | 对于1型或2型糖尿病患者，低于70 mg/dL的时间应<4%的读数，即每天<58分钟。
+- `auto-ishne-2023-agp-p4-agp-tbr-54` | auto | 对于1型或2型糖尿病患者，低于54 mg/dL的时间应<1%的读数，即每天<14分钟。
+- `auto-ishne-2023-agp-p4-agp-tar-180` | auto | 对于1型或2型糖尿病患者，高于180 mg/dL的时间应<25%的读数，即每天<6小时。
+- `auto-ishne-2023-agp-p4-agp-tar-250` | auto | 对于1型或2型糖尿病患者，高于250 mg/dL的时间应<5%的读数，即每天<1小时12分钟。
+- `auto-ishne-2023-agp-p4-agp-tir-5pct-benefit` | auto | 目标范围内时间（70–180 mg/dL）每增加5%均具有临床获益。
+- `auto-ishne-2023-agp-p4-agp-cv-target` | auto | 以变异系数（CV）衡量的血糖变异性应≤36%。
+- `auto-ishne-2023-agp-p4-agp-gmi-formula` | auto | 葡萄糖管理指标（GMI）由平均血糖估算HbA1c；平均血糖156 mg/dL对应GMI 7.0%（54 mmol/mol
+- `auto-ishne-2023-agp-p4-agp-agp-percentile-bands` | auto | 动态葡萄糖谱（AGP）图使用五个百分位带来展示14天血糖变异性：第5、25、50（中位数）、75和95百分位，目标范围为
+- `auto-ishne-2023-agp-p4-agp-daily-profile-shading` | auto | 每日血糖图（午夜到午夜）中，高于180 mg/dL的区域用黄色阴影标记，低于70 mg/dL的区域用灰色阴影标记，参考线
+- `auto-ishne-2023-agp-p4-agp-sensor-activity` | auto | 该14天监测期间传感器佩戴活跃度为88%；更高的传感器佩戴时间可提高AGP解读的数据可靠性。
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-tbr1-general` | auto | 低于目标血糖范围时间（TBR）1级定义为血糖 < 70 mg/dL（< 3.9 mmol/L）的时间百分比。一般1型或2
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-tbr1-elderly` | auto | TBR 1级（< 70 mg/dL，< 3.9 mmol/L）对老年患者和/或低血糖高风险人群的推荐目标：< 1%（即 
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-tbr1-pregnancy` | auto | 妊娠期1型糖尿病女性TBR 1级定义为血糖 < 63 mg/dL（3.5 mmol/L），推荐目标 < 4%（即 < 5
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-tbr2-general` | auto | 低于目标血糖范围时间（TBR）2级定义为血糖 < 54 mg/dL（< 3 mmol/L）的时间百分比。一般1型或2型糖
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-tbr2-elderly` | auto | TBR 2级（< 54 mg/dL，< 3 mmol/L）对老年患者和/或低血糖高风险人群的推荐目标：0%。
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-tbr-pregnancy-note` | auto | 妊娠期2型糖尿病或妊娠糖尿病女性的TIR/TAR/TBR范围与妊娠期1型糖尿病女性相同。由于证据有限，这些人群的具体目标
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-agp-iqr` | auto | 在AGP中，25至75百分位之间的IQR带包含最接近中位线的50%血糖读数。5至95百分位之间的带包含90%的血糖读数，
+- `auto-ishne-2023-agp-p6-ishne-2023-agp-p006-agp-14day` | auto | AGP报告第3节（每日血糖概况）提供报告生成前最近14天内每天血糖变化的分析，可用于评估患者行为对各天的影响。
+- `auto-ishne-2023-agp-p7-ishne-2023-agp-p007-t2-median` | auto | 深蓝色中位线追踪24小时内的第50百分位值。50%的血糖读数在此线之上，50%在此线之下。理想图形：中位线在24小时内尽
+- `auto-ishne-2023-agp-p7-ishne-2023-agp-p007-t2-iqr` | auto | 四分位距（IQR；第25–75百分位带）是50%血糖读数所落入的范围——中位线上方25%，下方25%。IQR带宽大表示血
+- `auto-ishne-2023-agp-p7-ishne-2023-agp-p007-t2-p5-p95` | auto | 第5–95百分位带是90%血糖读数所落入的范围。带宽大表示血糖变异性高。当第5百分位曲线低于目标范围时，提示低血糖发生率
+- `auto-ishne-2023-agp-p7-ishne-2023-agp-p007-factors` | auto | 评估血糖变异性模式时应考虑的因素包括：不规律的进餐时间、禁食（如宗教节日期间）、胰岛素校正因子（ICF）或胰岛素碳水化合
+- `auto-ishne-2023-agp-p7-ishne-2023-agp-p007-interpretation` | auto | CGM系统和AGP解读在用户接受过教育并有动力记录饮食、体力活动、疾病和用药依从性变化时效果最佳，这些记录有助于理解AG
+- `auto-ishne-2023-agp-p8-ishne-2023-agp-p008-04` | auto | AGP血糖变异性评估应包括变异系数（CV）、第25–75百分位数范围和第5–95百分位数范围。
+- `auto-ishne-2023-agp-p8-ishne-2023-agp-p008-07` | auto | 应针对每个病例确定主要血糖控制问题并相应调整治疗方案，逐步改变患者管理以实现其个体化目标。
+- `auto-ishne-2023-agp-p8-ishne-2023-agp-p008-08` | auto | 医生定期进行的AGP分析不应取代糖尿病医疗团队对患者或其照护者进行教育的必要性。医生和糖尿病教育者的职责是教会患者如何独
+- `auto-ishne-2023-agp-p8-ishne-2023-agp-p008-09` | auto | 应鼓励患者独立评估整个14天的AGP数据周期，同时检查每日血糖记录以识别好决策和坏决策的结果。
+- `auto-ishne-2023-agp-p9-ishne-2023-agp-p09-cgm-data-quality` | auto | CGM推荐分析周期为14天。CGM系统活跃时间占比推荐>70%。对于血糖变异性高的患者，建议延长观察期。
+- `auto-ishne-2023-agp-p9-ishne-2023-agp-p09-gmi-vs-hba1c` | auto | 即使GMI目标值与HbA1c相同，GMI值也可能与实验室检测的HbA1c值不同。GMI未考虑影响HbA1c的非血糖因素，
+- `auto-ishne-2023-agp-p9-ishne-2023-agp-p09-cv-variability` | auto | %CV描述一天内连续高低血糖波动的强度。达到TIR目标的患者可能未达到血糖变异性目标（如TIR=75%且CV=40%）。
+- `auto-ishne-2023-agp-p9-ishne-2023-agp-p09-iqr-5-95-education` | auto | 第5-95百分位带宽较宽提示需验证或加强关于胰岛素治疗、饮食、体力活动或其他行为因素的教育，以及患者遵从治疗建议的动机。
+- `auto-ishne-2023-agp-p9-ishne-2023-agp-p09-hypoglycaemia-15min` | auto | 应关注持续≥15分钟的低血糖事件。评估低血糖症状出现时的血糖值。个体化评估和目标，尤其是孕妇、老年人和/或其他低血糖高风
+- `auto-ishne-2023-agp-p9-ishne-2023-agp-p09-hyperglycaemia-identification` | auto | 使用动态血糖谱（AGP）和每日血糖图，识别：一天中反复出现的高血糖模式、患者行为和活动的模式和趋势，以及高血糖的持续原因
+- `auto-ishne-2023-agp-p10-ishne-2023-agp-p10-003` | auto | 与HbA1c和传统的血糖仪自我监测相比，AGP报告能够提供更清晰的血糖控制图景。
+- `auto-ispad-2024-glycemic-p1-ispad-2024-gt-p1-001` | auto | ISPAD 2024建议，对于能够使用连续血糖监测（CGM）和自动胰岛素输注（AID）等先进技术的糖尿病患儿和青少年，H
+- `auto-ispad-2024-glycemic-p1-ispad-2024-gt-p1-002` | auto | 对于无法使用先进技术（CGM、AID）的糖尿病患儿和青少年，ISPAD 2024的HbA1c目标为≤7.0%（53 mm
+- `auto-ispad-2024-glycemic-p1-ispad-2024-gt-p1-003` | auto | 越来越多的证据表明，将HbA1c降至既往目标以下可显著降低糖尿病并发症风险。在有足够技术和医疗专业人员支持的情况下，这些
+- `auto-ispad-2024-glycemic-p2-ispad-2024-p002-01` | auto | 对于能够使用先进糖尿病技术（如持续葡萄糖监测和自动胰岛素输注）的患儿，推荐新的糖化血红蛋白（HbA1c）目标为≤6.5%
+- `auto-ispad-2024-glycemic-p2-ispad-2024-p002-02` | auto | 在其他诊疗环境中，HbA1c目标为≤7.0%（53 mmol/mol）。
+- `auto-ispad-2024-glycemic-p2-ispad-2024-p002-03` | auto | 2022年，ISPAD将HbA1c目标设定为7.0%（53 mmol/mol），并在可行时允许更低目标，特别是在能够使用
+- `auto-ispad-2024-glycemic-p2-ispad-2024-p002-04` | auto | 瑞典和NICE已将其HbA1c目标降低至6.5%（48 mmol/mol）。
+- `auto-ispad-2024-glycemic-p2-ispad-2024-p002-05` | auto | 2022年，ISPAD指出学龄前儿童可安全达到HbA1c 6.5%的目标。
+- `auto-ispad-2024-glycemic-p2-ispad-2024-p002-06` | auto | ADA推荐HbA1c <6.5%作为合理目标（前提是没有低血糖风险、不影响健康或不造成过度负担），同时允许个体化目标，<
+- `auto-ispad-2024-glycemic-p2-ispad-2024-p002-07` | auto | 医疗专业人员和糖尿病患者有多种血糖监测工具，包括使用血糖仪的自我血糖监测（SMBG）、持续葡萄糖监测（CGM）和HbA1
+- `auto-ispad-2024-glycemic-p3-ispad-2024-p3-tbr-l2` | auto | ISPAD建议儿童患者2级低血糖时间（TBR Level 2）<1%，即低于3 mmol/L（<54 mg/dL）的时间
+- `auto-ispad-2024-glycemic-p3-ispad-2024-p3-hba1c-6-5` | auto | ISPAD建议，在先进技术（CGM和AID）支持下能安全达到该目标，且追求更低目标不会增加负担影响生活质量的患者，HbA
+- `auto-ispad-2024-glycemic-p3-ispad-2024-p3-hba1c-7-0` | auto | ISPAD建议在所有其他情况下，儿童患者的HbA1c目标为≤7%（53 mmol/mol）。[A类证据]
+- `auto-ispad-2024-glycemic-p3-ispad-2024-p3-hba1c-freq` | auto | 定期检测HbA1c是临床护理的重要基础，公认的惯例为每3个月评估一次，因为HbA1c反映约90天的血糖水平。
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-retinopathy-6-5` | auto | 从儿科向成人服务过渡时，糖尿病视网膜病变发生率最低的情况出现在HbA1c≤6.5%（48 mmol/mol）时。
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-kidney-albuminuria-6-5` | auto | 瑞典注册数据显示，在HbA1c 6.5%（48 mmol/mol）阈值下，未发现与白蛋白尿发生之间的明确关系。
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-kidney-native-american-prediabete` | auto | 有2型糖尿病风险的美国原住民，HbA1c处于糖尿病前期范围（5.7–6.4% [39–47 mmol/mol]）时，白蛋
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-kidney-limited-evidence-below-7` | auto | 在1型糖尿病中，HbA1c低于7%可减少糖尿病肾病发生和进展的证据有限。
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-neuropathy-gt-7` | auto | HbA1c >7%（53 mmol/mol）与病程超过5年的青少年1型糖尿病患者发生糖尿病神经病变的风险增高相关。
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-neuropathy-6-5-not-assessed` | auto | 6.5%（48 mmol/mol）较低阈值相关的神经病变风险尚未评估；需要更多数据或建模来确认使用6.5%目标对预防糖尿
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-cognition-6-5-individual` | auto | 6.5%的较低目标应在个体化基础上谨慎指导，特别是在缺乏血糖监测和低血糖时暂停胰岛素的技术的环境中。
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-bmi-u-shaped` | auto | 存在独立于HbA1c的BMI外部影响因素，表现为U型曲线——最高HbA1c出现在体重不健康的人群中。
+- `auto-ispad-2024-glycemic-p4-ispad2024-p004-bmi-improving-hba1c-rising-bmi` | auto | 国际注册数据显示HbA1c总体改善，但BMI标准差评分（SDS）升高的人群比例也在增加。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-001` | auto | 糖尿病儿童和青少年应努力使血糖在3.9–10 mmol/L（70–180 mg/dL）范围内的时间>70% [B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-002` | auto | 糖尿病儿童和青少年血糖低于3.9 mmol/L（70 mg/dL）的时间应<4% [B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-003` | auto | 糖尿病儿童和青少年血糖低于3.0 mmol/L（54 mg/dL）的时间应<1% [B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-004` | auto | 糖尿病儿童和青少年血糖高于10 mmol/L（180 mg/dL）的时间应<25% [B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-005` | auto | 糖尿病儿童和青少年血糖高于13.9 mmol/L（250 mg/dL）的时间应<5% [B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-006` | auto | 为达到最佳HbA1c目标≤6.5%（48 mmol/mol），血糖目标范围内时间（TIR）可能需要>80% [E]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-007` | auto | 严格目标范围内时间（TITR）>50%（3.9–8 mmol/L 或 70–144 mg/dL）是评估平均血糖变化和血糖
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-008` | auto | 为达到较低的HbA1c目标≤6.5%（48 mmol/mol），TITR可能需要>55%。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-010` | auto | 在无CGM的情况下，餐前自我血糖监测（SMBG）目标应为4.0–8.0 mmol/L（70–144 mg/dL）[B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-011` | auto | 在无CGM的情况下，餐后自我血糖监测（SMBG）目标应为4.0–10 mmol/L（70–180 mg/dL）[B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-012` | auto | 在无CGM的情况下，使用胰岛素的糖尿病患者每天应至少进行6次自我血糖监测（SMBG）[B]。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-013` | auto | SMBG血糖仪数值应以对应HbA1c ≤7%（≤53 mmol/mol）为目标，与CGM TIR >70%（4–10 m
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-014` | auto | 推荐空腹血糖目标范围为4.0–8 mmol/L（70–144 mg/dL），以达到HbA1c ≤7%的目标。
+- `auto-ispad-2024-glycemic-p5-ispad-2024-p005-015` | auto | 睡前SMBG血糖水平4.0–8 mmol/L（70–144 mg/dL）为适宜目标，但在某些情况下（如先前低血糖、运动或
+- `auto-ispad-2024-glycemic-p6-ispad-2024-p6-001` | auto | ISPAD当前推荐的HbA1c目标为6.5%（48 mmol/mol），此前目标为7.0%（53 mmol/mol）。需
+- `auto-ispad-2024-glycemic-p6-ispad-2024-p6-002` | auto | 维持每天>6次自我血糖监测（SMBG）以指导管理，一直被认为是改善整体血糖状况的重大障碍。
+- `auto-ispad-2024-glycemic-p6-ispad-2024-p6-003` | auto | CGM可能间歇性不准确，并可能受多种药物影响；然而现代CGM技术的总体准确性非常高。
+- `auto-ispad-2024-glycemic-p6-ispad-2024-p6-004` | auto | 对于给定的HbA1c值，平均血糖浓度存在较大变异范围；对于给定的平均血糖值，HbA1c也存在较大变异范围。
+- `auto-ispad-2024-glycemic-p6-ispad-2024-p6-005` | auto | HbA1c检测在某些疾病状态下不可靠，包括贫血、血红蛋白病和肝脏疾病。种族差异也会影响HbA1c水平。
+- `auto-ispad-2024-glycemic-p6-ispad-2024-p6-006` | auto | 推荐意见按照ADA糖尿病医疗标准证据分级系统进行评级。该A-E分级系统中A级为最高证据水平，E级为最低。
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-01` | auto | CGM佩戴天数：≥14天
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-02` | auto | CGM有效使用时间占比：≥70%（14天中）
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-03` | auto | 血糖变异系数(%CV)目标：≤36%。部分研究表明，对于使用胰岛素或磺脲类药物的患者，更低的%CV目标(<33%)可提供
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-04` | auto | 超高范围时间(TAR) (>250 mg/dL)：<5%。血糖控制评估目标适用于1型或2型糖尿病成人。
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-05` | auto | 高范围时间(TAR) (>180 mg/dL)：<25%。血糖控制评估目标适用于1型或2型糖尿病成人。
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-06` | auto | 目标范围内时间(TIR, 70-180 mg/dL)：>70%。血糖控制评估目标适用于1型或2型糖尿病成人。
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-07` | auto | 低范围时间(TBR) (<70 mg/dL)：<4%。血糖控制评估目标适用于1型或2型糖尿病成人。
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-08` | auto | 极低范围时间(TBR) (<54 mg/dL)：<1%。血糖控制评估目标适用于1型或2型糖尿病成人。
+- `auto-tir-consensus-summary-p1-tir-consensus-p001-09` | auto | 虽然HbA1c反映过去2-3个月的平均血糖，但它无法识别血糖波动以及日内和日间血糖变异的幅度和频率。
+- `auto-tir-consensus-summary-p3-gv-p3-005` | auto | 稳定血糖水平定义为 CV <36%，不稳定血糖水平定义为 CV ≥36%。
+- `auto-tir-consensus-summary-p3-gv-p3-006` | auto | 部分研究建议使用胰岛素或磺脲类药物的患者目标应低于33%。
+- `auto-tir-consensus-summary-p3-gv-p3-007` | auto | 两名假设患者A1C均为6.7%，但血糖变异性差异显著：CV 26%（稳定，波动小）对比 CV 53%（不稳定，波动大）。

@@ -114,6 +114,12 @@ class ReportInput(CGMBaseModel):
     language: str | None = None
     memory_context: MemoryContext = Field(default_factory=MemoryContext)
     authoritative_context: AuthoritativeContext = Field(default_factory=AuthoritativeContext)
+    # F3-B1 (US1): an externally-generated medical-claim/guidance narrative whose
+    # numeric clinical figures MUST be backed by the retrieved authoritative
+    # cards. When present it passes through the strict citation gate in
+    # ReportService.generate before delivery (analyze I2/I3 — scoped to this
+    # narrative only, never the user's own deterministic metric sections).
+    medical_narrative: str | None = None
     include_candidate_events: bool = True
     consecutive_anomaly_days: int | None = None
     escalation_level: str | None = None

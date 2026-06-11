@@ -1,3 +1,13 @@
+"""Anti-hallucination citation guard (F3-B1 / Principle I).
+
+The function default is ``strict=False`` (warn) — the ``rag.verify_quotes`` tool
+and ``test_rag`` depend on that backward-compatible behaviour (analyze N1). Strict
+enforcement is MANDATORY and NON-BYPASSABLE at exactly one place: the report
+pipeline gate (``ReportService.generate`` → ``assert_authoritative_quotes(
+documents, generated_text, strict=True)``), which blocks delivery of any
+medical-claim narrative carrying an unbacked number. Never relax that call site.
+"""
+
 from __future__ import annotations
 
 import re

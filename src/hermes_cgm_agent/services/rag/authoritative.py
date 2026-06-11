@@ -29,12 +29,13 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import resources
 from pathlib import Path
 from typing import Any
 
 from hermes_cgm_agent.domain import EvidenceRef
+from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.safety.memory_guard import assert_kb_readonly
 from hermes_cgm_agent.services.memory.retrieval import (
     Embedder,
@@ -162,6 +163,28 @@ def _resolve_kb_text(path: str | Path | None) -> str:
     )
 
 
+def _resolve_kb_path(path: str | Path | None) -> Path | None:
+    """Resolve the on-disk KB path used for the sanctioned ``approve`` write.
+
+    Returns ``None`` when the KB is only available as a non-file packaged
+    resource (e.g. inside a wheel/zipimport) — in that case ``approve`` refuses
+    to write rather than corrupting read-only package data.
+    """
+    if path is not None:
+        return Path(path)
+    env_path = os.environ.get(KB_ENV_VAR)
+    if env_path:
+        return Path(env_path)
+    try:
+        resource = resources.files(KB_RESOURCE_PACKAGE).joinpath(KB_RESOURCE_NAME)
+        candidate = Path(str(resource))
+        if candidate.is_file():
+            return candidate
+    except (FileNotFoundError, ModuleNotFoundError, TypeError):
+        pass
+    return None
+
+
 @dataclass(frozen=True)
 class ClaimCard:
     """One atomic, bilingual, page-cited clinical assertion (D028)."""
@@ -273,8 +296,12 @@ class AuthoritativeRAGService:
         *,
         knowledge_base: KnowledgeBase | None = None,
         embedder: Embedder | None = None,
+        kb_path: str | Path | None = None,
     ) -> None:
-        self.knowledge_base = knowledge_base or load_knowledge_base()
+        # F3-B2: remember the resolved on-disk path so the sanctioned ``approve``
+        # write can persist sign-off back to the same KB JSON it was loaded from.
+        self._kb_path = _resolve_kb_path(kb_path)
+        self.knowledge_base = knowledge_base or load_knowledge_base(self._kb_path)
         # D036: the authoritative KB is a small curated claim-card corpus. The
         # default is sparse-only BM25; tests may still inject an embedder.
         self.retriever = (
@@ -291,11 +318,96 @@ class AuthoritativeRAGService:
         # docstring promises. If a future change adds a mutator (add/write/
         # update/delete/...) to this service, construction fails loudly rather
         # than letting personal data silently leak into the immutable medical KB.
-        assert_kb_readonly(self)
+        # F3-B2/G1: ``approve`` is the ONLY sanctioned write path (clinical
+        # sign-off with reviewer provenance); it is explicitly allowlisted while
+        # every other mutator — including any future one — stays blocked.
+        assert_kb_readonly(self, allow_methods={"approve"})
 
     @property
     def kb_version(self) -> str:
         return self.knowledge_base.kb_version
+
+    def approve(
+        self,
+        card_id: str,
+        reviewer: str,
+        reviewed_at: str | None = None,
+    ) -> dict[str, Any]:
+        """Clinical sign-off — the ONLY sanctioned KB write path (F3-B2, G1).
+
+        Sets ``verified=true`` with ``reviewer`` + ``reviewed_at`` provenance,
+        restricted to ``tier=curated`` cards, and persists the change to the KB
+        JSON. Re-approving an already-verified card with the same reviewer is an
+        idempotent no-op. Arguments are validated at the strict JSON boundary
+        (no truthiness/coercion) — see contract C2.
+        """
+        if not isinstance(card_id, str) or not card_id.strip():
+            raise ValueError("card_id is required")
+        if not isinstance(reviewer, str) or not reviewer.strip():
+            raise ValueError("reviewer is required")
+        if reviewed_at is not None and (
+            not isinstance(reviewed_at, str) or not reviewed_at.strip()
+        ):
+            raise ValueError("reviewed_at must be a non-empty ISO-8601 string when provided")
+
+        card = self._by_id.get(card_id)
+        if card is None:
+            raise ValueError(f"card not found: {card_id}")
+        if card.tier != TRUSTED_TIER:
+            raise ValueError(
+                f"Only curated cards can be approved. This card is tier={card.tier}."
+            )
+        # Idempotent: same card already signed off by the same reviewer.
+        if card.verified and (card.reviewer or "") == reviewer:
+            return self._approval_payload(card)
+
+        stamp = reviewed_at or utc_now().isoformat()
+        updated = replace(card, verified=True, reviewer=reviewer, reviewed_at=stamp)
+        self._by_id[card_id] = updated
+        self.knowledge_base = KnowledgeBase(
+            kb_version=self.knowledge_base.kb_version,
+            cards=[
+                updated if c.card_id == card_id else c
+                for c in self.knowledge_base.cards
+            ],
+        )
+        self._persist_card(
+            card_id,
+            {"verified": True, "reviewer": reviewer, "reviewed_at": stamp},
+        )
+        return self._approval_payload(updated)
+
+    @staticmethod
+    def _approval_payload(card: "ClaimCard") -> dict[str, Any]:
+        return {
+            "card_id": card.card_id,
+            "title": card.title,
+            "verified": card.verified,
+            "reviewer": card.reviewer,
+            "reviewed_at": card.reviewed_at,
+            "tier": card.tier,
+        }
+
+    def _persist_card(self, card_id: str, fields: dict[str, Any]) -> None:
+        """Update one card's fields in the KB JSON, preserving everything else."""
+        if self._kb_path is None:
+            raise ValueError(
+                "knowledge base is not writable (packaged resource); "
+                f"set {KB_ENV_VAR} to a writable KB JSON file"
+            )
+        data = json.loads(self._kb_path.read_text(encoding="utf-8"))
+        raw = data.get("cards", data.get("documents"))
+        if raw is None:
+            raise ValueError("knowledge base file has no cards array")
+        for entry in raw:
+            if (entry.get("card_id") or entry.get("doc_id")) == card_id:
+                entry.update(fields)
+                break
+        else:
+            raise ValueError(f"card not found in KB file: {card_id}")
+        self._kb_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
     def search(
         self,

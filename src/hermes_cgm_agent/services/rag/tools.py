@@ -73,6 +73,25 @@ class AuthoritativeRAGToolService:
             payload=payload,
         )
 
+    def approve(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Strict JSON-boundary validation for the ``kb.approve`` write tool.
+
+        No truthiness/coercion across the tool boundary (Principle V). Delegates
+        the sign-off + provenance + persistence to ``AuthoritativeRAGService``.
+        """
+        card_id = arguments.get("card_id")
+        if not isinstance(card_id, str) or not card_id.strip():
+            raise ValueError("card_id must be a non-empty string")
+        reviewer = arguments.get("reviewer")
+        if not isinstance(reviewer, str) or not reviewer.strip():
+            raise ValueError("reviewer must be a non-empty string")
+        reviewed_at = arguments.get("reviewed_at")
+        if reviewed_at is not None and (
+            not isinstance(reviewed_at, str) or not reviewed_at.strip()
+        ):
+            raise ValueError("reviewed_at must be a non-empty string when provided")
+        return self.rag_service.approve(card_id.strip(), reviewer.strip(), reviewed_at)
+
     def verify_quotes(self, arguments: dict[str, Any]) -> VerifyQuotesToolResult:
         generated_text = str(arguments["generated_text"])
         if not generated_text.strip():
