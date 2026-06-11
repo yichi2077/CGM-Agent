@@ -82,5 +82,57 @@ print(result.to_dict())
 """
 
 
+class TestAIAgentFullChain(unittest.TestCase):
+    """Part A: Test AIAgent.chat() triggers CGM tool via LLM."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.temp_dir.name) / "e2e_agent.db"
+        os.environ["CGM_AGENT_DB_PATH"] = str(self.db_path)
+
+    def tearDown(self) -> None:
+        os.environ.pop("CGM_AGENT_DB_PATH", None)
+        self.temp_dir.cleanup()
+
+    def test_aiagent_chat_triggers_push_tick(self) -> None:
+        """AIAgent sends message -> LLM calls cgm_scheduling_push_tick -> result."""
+        from run_agent import AIAgent
+
+        agent = AIAgent(
+            model="mimo-v2.5-pro",
+            provider="xiaomi",
+            base_url="https://token-plan-cn.xiaomimimo.com/v1",
+            enabled_toolsets=["cgm"],
+            skip_memory=True,
+            max_iterations=5,
+            tool_delay=0.1,
+        )
+
+        response = agent.chat(
+            "请调用 cgm_scheduling_push_tick 工具，user_id 为 e2e-aiagent-user"
+        )
+
+        self.assertIsInstance(response, str)
+        self.assertTrue(len(response) > 0, "AIAgent returned empty response")
+
+    def test_aiagent_with_cgm_toolset_only(self) -> None:
+        """AIAgent with only CGM tools can be created and chat."""
+        from run_agent import AIAgent
+
+        agent = AIAgent(
+            model="mimo-v2.5-pro",
+            provider="xiaomi",
+            base_url="https://token-plan-cn.xiaomimimo.com/v1",
+            enabled_toolsets=["cgm"],
+            skip_memory=True,
+            max_iterations=3,
+            tool_delay=0.1,
+        )
+
+        response = agent.chat("你好，请介绍一下你自己")
+        self.assertIsInstance(response, str)
+        self.assertTrue(len(response) > 0)
+
+
 if __name__ == "__main__":
     unittest.main()
