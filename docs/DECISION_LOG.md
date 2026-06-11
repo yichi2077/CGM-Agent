@@ -150,3 +150,15 @@
 - **节奏归 Hermes**：本层不驻留调度进程；由 Hermes cron 按日程（如每日 09:00 Asia/Shanghai）调 `cgm_scheduling_push_tick`。运维侧 cron 注册示例见 README（T019c）。
 **理由**：原则 VII 划清边界——开放式交互与调度节奏（cadence）属 Hermes，能力层只把"确定性"（策略/内容/状态）落在工具输出与持久化（`push_events`/hypothesis 状态）。模型零策略面（仅 `user_id`+`now`）符合 LLM07/08 最小代理：模型触发，系统决策。幂等由 `push_events` UNIQUE 兜底 + `decide_due_tiers` 跳过已推周期双保险。冲突裁决遵循宪法 **Security > Functionality > Aesthetics > Performance > Developer Convenience**。
 **影响**：新增 `services/tools/handlers/push_tick.py` + `tests/test_push_tick_tool.py`；改 `services/tools/{registry.py,executor.py,handlers/__init__.py}`、`integrations/hermes/cgm/plugin.yaml`；`PushSchedulerService` 不改。测试基线 440→450 全绿（注册/schema/分发/插件漂移 + `execute()` 集成：result shape/幂等/now 覆盖/静默即认可+审计/空窗口稳健）。架构不变（双轨隔离/只读 KB/安全路由/PHI 0600 均保持）。详见 `specs/004-push-delivery-loop/{plan.md,tasks.md}`。
+
+### D049 — F5/D2 webhook 投递闭环（`delivery.send` webhook：env-only endpoint + 硬编码 PHI allowlist + https-only/禁跟随重定向）
+**背景**：`delivery.send` 仅 `local_file` 完整，`webhook`/`email` 记为 `queued` 无实际出网。F5/D2 实现 webhook HTTP POST 闭环。落地前经 `/speckit-analyze`：(S1) 出网必须强制 https 且禁止跟随重定向；(U3) PHI allowlist 须严格按 plan.md §"PHI Protection" 显式名单；(U4) v1 manifest 以 `payload_ref` 作 `push_id`、`tier` 取自 arguments。
+**决策**：
+- **endpoint 仅来自 env `CGM_WEBHOOK_URL`**（调用时读取，FR-011）：模型**不能**经 tool arguments 传入或重定向 endpoint（LLM07/08 防注入）。未设置 → `failed`，零出网。
+- **https-only + 禁跟随重定向（S1 安全硬化）**：scheme 非 `https://` → `failed` 无请求（聚合健康指标不走明文）；`_NoRedirectHandler.redirect_request` 恒返 None，使 urllib 对 30x 抛 HTTPError 而非把 POST 转发到 `Location` 主机。三层**确定性**测试覆盖（handler 拒绝跟随 / opener 仅装配 no-redirect handler / 302→failed 单次 POST），不起真实 server（消除线程/端口 flake）。
+- **硬编码 PHI allowlist `_filter_webhook_payload`（U3，安全边界）**：deny-by-default，仅放行 `delivery_id`/`push_id`/`tier`/`period_key`/`metrics.{tir_pct,mean_mgdl,gmi}`/`event_summaries[].{type,count}`/`delivered_at`；`user_id`/`content`/`points`/`session_id`/原始序列/凭证一律剥离；嵌套对象降维到允许子集。对**任意** manifest 生效（即使上游误带也被剥）。
+- **at-most-once（FR-008）**：单次 POST、10s 超时、不重试（重试归 Hermes/cron）。2xx → `sent`，非 2xx/超时/连接错误 → `failed`。
+- **审计无泄漏（C4/FR-010）**：仅记 `delivery_url_domain`（`urlparse` 取域名，非全 URL）、成功记 `http_status_code`、失败记 `error_type`；绝不记全 URL/请求体/响应体/PHI/`payload_ref`。
+- **v1 metadata-first（U4/D1）**：manifest = `delivery_id` + `push_id`(=`payload_ref`) + `delivered_at`，`tier`/`period_key`/`metrics`/`event_summaries` 仅在 arguments 已含时携带；`payload_ref→summary→metrics` 解析留作后续，不阻塞 v1。
+**理由**：原则 VII PHI 隐私——allowlist 是**代码级**安全边界而非 prompt 约定，deny-by-default 使任何未来字段默认不外泄；endpoint 只来自 env 杜绝模型重定向；https + 禁重定向防明文与跨主机转发泄漏（S1）；at-most-once 把重试复杂度留给 Hermes 层。安全控制测试做成确定性（无真实 socket/线程）以保"全程绿灯"。冲突裁决遵循宪法 **Security > Functionality > Aesthetics > Performance > Developer Convenience**。
+**影响**：改 `services/tools/handlers/delivery.py`（新增 `_deliver_webhook` + `_filter_webhook_payload` + `_NoRedirectHandler`/`_build_no_redirect_opener`/`_urlopen_no_redirect`）；新增 `tests/test_webhook_delivery.py`（成功/失败模式/PHI 过滤/审计/https-禁重定向，14 项确定性）。`local_file`/`email` 行为不变。测试 450→464（+webhook 14）全绿；另有仓库既有 `test_hermes_e2e`（httpx/Hermes-venv guard）跳过 1，合计 465。架构不变（双轨隔离/只读 KB/安全路由/PHI 0600 均保持）。详见 `specs/004-push-delivery-loop/{plan.md,tasks.md}`。
