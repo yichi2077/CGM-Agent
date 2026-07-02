@@ -16,7 +16,7 @@
 - [X] T008 Add `HermesStage` preflight with exit code 2 for runtime failures.
 - [X] T009 Add `cgm-agent simulate` CLI.
 - [X] T010 Add focused tests for clock/source/ingest/runner/Hermes guard/CLI.
-- [X] T011 Add ADR-0002, D050, and Spec-Kit artifacts.
+- [X] T011 Add ADR-0003, D050, and Spec-Kit artifacts.
 
 ## Deferred
 

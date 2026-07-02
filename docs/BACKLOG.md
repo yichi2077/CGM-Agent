@@ -27,7 +27,7 @@ This section supersedes all older status rows below when they conflict.
   `simulation_report.json`/`.md`, and uses a guarded Hermes preflight with exit
   code 2 for runtime/environment failures. See
   `specs/005-simulation-pipeline/` and
-  `docs/adr/ADR-0002-simulated-source-ingest.md`.
+  `docs/adr/ADR-0003-simulated-source-ingest.md`.
 - Non-LLM local regression suite: `489 tests OK`. Live Hermes AIAgent E2E now
   depends on valid DeepSeek credentials instead of the previous hardcoded Mimo
   provider.

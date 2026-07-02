@@ -1,10 +1,15 @@
-# ADR-0002: Device-Agnostic Simulated Source Ingest
+# ADR-0003: Device-Agnostic Simulated Source Ingest
 
 Date: 2026-07-02
 
 ## Status
 
 Accepted
+
+> Note: This ADR was renumbered from a draft ADR-0002 to ADR-0003 to resolve a
+> numbering collision with `ADR-0002-cgm-data-source-strategy.md`, which owns the
+> F2/E2 data-source-strategy decision. This ADR covers only the simulation /
+> validation ingest path introduced by Feature 005.
 
 ## Context
 

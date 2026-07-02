@@ -185,4 +185,4 @@ when validating Hermes freshness-sensitive behavior.
 `specs/005-simulation-pipeline/`. Report safety routing now receives
 `ReportInput.anchor_at` so accelerated replay does not accidentally use wall
 clock recovery windows. See
-`docs/adr/ADR-0002-simulated-source-ingest.md`.
+`docs/adr/ADR-0003-simulated-source-ingest.md`.

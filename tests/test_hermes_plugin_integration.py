@@ -19,6 +19,13 @@ if not HERMES_REPO.exists():
         if candidate.exists():
             HERMES_REPO = candidate
 
+# The cgm_memory plugin imports Hermes's ``agent.memory_provider`` at module
+# load time, which only resolves when the real Hermes runtime is present. Skip
+# the whole module when it is absent (e.g. the CGM-only CI container), mirroring
+# the guard in test_hermes_e2e.py.
+if not HERMES_REPO.exists():
+    raise unittest.SkipTest(f"Hermes repo not found at {HERMES_REPO}")
+
 
 def _load_module(module_name: str, path: Path):
     spec = importlib.util.spec_from_file_location(module_name, path)

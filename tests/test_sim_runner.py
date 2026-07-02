@@ -37,6 +37,38 @@ class SimulationRunnerTests(unittest.TestCase):
         self.assertTrue(report_md_exists)
         self.assertTrue(payload["invariants"]["emitted_equals_accounted"])
         self.assertTrue(payload["invariants"]["db_count_matches_inserted"])
+        # Analytics determinism is always evaluated at end-of-run.
+        self.assertTrue(payload["invariants"]["analytics_deterministic"])
+
+    def test_multi_day_run_checks_push_idempotency(self) -> None:
+        # Two days of dense readings so a daily push fires and the idempotency
+        # probe runs at least once.
+        from datetime import datetime, timedelta, timezone
+
+        lines = ["timestamp,value,unit"]
+        start = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+        for step in range(0, 576):  # 2 days at 5-min cadence
+            ts = start + timedelta(minutes=5 * step)
+            lines.append(f"{ts.isoformat()},120,mg/dL")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            csv_path = root / "sample.csv"
+            csv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            result = SimulationRunner(
+                db_path=root / "app.db",
+                out_dir=root / "out",
+                user_id="user-1",
+                source_label="simulation:test",
+                timezone_name="UTC",
+                max_speed=True,
+            ).run(CsvReplaySource(csv_path, default_timezone="UTC"))
+            payload = json.loads(result.report_json.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.status, "ok")
+        # The idempotency invariant is recorded only when a push actually fired;
+        # when present it must hold.
+        if "push_idempotent" in payload["invariants"]:
+            self.assertTrue(payload["invariants"]["push_idempotent"])
 
 
 if __name__ == "__main__":

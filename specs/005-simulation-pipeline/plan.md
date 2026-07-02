@@ -19,7 +19,7 @@ Add a small simulation service package that reuses existing production services:
 - Principle III: report generation still routes through `SafetyRouter`.
 - Principle IV: companion text remains owned by existing report templates.
 - Principle V: focused tests cover clock/source/ingest/runner/Hermes guard/CLI.
-- Principle VI: ADR-0002 and D050 record the decision.
+- Principle VI: ADR-0003 and D050 record the decision.
 - Principle VII: default DB is isolated; canonical Hermes DB requires explicit
   `--db-path`.
 

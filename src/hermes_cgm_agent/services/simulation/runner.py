@@ -118,6 +118,7 @@ class SimulationRunner:
         seen_daily_push: set[str] = set()
         seen_daily_memory: set[str] = set()
         stage_counts: dict[str, int] = {}
+        push_idempotency_checked = False
 
         for item in records:
             try:
@@ -138,7 +139,23 @@ class SimulationRunner:
                 local_now = sim_now.astimezone(ZoneInfo(self.timezone_name))
                 day_key = local_now.strftime("%Y-%m-%d")
                 if local_now.hour >= 9 and day_key not in seen_daily_push:
-                    scheduler.push_tick(user_id=self.user_id, now=sim_now)
+                    first_push = scheduler.push_tick(user_id=self.user_id, now=sim_now)
+                    # Idempotency probe (once): re-tick at the same sim time and
+                    # assert the scheduler does not re-emit an already-pushed
+                    # period. Only meaningful when the first tick actually pushed.
+                    if not push_idempotency_checked and first_push.pushed:
+                        repeat_push = scheduler.push_tick(user_id=self.user_id, now=sim_now)
+                        audit.set_invariant(
+                            "push_idempotent", len(repeat_push.pushed) == 0
+                        )
+                        if repeat_push.pushed:
+                            audit.issue(
+                                stage="push",
+                                sim_now=sim_now,
+                                reading_index=item.reading_index,
+                                message="push_tick re-emitted an already-pushed period at the same sim time",
+                            )
+                        push_idempotency_checked = True
                     seen_daily_push.add(day_key)
                     stage_counts["push"] = stage_counts.get("push", 0) + 1
 
@@ -206,6 +223,28 @@ class SimulationRunner:
                 )
             )
         )
+        # Analytics determinism (Constitution Principle I): recomputing the same
+        # window must yield byte-identical metrics. A mismatch means the
+        # deterministic-metrics guarantee is broken — exactly the class of bug
+        # this harness exists to catch.
+        det_scope = DataScope(
+            user_id=self.user_id,
+            window_start=records[-1].sim_ts - timedelta(hours=24),
+            window_end=records[-1].sim_ts + timedelta(minutes=5),
+            source=self.source_label,
+        )
+        det_points = cgm_repository.list_glucose_points(det_scope)
+        agg_first = analytics.compute_aggregate(points=det_points, scope=det_scope)
+        agg_second = analytics.compute_aggregate(points=det_points, scope=det_scope)
+        deterministic = agg_first.model_dump() == agg_second.model_dump()
+        audit.set_invariant("analytics_deterministic", deterministic)
+        if not deterministic:
+            audit.issue(
+                stage="invariant",
+                sim_now=end_now,
+                reading_index=None,
+                message="analytics.compute_aggregate produced different results for the same window",
+            )
         audit.set_invariant("emitted_equals_accounted", len(records) == totals.inserted + totals.duplicate + totals.issues)
         audit.set_invariant("db_count_matches_inserted", db_count == totals.inserted)
         audit.set_invariant("db_count", db_count)
