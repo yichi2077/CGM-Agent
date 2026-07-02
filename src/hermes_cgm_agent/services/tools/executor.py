@@ -61,6 +61,7 @@ class ToolExecutor(
     _DISPATCH = {
         "timeseries.get_points": "_get_points",
         "timeseries.get_aggregate": "_get_aggregate",
+        "timeseries.get_realtime_snapshot": "_get_realtime_snapshot",
         "events.create": "_create_event",
         "events.confirm": "_confirm_event",
         "context.get_l0": "_get_l0_context",

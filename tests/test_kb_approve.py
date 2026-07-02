@@ -145,7 +145,11 @@ class KbApproveTests(unittest.TestCase):
             )
         self.assertEqual(response.status, "ok")
         self.assertTrue(recorder.payloads)
-        blob = repr(recorder.payloads[-1])
+        payload = dict(recorder.payloads[-1])
+        self.assertNotIn("claim_zh", payload)
+        self.assertNotIn("claim_en", payload)
+        # approval_id is random hex and can coincidentally contain claim digits.
+        blob = repr({key: value for key, value in payload.items() if key != "approval_id"})
         self.assertNotIn("目标范围内时间", blob)  # claim_zh body
         self.assertNotIn("Keep time in range", blob)  # claim_en body
         self.assertNotIn("70", blob)

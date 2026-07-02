@@ -169,6 +169,7 @@ def build_default_tool_registry() -> ToolRegistry:
                 properties={
                     "data_scope": DATA_SCOPE_SCHEMA,
                     "window_label": {"type": "string", "enum": ["day", "week", "14d", "month"]},
+                    "expected_interval_minutes": {"type": "integer", "minimum": 1, "maximum": 60},
                 },
             ),
             output_schema=_response_schema(
@@ -176,6 +177,32 @@ def build_default_tool_registry() -> ToolRegistry:
                     "aggregate": {
                         "type": "object",
                         "description": "Aggregate CGM metrics (TIR/TAR/TBR/GMI/CV/MBG/LBGI/HBGI, coverage).",
+                    }
+                }
+            ),
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="timeseries.get_realtime_snapshot",
+            group="timeseries",
+            owner_module="analytics",
+            description="Read current CGM realtime signals for a user and time window.",
+            input_schema=_object_schema(
+                required=["data_scope"],
+                properties={
+                    "data_scope": DATA_SCOPE_SCHEMA,
+                    "expected_interval_minutes": {"type": "integer", "minimum": 1, "maximum": 60},
+                    "stale_after_minutes": {"type": "integer", "minimum": 1, "maximum": 240},
+                    "now": {"type": "string", "format": "date-time"},
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "snapshot": {
+                        "type": "object",
+                        "description": "Latest glucose, freshness, deltas, slope, rolling mean, missing rate, and stale status.",
                     }
                 }
             ),

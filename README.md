@@ -1,5 +1,16 @@
 # Hermes CGM Agent
 
+## Current Implementation Snapshot (2026-07-01)
+
+- Hermes-facing tool count is 18 active tools, including realtime CGM snapshot reads.
+- F2 data source strategy is accepted in [ADR-0002](docs/adr/ADR-0002-cgm-data-source-strategy.md): default hardware is MicroTech/AiDEX; xDrip/Juggluco/Nightscout HTTP feeds are a compatibility bridge, not the default iPhone-only path.
+- New CLI: `source-poll --user-id ... --kind xdrip|juggluco|nightscout --url ... --count ... --expected-interval-min 5`.
+- Default engineering fixture: `examples/cgm_test_dataset/cgm_14d_1min.csv` is a 14-day, single-user, native 1-minute prediabetes-style synthetic CGM dataset with behavior events and CGM artifacts. The current pre-test freeze uses the corrected v2 fixture documented in `docs/PRETEST-FREEZE-2026-07-02.md`.
+- Storage now distinguishes `timestamp` as measured-at time from `received_at` collector receipt time.
+- Deterministic detected glucose events persist in `detected_glucose_events`; `user_events` remains for user/agent-recorded events.
+- Realtime signals include latest glucose, freshness, 15/30 minute deltas, 15 minute slope, 1 hour rolling mean, and missing-rate.
+- Current local validation: `476 tests, OK (skipped=1)`.
+
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](pyproject.toml)
 [![Hermes Integration](https://img.shields.io/badge/hermes--agent-plugin-green)](https://github.com/yichi2077/CGM-Agent)
@@ -107,7 +118,7 @@ SQLite 数据库文件落地在 Unix 系统下采用 `0600` 权限，对涉敏�
 ├── integrations/             # 注册到 Hermes 主程序的插件 yaml 声明与 memory 适配器
 │   ├── hermes/cgm/           # cgm 核心工具插件
 │   └── hermes/cgm_memory/    # cgm 外部记忆 provider
-├── tests/                    # 440+ 项严密的单元与集成测试套件
+├── tests/                    # 476 项单元与集成测试套件（当前本地基线，含 1 skipped）
 ├── specs/                    # 分阶段功能实现规格蓝图 (Milestone 001 - 004)
 └── docs/                     # ADR 架构决策日志、MEM-ARCH 规范文件等
 ```
@@ -161,6 +172,21 @@ python -m hermes_cgm_agent hermes-version
 ```bash
 # 在独立的测试数据库运行全链路仿真
 python -m hermes_cgm_agent seed-demo --db-path .runtime/demo.db
+```
+
+### Realtime CGM Source Polling (F2)
+The current implemented bridge can poll an xDrip/Juggluco/Nightscout-compatible HTTP feed once, preserve the raw payload, insert deduped glucose points, and persist deterministic detected events. For the default MicroTech/AiDEX hardware direction, this is a fallback bridge; the next source work is AiDEX API validation and a single-device PC Bluetooth direct PoC.
+
+```powershell
+python examples/cgm_test_dataset/virtual_cgm_feed.py --emit-interval-min 5
+python -m hermes_cgm_agent source-poll --user-id user-1 --kind xdrip --url http://127.0.0.1:17580 --count 1 --expected-interval-min 5
+python -m hermes_cgm_agent source-poll --user-id user-1 --kind nightscout --url https://nightscout.example --count 24
+```
+
+Plain HTTP is accepted only for localhost/private hosts by default. Public HTTP requires an explicit test override:
+
+```powershell
+$env:CGM_SOURCE_ALLOW_INSECURE_HTTP='true'
 ```
 
 ### 医学指南 PDF 卡片提取导入 (Knowledge Pipeline)

@@ -22,6 +22,7 @@ import copy
 import hashlib
 import json
 import os
+from pathlib import Path
 from typing import Any, Protocol
 
 from hermes_cgm_agent.domain import EvidenceRef, MemoryCandidate, MemoryLayer
@@ -100,6 +101,28 @@ MEMORY_TOOL_SCHEMAS: list[dict[str, Any]] = [
     },
 ]
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+_SOUL_PATH = _PROJECT_ROOT / "SOUL.md"
+_DEFAULT_SOUL_PROMPT = (
+    "CGM persona: act as a 知情陪伴者, not a clinician. Prefer the user's "
+    "own CGM history before general knowledge, keep language short and "
+    "life-oriented, state uncertainty, avoid judgment and commands, and invite "
+    "confirmation when offering a hypothesis."
+)
+_SOUL_KEYWORDS = (
+    "知情陪伴者",
+    "先历史",
+    "先看历史",
+    "非指令",
+    "不替代医生",
+    "不下结论",
+    "不确定",
+    "协商",
+    "假设",
+    "生活",
+    "简短",
+)
+
 
 class CGMMemoryProvider:
     """Hermes-compatible provider (duck-typed). Carries L1 + L3."""
@@ -125,6 +148,7 @@ class CGMMemoryProvider:
         self._platform = ""
         self._agent_context = "primary"
         self._session_turns: dict[str, list[str]] = {}
+        self._soul_prompt = _load_soul_prompt()
 
     @property
     def name(self) -> str:
@@ -145,6 +169,7 @@ class CGMMemoryProvider:
 
     def system_prompt_block(self) -> str:
         block = (
+            f"{self._soul_prompt}\n"
             "CGM memory is active. Personal episodes and hypotheses are recalled "
             "as user_memory evidence and must be cited with uncertainty, never as "
             "authoritative medical fact.\n"
@@ -173,6 +198,11 @@ class CGMMemoryProvider:
                     f"recent_points={len(l0.high_res_recent)}, "
                     f"hourly={len(l0.mid_far_hourly)}, "
                     f"events={len(l0.key_glucose_events)}"
+                )
+            elif latest is not None:
+                lines.append(
+                    "[CGM L0 context unavailable] No recent glucose points were found "
+                    "in the current L0 window; any CGM state summary above may be stale."
                 )
         except Exception:
             # Prefetch must remain best-effort; context.get_l0 is the auditable
@@ -433,6 +463,33 @@ def _looks_memory_relevant(text: str) -> bool:
         "难受",
     )
     return any(keyword in lowered for keyword in keywords)
+
+
+def _load_soul_prompt() -> str:
+    try:
+        text = _SOUL_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return _DEFAULT_SOUL_PROMPT
+
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip().lstrip("-*#0123456789. ")
+        if not line or len(line) > 180:
+            continue
+        if any(keyword in line for keyword in _SOUL_KEYWORDS):
+            lines.append(line)
+        if len(lines) >= 10:
+            break
+
+    if not lines:
+        return _DEFAULT_SOUL_PROMPT
+
+    compact = " ".join(lines)
+    return (
+        "CGM persona from SOUL.md: "
+        f"{compact} "
+        "Use this style in all CGM memory, report, and hypothesis replies."
+    )[:1800]
 
 
 def _turn_candidate_id(session_id: str, text: str) -> str:

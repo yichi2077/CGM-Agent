@@ -75,6 +75,32 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.days, 14)
         self.assertTrue(args.force)
 
+    def test_source_poll_command_parses(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "source-poll",
+                "--user-id",
+                "user-1",
+                "--kind",
+                "nightscout",
+                "--url",
+                "https://nightscout.example",
+                "--count",
+                "24",
+                "--source",
+                "nightscout:demo",
+                "--expected-interval-min",
+                "1",
+            ]
+        )
+
+        self.assertEqual(args.command, "source-poll")
+        self.assertEqual(args.user_id, "user-1")
+        self.assertEqual(args.kind, "nightscout")
+        self.assertEqual(args.count, 24)
+        self.assertEqual(args.source, "nightscout:demo")
+        self.assertEqual(args.expected_interval_min, 1)
+
     def test_memory_synthesize_command_parses(self) -> None:
         args = build_parser().parse_args(
             [

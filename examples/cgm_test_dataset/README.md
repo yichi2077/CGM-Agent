@@ -1,120 +1,73 @@
-# Multi-sensor CGM test dataset (3 × 14 days)
+# Default Virtual CGM Test Dataset
 
-A deterministic, reproducible CGM dataset for exercising the whole system
-(import → normalize → analytics → events → reports → memory) without needing
-Dexcom/Libre credentials or a live API.
+This directory contains the default engineering fixture for CGM-Agent local E2E
+validation. The fixture is synthetic and deterministic. It is designed to prove
+that the software pipeline runs without real patients or a real CGM device; it is
+not clinical evidence and must not be used to validate medical algorithm
+efficacy.
 
-## Why synthetic
+## Default Files
 
-Public CGM datasets — [ShanghaiT1DM](https://www.nature.com/articles/s41597-023-01940-7)
-(~3–14 days/patient), Hall 2018 (~10 days), and the
-[Awesome-CGM](https://github.com/IrinaStatsLab/Awesome-CGM) collection — provide
-roughly a single ~14-day sensor wear per subject. Getting "30 days (3×14)" for one
-person means composing several sensor sessions anyway, so this generator emits a
-controlled signal with known, checkable features instead.
+- `generate_cgm_dataset.py`: deterministic generator.
+- `cgm_14d_1min.csv`: one user, 14 days, native 1-minute CGM points. The
+  current default file is the corrected v2 fixture
+  (`csv_sha256=7e51d95a9a26a38e8fae45e4d9e7d8daa50ce9887f999986eb58aa0efdaa0edc`).
+- `behavior_events_14d.json`: meals, post-meal walks, stress windows, and poor sleep notes that drive the synthetic glucose curve.
+- `manifest.json`: fixture metadata, artifact list, and summary metrics.
+- `virtual_cgm_feed.py`: local xDrip/Nightscout-style HTTP feed for source-poll E2E tests.
+- `auto_poll.py`: local unattended runner that repeatedly polls the feed into the Hermes CGM database.
+- `simulation_tick.py`: one-shot resumable runner for Windows Task Scheduler or cron.
+- `cgm_3x14.csv`: legacy 3-sensor, 5-minute fixture retained for older tests and comparisons.
 
-## Files
+## Current Fixture Shape
 
-- `generate_cgm_dataset.py` — the generator (seeded, parameterized).
-- `cgm_3x14.csv` — 11,988 points, 5-min cadence, 3 sensors × 14 days (42 days).
-- `manifest.json` — per-sensor session boundaries + metadata.
-- `report_stress_week.json`, `report_recovery_week.json` — sample `reports.generate` inputs.
+- User profile: prediabetes-style / impaired glucose tolerance, with mildly high fasting baseline and postprandial excursions.
+- Resolution: 1-minute native points; default simulated upload emits one point every 5 minutes.
+- Duration: 14 days, one virtual AiDEX-style sensor.
+- Artifacts: 2-hour sensor warmup gap, one compression-low window, and one short sensor-noise window.
+- Behavior drivers: breakfast/lunch/dinner carbs, post-dinner walks, stress afternoons, and poor sleep.
+- Summary metrics for the corrected v2 fixture: min 59.3, max 204.5, mean
+  125.4 mg/dL, CV 16.5%, TIR 98.28%, TAR 1.48%, TBR 0.24%.
 
-## What it exercises
+Regenerate the default fixture:
 
-Three distinct 14-day sensor sessions (separate `device_id`s), with a cross-sensor
-story so trend/report output is meaningful:
-
-| Sensor | Days | Story | Expected weekly report |
-|--------|------|-------|------------------------|
-| A `SENSOR-A-7F3C` | 0–13  | decent control | mean ~120s, a couple nocturnal lows |
-| B `SENSOR-B-2A91` | 14–27 | stress/holiday week | mean ~157, TIR-above ~20%, 170 events, 1 data gap |
-| C `SENSOR-C-5E08` | 28–41 | recovery | mean ~112, ~100% in range |
-
-Built-in features the pipeline detects: a ~2h warmup gap at each sensor change,
-one ~3h mid-sensor dropout (sensor B day 5), 3 postprandial spikes/day, nocturnal
-lows on specific days. Timestamps are **naive local** (import with
-`--timezone Asia/Shanghai`).
-
-## Regenerate
-
-```bash
+```powershell
 python examples/cgm_test_dataset/generate_cgm_dataset.py
-# exactly 30 days instead of 3×14=42:
-python examples/cgm_test_dataset/generate_cgm_dataset.py --days-per-sensor 10
 ```
 
-## Run it through the system
+## Local Network Feed
 
-```bash
-# import + normalize (gap detection)
-CGM_AGENT_DB_PATH=.runtime/test_30d.db PYTHONPATH=src \
-  python -m hermes_cgm_agent import-cgm \
-  --file examples/cgm_test_dataset/cgm_3x14.csv --format csv \
-  --user-id demo-user --timezone Asia/Shanghai
+Start a feed that exposes the 1-minute fixture as 5-minute device uploads:
 
-# generate a weekly report (try both the stress and recovery windows)
-CGM_AGENT_DB_PATH=.runtime/test_30d.db PYTHONPATH=src \
-  python -m hermes_cgm_agent tool-call reports.generate \
-  --input examples/cgm_test_dataset/report_stress_week.json --session-id test-30d
+```powershell
+python examples/cgm_test_dataset/virtual_cgm_feed.py --emit-interval-min 5
 ```
 
-Verified run: import reports `inserted_point_count: 11988, missing_range_count: 3`;
-the stress-week report shows mean 156.61 mg/dL, 20.15% above range, 170 detected
-events; the recovery-week report shows ~100% in range.
+Poll one emitted point into the local SQLite database:
 
-## Option B — feed it through the Dexcom API path (mock server)
-
-To exercise the real Dexcom ingest pipeline (OAuth → token store → `dataRange` →
-chunked, time-ordered EGV pulls → mapper → dedup) without the region-blocked
-Dexcom sandbox, `mock_dexcom_server.py` serves this same CSV in Dexcom v3 EGV
-format. Point the real client/CLI at it with `DEXCOM_BASE_URL`.
-
-```bash
-# 1) start the mock API (serves cgm_3x14.csv as Dexcom v3 EGVs)
-python examples/cgm_test_dataset/mock_dexcom_server.py        # http://127.0.0.1:8473
-
-# 2) point the real CLI at it + dummy creds, authorize, then poll periodically
-export DEXCOM_CLIENT_ID=mock DEXCOM_CLIENT_SECRET=mock
-export DEXCOM_BASE_URL=http://127.0.0.1:8473
-export CGM_AGENT_DB_PATH=.runtime/test_dexcom.db
-PYTHONPATH=src python -m hermes_cgm_agent dexcom-auth --user-id demo-user --code mock-code
-
-# each call pulls the next 7-day window in chronological order (streaming cursor);
-# re-running a window is idempotent (repository dedups). Schedule via cron/hermes.
-for i in 1 2 3 4 5 6; do
-  PYTHONPATH=src python -m hermes_cgm_agent dexcom-sync --user-id demo-user --days 7
-done
+```powershell
+python -m hermes_cgm_agent source-poll --user-id demo-prediabetes-user --kind xdrip --url http://127.0.0.1:17580 --count 1 --source virtual:aidex --expected-interval-min 5
 ```
 
-With `DEXCOM_MOCK_STREAM=0` the server exposes the full 42-day range at once, so a
-single `dexcom-sync --days 45` pulls everything in 7-day chunks. The points land
-in `glucose_points` with `source = dexcom:sandbox`, so the same reports/analytics
-above work on Dexcom-ingested data too.
+Run a short unattended smoke poll:
 
-### Field richness
+```powershell
+python examples/cgm_test_dataset/auto_poll.py --user-id demo-prediabetes-user --url http://127.0.0.1:17580 --count 12 --interval-sec 0 --max-polls 3
+```
 
-EGV records carry the consumed Dexcom v3 fields with real values — `value`,
-`systemTime`, `displayTime`, `unit`, `trend`, **`trendRate`** (mg/dL/min),
-`transmitterId`, `transmitterTicks`, `transmitterGeneration`, `displayDevice`,
-`recordId`, and `status` (null on normal readings, set on clamp extremes, as on
-the real API).
+Run the real-time 14-day simulation poller:
 
-The mock serves the **full Dexcom "life data" surface** on `/v3/users/self/events`
-— all six event categories with subtypes — so `dexcom-sync` exercises every
-mapper branch:
+```powershell
+python examples/cgm_test_dataset/auto_poll.py --user-id demo-prediabetes-user --url http://127.0.0.1:17580 --count 1 --interval-min 5 --duration-hours 336
+```
 
-| Dexcom eventType (subType) | → project UserEvent | payload |
-|---|---|---|
-| carbs | meal | `carbs_grams` |
-| insulin (fastActing / longActing) | medication | `insulin_units`, `subtype` |
-| exercise (light / medium / heavy) | exercise | `duration_minutes`, `ts_end`, `subtype` |
-| health (stress / illness / …) | symptom | `subtype` |
-| bloodGlucose | note | `blood_glucose`, `unit` |
-| notes | note | free text |
+For a scheduler-friendly 14-day run, execute one tick every 5 minutes. Each tick
+derives the next feed index from SQLite, so it can resume after shell exits or
+machine sleep:
 
-Verified single full pull: EGV `inserted=11988` (= all CSV rows; the 5 `dup` are
-inclusive chunk-boundary overlaps the repository dedups), events `inserted=369,
-skipped=0` mapping to meal 126 / medication 168 / exercise 18 / symptom 12 /
-note 45. The egvs/events window is inclusive of `endDate` so the final reading on
-`dataRange.end` is never dropped.
+```powershell
+python examples/cgm_test_dataset/simulation_tick.py --user-id demo-prediabetes-user
+```
+
+For a MicroTech/AiDEX-X-style 1-minute upload simulation, run the same feed with
+`--emit-interval-min 1` and poll with `--expected-interval-min 1`.

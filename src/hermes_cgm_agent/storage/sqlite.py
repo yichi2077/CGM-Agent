@@ -145,6 +145,7 @@ class SQLiteStore:
                     id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     timestamp TEXT NOT NULL,
+                    received_at TEXT,
                     value REAL NOT NULL,
                     unit TEXT NOT NULL,
                     value_mg_dl REAL NOT NULL,
@@ -161,6 +162,26 @@ class SQLiteStore:
 
                 CREATE INDEX IF NOT EXISTS idx_glucose_points_user_time
                     ON glucose_points(user_id, timestamp);
+
+                CREATE TABLE IF NOT EXISTS detected_glucose_events (
+                    event_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    ts_start TEXT NOT NULL,
+                    ts_end TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    peak_value_mg_dl REAL,
+                    nadir_value_mg_dl REAL,
+                    duration_minutes REAL NOT NULL,
+                    point_count INTEGER NOT NULL,
+                    summary TEXT NOT NULL,
+                    detector_version TEXT NOT NULL,
+                    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_detected_events_user_start
+                    ON detected_glucose_events(user_id, ts_start);
 
                 CREATE TABLE IF NOT EXISTS device_sessions (
                     session_id TEXT PRIMARY KEY,
@@ -364,6 +385,12 @@ class SQLiteStore:
                     badge_count INTEGER NOT NULL DEFAULT 0
                 );
                 """
+            )
+            self._ensure_column(
+                conn,
+                "glucose_points",
+                "received_at",
+                "TEXT",
             )
             self._ensure_column(
                 conn,

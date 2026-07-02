@@ -32,6 +32,9 @@ class CGMAnalyticsTests(unittest.TestCase):
         self.assertEqual(aggregate.gmi, 6.33)
         self.assertEqual(aggregate.lbgi, 2.18)
         self.assertEqual(aggregate.hbgi, 2.58)
+        self.assertIsNotNone(aggregate.mage)
+        self.assertIsNone(aggregate.modd)
+        self.assertIsNone(aggregate.conga)
         self.assertEqual(aggregate.data_coverage, 100.0)
 
     def test_lbgi_hbgi_separate_low_and_high_risk(self) -> None:
@@ -92,6 +95,9 @@ class CGMAnalyticsTests(unittest.TestCase):
         self.assertIsNone(aggregate.gmi)
         self.assertIsNone(aggregate.lbgi)
         self.assertIsNone(aggregate.hbgi)
+        self.assertIsNone(aggregate.mage)
+        self.assertIsNone(aggregate.modd)
+        self.assertIsNone(aggregate.conga)
         self.assertEqual(aggregate.data_coverage, 0.0)
 
     def test_custom_thresholds_are_supported(self) -> None:
@@ -113,6 +119,34 @@ class CGMAnalyticsTests(unittest.TestCase):
         self.assertEqual(aggregate.tbr, 33.33)
         self.assertEqual(aggregate.tir, 33.33)
         self.assertEqual(aggregate.tar, 33.33)
+
+    def test_advanced_variability_metrics_are_computed_when_window_supports_them(self) -> None:
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 6, 2, 0, 0, tzinfo=timezone.utc),
+        )
+        values = [100, 160, 100, 160, 120, 180, 120, 180]
+        base = datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc)
+        points = [
+            GlucosePoint(
+                user_id="user-1",
+                timestamp=base + timedelta(days=index // 4, hours=index % 4),
+                value=value,
+                unit="mg/dL",
+                source="sensor:a",
+                quality_flag="valid",
+            )
+            for index, value in enumerate(values)
+        ]
+
+        aggregate = CGMAnalyticsService(
+            AnalyticsConfig(expected_interval_minutes=60)
+        ).compute_aggregate(points=points, scope=scope)
+
+        self.assertEqual(aggregate.mage, 57.14)
+        self.assertEqual(aggregate.modd, 20.0)
+        self.assertEqual(aggregate.conga, 56.57)
 
 
 def _point(

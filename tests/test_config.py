@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from hermes_cgm_agent.config import AppConfig, DEFAULT_DB_PATH, resolve_database_path
+from hermes_cgm_agent.config import AppConfig, default_hermes_home, resolve_database_path
 
 
 class ResolveDatabasePathTests(unittest.TestCase):
@@ -23,11 +23,22 @@ class ResolveDatabasePathTests(unittest.TestCase):
             resolved = resolve_database_path("/home/user/.hermes")
         self.assertEqual(resolved, (Path("/home/user/.hermes") / "cgm-agent" / "app.db").resolve())
 
-    def test_falls_back_to_default_without_hermes_home(self) -> None:
+    def test_falls_back_to_platform_hermes_home_without_explicit_home(self) -> None:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("CGM_AGENT_DB_PATH", None)
+            os.environ.pop("HERMES_HOME", None)
             for empty in (None, "", "   "):
-                self.assertEqual(resolve_database_path(empty), Path(DEFAULT_DB_PATH))
+                self.assertEqual(
+                    resolve_database_path(empty),
+                    (default_hermes_home() / "cgm-agent" / "app.db").resolve(),
+                )
+
+    def test_hermes_home_env_is_used_when_no_explicit_home(self) -> None:
+        with patch.dict(os.environ, {"HERMES_HOME": "/home/user/.hermes"}, clear=True):
+            self.assertEqual(
+                resolve_database_path(),
+                (Path("/home/user/.hermes") / "cgm-agent" / "app.db").resolve(),
+            )
 
     def test_cgm_and_memory_resolution_match_for_same_inputs(self) -> None:
         # Both plugins call resolve_database_path with the same hermes_home, so

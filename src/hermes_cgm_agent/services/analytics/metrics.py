@@ -16,6 +16,7 @@ class AnalyticsConfig:
     low_threshold_mg_dl: float = 70
     high_threshold_mg_dl: float = 180
     expected_interval_minutes: int = 5
+    conga_interval_hours: int = 1
     included_quality_flags: tuple[str, ...] = ("valid",)
 
 
@@ -60,6 +61,12 @@ class CGMAnalyticsService:
         cv = (standard_deviation / mean_glucose * 100) if mean_glucose > 0 else None
         gmi = 3.31 + (0.02392 * mean_glucose)
         lbgi, hbgi = _blood_glucose_risk_index(values)
+        mage = _mean_amplitude_of_glycemic_excursions(eligible_points)
+        modd = _mean_of_daily_differences(eligible_points)
+        conga = _continuous_overlapping_net_glycemic_action(
+            eligible_points,
+            interval_hours=self.config.conga_interval_hours,
+        )
 
         return GlucoseAggregate(
             user_id=scope.user_id,
@@ -74,6 +81,9 @@ class CGMAnalyticsService:
             MBG=_round(mean_glucose),
             LBGI=_round(lbgi),
             HBGI=_round(hbgi),
+            MAGE=_round(mage),
+            MODD=_round(modd),
+            CONGA=_round(conga),
             data_coverage=data_coverage,
             point_count=point_count,
         )
@@ -145,6 +155,99 @@ def _blood_glucose_risk_index(values_mg_dl: list[float]) -> tuple[float | None, 
     lbgi = sum(low_risks) / len(low_risks)
     hbgi = sum(high_risks) / len(high_risks)
     return lbgi, hbgi
+
+
+def _mean_amplitude_of_glycemic_excursions(points: list[GlucosePoint]) -> float | None:
+    """Mean amplitude of excursions between alternating local extrema.
+
+    This implementation uses the common operational rule: identify direction
+    changes in the glucose series, then average peak-to-nadir amplitudes that
+    exceed one population standard deviation for the same window.
+    """
+    ordered = sorted(points, key=lambda point: point.timestamp)
+    values = [point.value_mg_dl for point in ordered]
+    if len(values) < 3:
+        return None
+    mean = sum(values) / len(values)
+    threshold = _population_std(values, mean)
+    if threshold <= 0:
+        return 0.0
+
+    extrema = [values[0]]
+    last_direction = 0
+    for previous, current in zip(values, values[1:]):
+        direction = 1 if current > previous else -1 if current < previous else 0
+        if direction == 0:
+            continue
+        if last_direction and direction != last_direction:
+            extrema.append(previous)
+        last_direction = direction
+    extrema.append(values[-1])
+
+    excursions = [
+        abs(current - previous)
+        for previous, current in zip(extrema, extrema[1:])
+        if abs(current - previous) >= threshold
+    ]
+    if not excursions:
+        return 0.0
+    return sum(excursions) / len(excursions)
+
+
+def _mean_of_daily_differences(points: list[GlucosePoint]) -> float | None:
+    """MODD: mean absolute difference between adjacent days at the same clock time."""
+    ordered = sorted(points, key=lambda point: point.timestamp)
+    if len(ordered) < 2:
+        return None
+    by_day_time: dict[tuple[object, object], float] = {
+        (point.timestamp.date(), point.timestamp.timetz().replace(tzinfo=None)): point.value_mg_dl
+        for point in ordered
+    }
+    days = sorted({point.timestamp.date() for point in ordered})
+    if len(days) < 2:
+        return None
+
+    differences: list[float] = []
+    for previous_day, current_day in zip(days, days[1:]):
+        times = {
+            time_key
+            for day_key, time_key in by_day_time
+            if day_key in {previous_day, current_day}
+        }
+        for time_key in times:
+            previous = by_day_time.get((previous_day, time_key))
+            current = by_day_time.get((current_day, time_key))
+            if previous is not None and current is not None:
+                differences.append(abs(current - previous))
+    if not differences:
+        return None
+    return sum(differences) / len(differences)
+
+
+def _continuous_overlapping_net_glycemic_action(
+    points: list[GlucosePoint],
+    *,
+    interval_hours: int,
+) -> float | None:
+    """CONGA-n: population SD of glucose differences n hours apart."""
+    if interval_hours <= 0:
+        return None
+    ordered = sorted(points, key=lambda point: point.timestamp)
+    if len(ordered) < 2:
+        return None
+    by_timestamp = {point.timestamp: point.value_mg_dl for point in ordered}
+    from datetime import timedelta
+
+    interval = timedelta(hours=interval_hours)
+    differences: list[float] = []
+    for point in ordered:
+        previous = by_timestamp.get(point.timestamp - interval)
+        if previous is not None:
+            differences.append(point.value_mg_dl - previous)
+    if not differences:
+        return None
+    mean_difference = sum(differences) / len(differences)
+    return _population_std(differences, mean_difference)
 
 
 def _round(value: float | None) -> float | None:

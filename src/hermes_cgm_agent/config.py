@@ -9,6 +9,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNTIME_DIR = PROJECT_ROOT / ".runtime"
+# Legacy standalone store. Kept as the migration source only; runtime defaults
+# must resolve through the Hermes profile path so CLI and Hermes tools share data.
 DEFAULT_DB_PATH = DEFAULT_RUNTIME_DIR / "app.db"
 DEFAULT_STORAGE_KEY_PATH = DEFAULT_RUNTIME_DIR / "storage.key"
 
@@ -42,6 +44,17 @@ def default_hermes_exe() -> Path | None:
 DEFAULT_HERMES_EXE = default_hermes_exe()
 
 
+def default_hermes_home() -> Path:
+    env = os.getenv("HERMES_HOME")
+    if env:
+        return Path(env).expanduser().resolve()
+    home = Path.home()
+    if sys.platform.startswith("win"):
+        local_appdata = Path(os.environ.get("LOCALAPPDATA", home / "AppData" / "Local"))
+        return (local_appdata / "hermes").resolve()
+    return (home / ".hermes").resolve()
+
+
 def resolve_database_path(hermes_home: str | os.PathLike[str] | None = None) -> Path:
     """Resolve the CGM SQLite path shared by every Hermes integration entry point.
 
@@ -51,14 +64,16 @@ def resolve_database_path(hermes_home: str | os.PathLike[str] | None = None) -> 
     another (split-brain — see NEW-1). This is the single source of truth.
 
     Precedence:
-      1. ``CGM_AGENT_DB_PATH`` env var — explicit operator override.
-      2. ``<hermes_home>/cgm-agent/app.db`` — profile-scoped Hermes runtime.
-      3. ``<project>/.runtime/app.db`` — standalone default (``DEFAULT_DB_PATH``).
+      1. ``CGM_AGENT_DB_PATH`` env var: explicit operator override.
+      2. ``<hermes_home>/cgm-agent/app.db``: explicit Hermes profile path.
+      3. ``default_hermes_home()/cgm-agent/app.db``: platform Hermes profile.
     """
     env_db = os.getenv("CGM_AGENT_DB_PATH")
     if env_db:
         return Path(env_db).expanduser().resolve()
     home = str(hermes_home or "").strip()
+    if not home:
+        home = str(default_hermes_home())
     if home:
         return (Path(home).expanduser() / "cgm-agent" / "app.db").resolve()
     return Path(DEFAULT_DB_PATH)
@@ -87,7 +102,7 @@ class AppConfig:
         # plugins use (D045 / F1 A1). Previously this hardcoded DEFAULT_DB_PATH, so
         # the CLI wrote .runtime/app.db while the agent read ~/.hermes/cgm-agent/app.db
         # — a split-brain store the user could never see in Hermes.
-        db = resolve_database_path(os.getenv("HERMES_HOME") or None)
+        db = resolve_database_path()
 
         # The Fernet key MUST live beside its database (SQLiteStore default), so a
         # correctly located store is always decryptable. An explicit override is

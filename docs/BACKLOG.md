@@ -1,5 +1,52 @@
 # CGM-Agent Feature Backlog（单一事实源）
 
+## Pre-Test Freeze Snapshot (2026-07-02)
+
+This section supersedes all older status rows below when they conflict.
+
+- Default virtual fixture is now `examples/cgm_test_dataset/cgm_14d_1min.csv`
+  copied from corrected `cgm_14d_1min_v2.csv`
+  (`sha256=7e51d95a9a26a38e8fae45e4d9e7d8daa50ce9887f999986eb58aa0efdaa0edc`).
+- Hermes runtime DB is the canonical test store:
+  `C:\Users\postgres\AppData\Local\hermes\cgm-agent\app.db`.
+- Hermes installed CGM plugin and source plugin both expose 18 `cgm_*` tools.
+- Hermes model for live E2E should be DeepSeek `deepseek-v4-flash` via
+  `--provider deepseek --model deepseek-v4-flash`; `tests/test_hermes_e2e.py`
+  now defaults to that model and can be overridden with
+  `HERMES_E2E_PROVIDER`, `HERMES_E2E_MODEL`, and `HERMES_E2E_BASE_URL`.
+- Email is not required for the 14-day real-time virtual simulation. The test
+  acceptance path can use `local_file` or `webhook`; SMTP email remains an
+  optional delivery-channel smoke only.
+- KB clinical sign-off is intentionally out of scope for this simulation pass.
+  Unverified authoritative cards may be used as test fixtures, but findings
+  must record that they are not clinically signed off.
+- Advanced analytics `MAGE`, `MODD`, and `CONGA` are implemented and covered by
+  tests. AGP percentile visualization remains deferred.
+- Non-LLM local regression suite: `489 tests OK`. Live Hermes AIAgent E2E now
+  depends on valid DeepSeek credentials instead of the previous hardcoded Mimo
+  provider.
+
+## Current Correction Snapshot (2026-06-27)
+
+This section supersedes older status rows below when they conflict.
+
+- Full local validation: `$env:PYTHONPATH='src'; .\.venv\Scripts\python.exe -m unittest discover -s tests` -> `476 tests, OK (skipped=1)`.
+- F1, F3, F4, F5 D1, and F5 D2 are implemented in code. Webhook delivery is covered by `tests/test_webhook_delivery.py`; email remains queued/non-MVP.
+- F2 is now the current mainline: `ADR-0002-cgm-data-source-strategy.md` records MicroTech/AiDEX as the default hardware direction.
+- Dexcom auth/sync remains a tested code capability, but it is not the MVP data source.
+- xDrip/Juggluco/Nightscout HTTP feeds remain an implemented compatibility bridge, not the default path for an iPhone-only AiDEX user.
+- Real-device validation remains the next gate for AiDEX API access and a narrowly scoped PC Bluetooth direct PoC.
+
+| Feature | Current status | Development next step |
+|---|---|---|
+| F1 Hermes runtime usability | DONE | Keep as regression surface only. |
+| F2 CGM data source | PARTIAL / VALIDATE | Default hardware is MicroTech/AiDEX. Validate vendor API access first, then a single-device PC BLE direct PoC; keep `source-poll` as bridge fallback. |
+| F3 medical safety hardening | DONE | Continue clinical KB sign-off outside the F2 path. |
+| F4 companion narrative/interactions | DONE | Product copy improvements only; not blocking F2. |
+| F5 push + delivery loop | DONE for D1/D2 webhook | Email delivery remains deferred; webhook is implemented. |
+| F6 engineering health | PARTIAL | Continue doc-count cleanup and large-file refactors opportunistically. |
+| F7 deeper analytics | DEFERRED | Revisit after real data source validation. |
+
 - **日期**：2026-06-08
 - **作用**：项目后续开发的唯一 backlog 事实源（宪法 §VI）。所有 ad-hoc 计划（`docs/FIX-PLAN-*`）以本文件为准归并，归并后退役。
 - **权威约束**：[宪法](../.specify/memory/constitution.md)（7 原则）· [ADR-0001](adr/ADR-0001-memory-and-knowledge-architecture.md) · [DECISION_LOG](DECISION_LOG.md)
@@ -52,14 +99,14 @@
 ### D. 推送与投递闭环（→ F5）
 | # | 条目 | 状态 | 说明 |
 |---|---|---|---|
-| D1 | push-tick 暴露为 Hermes tool + cron 注册 | `OPEN` | 调度策略/静默即认可核心已完成（`scheduling/scheduler.py`），但 `push-tick` 仅 CLI、未在 registry/plugin.yaml；包成工具并接 Hermes cron |
-| D2 | delivery webhook/email 实现 | `PARTIAL` | 仅 `local_file` 完整，email/webhook 记为 `queued`；先做 webhook HTTP POST |
+| D1 | push-tick 暴露为 Hermes tool + cron 注册 | `DONE` | `scheduling.push_tick` 已注册、分发并由 Hermes/no_agent cron 路线验证；策略仍由能力层控制。 |
+| D2 | delivery webhook/email 实现 | `DONE/PARTIAL` | webhook HTTP POST 已实现并受测；`local_file` 完整；email 保持 queued/non-MVP。 |
 
 ### E. 数据来源（→ F2，战略决策）
 | # | 条目 | 状态 | 说明 |
 |---|---|---|---|
-| E1 | Dexcom 集成解阻 | `FROZEN` | US-portal app vs AU/OUS data account，需 developer.dexcom.eu。**项目决定：Dexcom API 将弃用、非第一级交付 → 冻结，不投入** |
-| E2 | 替代数据接入策略 | `需决策` | CSV 导入已有；是否接 Libre/Nightscout？定义 MVP 数据入口。**出 ADR** |
+| E1 | Dexcom 集成解阻 | `SUPPORTED / NOT-MVP` | Dexcom auth/sync 代码保留且受测，但不作为下一阶段 MVP 主线；默认 CGM 是微泰/AiDEX。 |
+| E2 | 微泰/AiDEX 数据接入策略 | `PARTIAL / VALIDATE` | ADR-0002 已修正：默认硬件为 MicroTech/AiDEX。优先验证 AiDEX API/厂商云可用性；并行保留单设备 PC BLE 直连 PoC；xDrip/Juggluco/Nightscout HTTP Collector 作为兼容桥保留。 |
 
 ### F. 分析深度（→ F7，暂缓）
 | # | 条目 | 状态 | 说明 |

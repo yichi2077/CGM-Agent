@@ -74,6 +74,7 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_context_get_l0",
                 "cgm_timeseries_get_points",
                 "cgm_timeseries_get_aggregate",
+                "cgm_timeseries_get_realtime_snapshot",
                 "cgm_events_create",
                 "cgm_events_confirm",
                 "cgm_memory_list",

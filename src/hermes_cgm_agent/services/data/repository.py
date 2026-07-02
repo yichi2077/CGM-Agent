@@ -9,6 +9,8 @@ from typing import Any
 from hermes_cgm_agent.domain import (
     DataScope,
     DeviceSession,
+    EvidenceRef,
+    GlucoseEvent,
     GlucosePoint,
     ImportIssue,
     RawCGMRecord,
@@ -23,6 +25,7 @@ CGM_TABLES = [
     "raw_cgm_records",
     "import_issues",
     "glucose_points",
+    "detected_glucose_events",
     "device_sessions",
     "user_events",
 ]
@@ -36,6 +39,7 @@ class CGMRepositoryStatus:
     raw_record_count: int
     import_issue_count: int
     glucose_point_count: int
+    detected_glucose_event_count: int
     device_session_count: int
     user_event_count: int
 
@@ -62,6 +66,7 @@ class SQLiteCGMRepository:
                 raw_record_count=self._count(conn, "raw_cgm_records"),
                 import_issue_count=self._count(conn, "import_issues"),
                 glucose_point_count=self._count(conn, "glucose_points"),
+                detected_glucose_event_count=self._count(conn, "detected_glucose_events"),
                 device_session_count=self._count(conn, "device_sessions"),
                 user_event_count=self._count(conn, "user_events"),
             )
@@ -174,28 +179,29 @@ class SQLiteCGMRepository:
             conn.execute(
                 f"""
                 {verb} glucose_points (
-                    id, user_id, timestamp, value, unit, value_mg_dl, value_mmol_l,
+                    id, user_id, timestamp, received_at, value, unit, value_mg_dl, value_mmol_l,
                     source, quality_flag, trend, device_id, session_id, raw_record_id,
                     created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     point_id,
-                        point.user_id,
-                        _dt(point.timestamp),
-                        self.store.seal(point.value),
-                        self.store.seal(point.unit),
-                        self.store.seal(point.value_mg_dl),
-                        self.store.seal(point.value_mmol_l),
-                        point.source,
-                        self.store.seal(point.quality_flag),
-                        self.store.seal(point.trend),
-                        self.store.seal(point.device_id),
-                        self.store.seal(point.session_id),
-                        self.store.seal(point.raw_record_id),
-                        utc_now(),
-                    ),
-                )
+                    point.user_id,
+                    _dt(point.timestamp),
+                    _dt(point.received_at) or utc_now(),
+                    self.store.seal(point.value),
+                    self.store.seal(point.unit),
+                    self.store.seal(point.value_mg_dl),
+                    self.store.seal(point.value_mmol_l),
+                    point.source,
+                    self.store.seal(point.quality_flag),
+                    self.store.seal(point.trend),
+                    self.store.seal(point.device_id),
+                    self.store.seal(point.session_id),
+                    self.store.seal(point.raw_record_id),
+                    utc_now(),
+                ),
+            )
         return point_id
 
     def list_glucose_points(self, scope: DataScope) -> list[GlucosePoint]:
@@ -212,7 +218,7 @@ class SQLiteCGMRepository:
             rows = conn.execute(
                 f"""
                 SELECT user_id, timestamp, value, unit, source, quality_flag,
-                       trend, device_id, session_id, raw_record_id
+                       trend, device_id, session_id, raw_record_id, received_at
                 FROM glucose_points
                 WHERE user_id = ?
                   AND timestamp >= ?
@@ -223,6 +229,57 @@ class SQLiteCGMRepository:
                 values,
             ).fetchall()
         return [self._row_to_glucose_point(row) for row in rows]
+
+    def create_glucose_event(self, event: GlucoseEvent, *, replace: bool = False) -> str:
+        # Detected glucose events are deterministic facts derived from normalized
+        # CGM points. Their IDs are deterministic, so forced recomputation can
+        # replace a row while the default stays strict for duplicate prevention.
+        verb = "INSERT OR REPLACE INTO" if replace else "INSERT INTO"
+        with self.store.connect() as conn:
+            conn.execute(
+                f"""
+                {verb} detected_glucose_events (
+                    event_id, user_id, event_type, ts_start, ts_end, severity,
+                    peak_value_mg_dl, nadir_value_mg_dl, duration_minutes,
+                    point_count, summary, detector_version, evidence_refs_json,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.event_id,
+                    event.user_id,
+                    event.event_type,
+                    _dt(event.ts_start),
+                    _dt(event.ts_end),
+                    event.severity,
+                    self.store.seal(event.peak_value_mg_dl),
+                    self.store.seal(event.nadir_value_mg_dl),
+                    self.store.seal(event.duration_minutes),
+                    event.point_count,
+                    self.store.seal(event.summary),
+                    event.detector_version,
+                    self.store.seal([ref.model_dump(mode="json") for ref in event.evidence_refs]),
+                    utc_now(),
+                ),
+            )
+        return event.event_id
+
+    def list_glucose_events(self, scope: DataScope) -> list[GlucoseEvent]:
+        with self.store.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT event_id, user_id, event_type, ts_start, ts_end, severity,
+                       peak_value_mg_dl, nadir_value_mg_dl, duration_minutes,
+                       point_count, summary, detector_version, evidence_refs_json
+                FROM detected_glucose_events
+                WHERE user_id = ?
+                  AND ts_start >= ?
+                  AND ts_start < ?
+                ORDER BY ts_start ASC, event_id ASC
+                """,
+                (scope.user_id, _dt(scope.window_start), _dt(scope.window_end)),
+            ).fetchall()
+        return [self._row_to_glucose_event(row) for row in rows]
 
     def create_device_session(self, session: DeviceSession) -> str:
         with self.store.connect() as conn:
@@ -432,6 +489,27 @@ class SQLiteCGMRepository:
             device_id=self.store.unseal(row["device_id"]),
             session_id=self.store.unseal(row["session_id"]),
             raw_record_id=self.store.unseal(row["raw_record_id"]),
+            received_at=row["received_at"] or None,
+        )
+
+    def _row_to_glucose_event(self, row: Any) -> GlucoseEvent:
+        return GlucoseEvent(
+            event_id=row["event_id"],
+            user_id=row["user_id"],
+            event_type=row["event_type"],
+            ts_start=row["ts_start"],
+            ts_end=row["ts_end"],
+            severity=row["severity"],
+            peak_value_mg_dl=self.store.unseal(row["peak_value_mg_dl"]),
+            nadir_value_mg_dl=self.store.unseal(row["nadir_value_mg_dl"]),
+            duration_minutes=self.store.unseal(row["duration_minutes"]),
+            point_count=row["point_count"],
+            summary=self.store.unseal(row["summary"]),
+            detector_version=row["detector_version"],
+            evidence_refs=[
+                EvidenceRef.model_validate(item)
+                for item in self.store.unseal(row["evidence_refs_json"], legacy="json") or []
+            ],
         )
 
     def _row_to_device_session(self, row: Any) -> DeviceSession:

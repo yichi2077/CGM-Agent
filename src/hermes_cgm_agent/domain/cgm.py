@@ -161,6 +161,9 @@ class RawImportBatch(CGMBaseModel):
 
 class GlucosePoint(CGMBaseModel):
     user_id: str
+    # ``timestamp`` is the CGM measurement time (measured_at). ``received_at``
+    # is when our collector/API sync obtained the point; it is optional for
+    # legacy imports and static CSV data.
     timestamp: datetime
     value: float = Field(gt=0)
     unit: GlucoseUnit
@@ -170,6 +173,7 @@ class GlucosePoint(CGMBaseModel):
     device_id: str | None = None
     session_id: str | None = None
     raw_record_id: str | None = None
+    received_at: datetime | None = None
 
     @computed_field
     @property
@@ -279,6 +283,9 @@ class GlucoseAggregate(CGMBaseModel):
     mbg: float | None = Field(default=None, alias="MBG", ge=0)
     lbgi: float | None = Field(default=None, alias="LBGI", ge=0)
     hbgi: float | None = Field(default=None, alias="HBGI", ge=0)
+    mage: float | None = Field(default=None, alias="MAGE", ge=0)
+    modd: float | None = Field(default=None, alias="MODD", ge=0)
+    conga: float | None = Field(default=None, alias="CONGA", ge=0)
     data_coverage: float = Field(ge=0, le=100)
     point_count: int = Field(default=0, ge=0)
 

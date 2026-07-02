@@ -1,5 +1,15 @@
 # MEM-ARCH：记忆与知识架构规范（canonical）
 
+## Current Implementation Note (2026-06-27)
+
+This note supersedes older test-count and L0/Warm ambiguity in this document.
+
+- Current validation baseline: `476 tests, OK (skipped=1)`.
+- L0 is only the recent working window. It must not be read as long-term memory or as proof that older Warm summaries are still fresh.
+- Warm summaries (`memory_summaries`) remain separate synthesized state. If Warm exists but the current L0 window has no recent glucose points, provider prefetch now emits an explicit stale/no-recent-data notice.
+- `GlucosePoint.timestamp` is measured-at time; `GlucosePoint.received_at` records collector/API receipt time for freshness and lag calculations.
+- Deterministic detected glucose events live in `detected_glucose_events`; user/agent-recorded events remain in `user_events`.
+
 - **状态**：Living spec（随实现演进）
 - **版本**：MEM-ARCH（2026-06-06 起）
 - **取代**：`MEM-ARCH-20260601`（代码注释引用但从未入库的幽灵文档；其 §编号在本文件中保留以便既往引用解析）

@@ -12,6 +12,7 @@ class ToolRegistryTests(unittest.TestCase):
         names = {spec.name for spec in registry.list()}
 
         self.assertIn("timeseries.get_points", names)
+        self.assertIn("timeseries.get_realtime_snapshot", names)
         self.assertIn("context.get_l0", names)
         self.assertIn("events.create", names)
         self.assertIn("reports.generate", names)
@@ -30,6 +31,7 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertTrue(spec.writes_audit)
         self.assertTrue(spec.evidence_required)
         self.assertIn("data_scope", spec.input_schema["properties"])
+        self.assertIn("expected_interval_minutes", aggregate_spec.input_schema["properties"])
         self.assertIn("evidence_refs", spec.output_schema["properties"])
 
     def test_memory_confirm_schema_matches_executor_payload(self) -> None:

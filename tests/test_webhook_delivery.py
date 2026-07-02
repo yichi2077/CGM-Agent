@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import smtplib
 import tempfile
 import unittest
 import urllib.error
@@ -40,6 +41,31 @@ class _FakeResponse:
 
     def __exit__(self, *exc: object) -> bool:
         return False
+
+
+class _FakeSMTP:
+    def __init__(self, host: str, port: int, timeout: float) -> None:
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+        self.started_tls = False
+        self.login_args: tuple[str, str] | None = None
+        self.messages = []
+
+    def __enter__(self) -> "_FakeSMTP":
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def starttls(self) -> None:
+        self.started_tls = True
+
+    def login(self, username: str, password: str) -> None:
+        self.login_args = (username, password)
+
+    def send_message(self, message) -> None:
+        self.messages.append(message)
 
 
 class _WebhookTestBase(unittest.TestCase):
@@ -77,6 +103,75 @@ class _WebhookTestBase(unittest.TestCase):
             ).fetchone()
         self.assertIsNotNone(row)
         return self.store.unseal(row["payload_json"], legacy="json")
+
+
+class EmailDeliveryTests(_WebhookTestBase):
+    def _send_email(self, env: dict[str, str]) -> dict:
+        base_env = {
+            k: v
+            for k, v in os.environ.items()
+            if not k.startswith("CGM_SMTP_") and k != "CGM_WEBHOOK_URL"
+        }
+        base_env.update(env)
+        with patch.dict(os.environ, base_env, clear=True):
+            return self.executor.execute(
+                tool_name="delivery.send",
+                session_id=self.session_id,
+                arguments={
+                    "user_id": "u1",
+                    "channel": "email",
+                    "payload_ref": "push:abc123",
+                    "metrics": {"tir_pct": 80, "raw_series": [1, 2]},
+                },
+            ).to_dict()
+
+    def test_configured_smtp_sends_phi_filtered_message(self) -> None:
+        smtp = _FakeSMTP("smtp.example.com", 587, 10)
+        with patch("smtplib.SMTP", return_value=smtp) as mock_smtp:
+            body = self._send_email(
+                {
+                    "CGM_SMTP_HOST": "smtp.example.com",
+                    "CGM_SMTP_PORT": "587",
+                    "CGM_SMTP_USERNAME": "user",
+                    "CGM_SMTP_PASSWORD": "pass",
+                    "CGM_SMTP_TO_ADDRESS": "target@example.com",
+                }
+            )
+
+        self.assertEqual(body["delivery_status"], "sent")
+        self.assertIsNone(body["manifest_path"])
+        mock_smtp.assert_called_once_with("smtp.example.com", 587, timeout=10)
+        self.assertTrue(smtp.started_tls)
+        self.assertEqual(smtp.login_args, ("user", "pass"))
+        self.assertEqual(len(smtp.messages), 1)
+        message_text = smtp.messages[0].get_content()
+        self.assertIn("tir_pct", message_text)
+        self.assertNotIn("raw_series", message_text)
+        self.assertNotIn("user_id", message_text)
+
+    def test_missing_smtp_config_queues_local_manifest(self) -> None:
+        with patch("smtplib.SMTP") as mock_smtp:
+            body = self._send_email({})
+
+        self.assertEqual(body["delivery_status"], "queued")
+        self.assertIsNotNone(body["manifest_path"])
+        self.assertTrue(Path(body["manifest_path"]).exists())
+        mock_smtp.assert_not_called()
+        self.assertEqual(self._last_audit()["error_type"], "not_configured")
+
+    def test_smtp_failure_writes_fallback_manifest(self) -> None:
+        with patch("smtplib.SMTP", side_effect=smtplib.SMTPException("nope")):
+            body = self._send_email(
+                {
+                    "CGM_SMTP_HOST": "smtp.example.com",
+                    "CGM_SMTP_TO_ADDRESS": "target@example.com",
+                }
+            )
+
+        self.assertEqual(body["delivery_status"], "failed")
+        self.assertIsNotNone(body["manifest_path"])
+        self.assertTrue(Path(body["manifest_path"]).exists())
+        self.assertEqual(self._last_audit()["error_type"], "smtp_error")
 
 
 class WebhookDeliveryTests(_WebhookTestBase):

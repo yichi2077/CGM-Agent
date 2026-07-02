@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import smtplib
 import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,7 @@ from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolE
 # Webhook HTTP POST is a single at-most-once call: 10s timeout, no retry (retry
 # is a Hermes/cron concern, not this layer's — FR-008).
 _WEBHOOK_TIMEOUT_SECONDS = 10
+_SMTP_TIMEOUT_SECONDS = 10
 
 # PHI allowlist (Constitution Principle VII / plan.md "PHI Protection"). This is
 # THE security boundary: deny-by-default, applied to any manifest before it
@@ -111,27 +114,25 @@ class DeliveryHandlerMixin(BaseToolHandler):
                 delivery_id=delivery_id,
             )
 
-        # local_file is fully handled here; email is still recorded as queued so
-        # a Hermes-owned gateway can fulfil it. We never silently claim a remote
-        # send succeeded.
-        delivery_status = "failed"
-        manifest_path: str | None = None
         if channel == "local_file":
-            target_dir = Path(self.repository.store.db_path).resolve().parent / "deliveries"
-            target_dir.mkdir(parents=True, exist_ok=True)
-            manifest = {
-                "delivery_id": delivery_id,
-                "user_id": user_id,
-                "channel": channel,
-                "payload_ref": payload_ref,
-                "session_id": session_id,
-            }
-            out = target_dir / f"{delivery_id}.json"
-            out.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True), encoding="utf-8")
-            manifest_path = str(out)
+            manifest_path = self._write_local_delivery_manifest(
+                delivery_id=delivery_id,
+                user_id=user_id,
+                channel=channel,
+                payload_ref=payload_ref,
+                session_id=session_id,
+                status="sent",
+            )
             delivery_status = "sent"
         else:
-            delivery_status = "queued"
+            return self._deliver_email(
+                spec=spec,
+                session_id=session_id,
+                user_id=user_id,
+                payload_ref=payload_ref,
+                arguments=arguments,
+                delivery_id=delivery_id,
+            )
 
         audit_id = self.audit_service.log(
             session_id=session_id,
@@ -147,6 +148,139 @@ class DeliveryHandlerMixin(BaseToolHandler):
                 "payload_ref": payload_ref,
                 "delivery_status": delivery_status,
                 "manifest_path": manifest_path,
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=[],
+            audit_id=audit_id,
+            payload={
+                "delivery_id": delivery_id,
+                "delivery_status": delivery_status,
+                "manifest_path": manifest_path,
+            },
+        )
+
+    def _write_local_delivery_manifest(
+        self,
+        *,
+        delivery_id: str,
+        user_id: str,
+        channel: str,
+        payload_ref: str,
+        session_id: str,
+        status: str,
+        error_type: str | None = None,
+    ) -> str:
+        target_dir = Path(self.repository.store.db_path).resolve().parent / "deliveries"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "delivery_id": delivery_id,
+            "user_id": user_id,
+            "channel": channel,
+            "payload_ref": payload_ref,
+            "session_id": session_id,
+            "delivery_status": status,
+        }
+        if error_type:
+            manifest["error_type"] = error_type
+        out = target_dir / f"{delivery_id}.json"
+        out.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        return str(out)
+
+    def _deliver_email(
+        self,
+        *,
+        spec: Any,
+        session_id: str,
+        user_id: str,
+        payload_ref: str,
+        arguments: dict[str, Any],
+        delivery_id: str,
+    ) -> ToolExecutionResponse:
+        host = os.environ.get("CGM_SMTP_HOST")
+        to_address = os.environ.get("CGM_SMTP_TO_ADDRESS")
+        port_raw = os.environ.get("CGM_SMTP_PORT", "587")
+        username = os.environ.get("CGM_SMTP_USERNAME")
+        password = os.environ.get("CGM_SMTP_PASSWORD")
+        from_address = os.environ.get("CGM_SMTP_FROM_ADDRESS") or username or "cgm-agent@localhost"
+        use_tls = os.environ.get("CGM_SMTP_USE_TLS", "1").lower() not in {"0", "false", "no"}
+
+        delivery_status = "failed"
+        error_type: str | None = None
+        manifest_path: str | None = None
+
+        try:
+            port = int(port_raw)
+        except ValueError:
+            port = 587
+            error_type = "invalid_config"
+
+        if not host or not to_address:
+            delivery_status = "queued"
+            error_type = error_type or "not_configured"
+        elif error_type is None:
+            manifest: dict[str, Any] = {
+                "delivery_id": delivery_id,
+                "push_id": payload_ref,
+                "delivered_at": utc_now().isoformat(),
+            }
+            if arguments.get("tier") is not None:
+                manifest["tier"] = arguments["tier"]
+            if arguments.get("period_key") is not None:
+                manifest["period_key"] = arguments["period_key"]
+            if isinstance(arguments.get("metrics"), dict):
+                manifest["metrics"] = arguments["metrics"]
+            if isinstance(arguments.get("event_summaries"), list):
+                manifest["event_summaries"] = arguments["event_summaries"]
+            body = _filter_webhook_payload(manifest)
+
+            message = EmailMessage()
+            message["From"] = from_address
+            message["To"] = to_address
+            message["Subject"] = f"CGM summary {payload_ref}"
+            message.set_content(json.dumps(body, ensure_ascii=False, sort_keys=True))
+            try:
+                with smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT_SECONDS) as smtp:
+                    if use_tls:
+                        smtp.starttls()
+                    if username and password:
+                        smtp.login(username, password)
+                    smtp.send_message(message)
+                delivery_status = "sent"
+            except TimeoutError:
+                error_type = "timeout"
+            except (OSError, smtplib.SMTPException):
+                error_type = "smtp_error"
+
+        if delivery_status != "sent":
+            manifest_path = self._write_local_delivery_manifest(
+                delivery_id=delivery_id,
+                user_id=user_id,
+                channel="email",
+                payload_ref=payload_ref,
+                session_id=session_id,
+                status=delivery_status,
+                error_type=error_type,
+            )
+
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": {"user_id": user_id},
+                "risk_level": spec.risk_level,
+                "evidence_refs": [],
+                "delivery_id": delivery_id,
+                "channel": "email",
+                "payload_ref": payload_ref,
+                "delivery_status": delivery_status,
+                "manifest_path": manifest_path,
+                "smtp_host_configured": bool(host),
+                "smtp_to_configured": bool(to_address),
+                "error_type": error_type,
             },
         )
         return ToolExecutionResponse(

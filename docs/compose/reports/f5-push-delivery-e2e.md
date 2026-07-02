@@ -10,6 +10,18 @@ branch: main
 commits: 0b958e3..34f0e1c
 ---
 
+## Current Correction Note (2026-06-27)
+
+This file is a historical F5 report. Current repo facts that supersede older rows below:
+
+- Full local validation is now `476 tests, OK (skipped=1)`.
+- 2026-07-02 pre-test update: webhook and `local_file` delivery are the required
+  14-day simulation delivery paths. SMTP email is implemented but optional; the
+  simulation does not require email.
+- Hermes live E2E should use `--provider deepseek --model deepseek-v4-flash`.
+- F2 is no longer "needs decision": ADR-0002 selects xDrip/Juggluco/Nightscout-compatible HTTP feeds, and Collector v1 is implemented behind `source-poll`.
+- The next F2 gate is real-device validation for AiDEX/Yuwell and Android bridge stability, not another backend source decision.
+
 # F5 推送投递闭环 + Hermes 端到端集成测试 — 最终报告
 
 ## 一、工作概述
@@ -28,7 +40,7 @@ commits: 0b958e3..34f0e1c
 ### 测试基线
 
 - **起始**: 440 tests（F3 完成后）
-- **当前**: 465 tests（451 通过 + 1 跳过 + 5 E2E 需 Hermes venv）
+- **当前（2026-06-27 修正）**: 476 tests，OK（skipped=1）
 - **E2E**: 5/5 通过（Hermes venv 环境）
 
 ---
@@ -130,7 +142,7 @@ cron.scheduler.tick() → 检测到期 job → run_job()
 
 | 环境 | 运行方式 | E2E 测试 | 单元测试 |
 |------|---------|----------|----------|
-| CGM venv | `python -m unittest discover` | 自动跳过 | 451 通过 |
+| CGM venv | `python -m unittest discover` | 自动跳过 | 476 tests OK（skipped=1） |
 | Hermes venv | `pytest tests/test_hermes_e2e.py` | 5/5 通过 | — |
 
 E2E 测试在 CGM venv 中自动跳过（缺少 `requests`/`httpx` 等 Hermes 依赖），避免误报失败。
@@ -152,10 +164,10 @@ E2E 测试在 CGM venv 中自动跳过（缺少 `requests`/`httpx` 等 Hermes �
 
 | Feature | 状态 | 优先级 | 说明 |
 |---------|------|--------|------|
-| F5 D2 webhook 投递 | `OPEN` | P2 | HTTP POST + PHI allowlist + https/no-redirect |
+| F5 D2 webhook 投递 | ✅ 完成 | P2 | HTTP POST + PHI allowlist + https/no-redirect 已实现并受测；email 仍 queued/non-MVP |
 | F4 叙事层完善 | `PARTIAL` | P2 | 周报/医生版/家属版叙事差异 |
 | F4 协商式话术接入 | `OPEN` | P2 | 状态机话术未接入对话层 |
-| F2 数据来源策略 | `需决策` | P1 | Libre/Nightscout/其他 CGM 数据源 ADR |
+| F2 数据来源策略 | ✅ 已决策 / VALIDATE | P1 | ADR-0002 选定 xDrip/Juggluco/Nightscout HTTP feed；下一步实机验证 |
 | 脆弱人群路径 | `KNOWN GAP` | P3 | vulnerable_population 无触发机制 |
 
 ### 4.3 Hermes 对接风险评估

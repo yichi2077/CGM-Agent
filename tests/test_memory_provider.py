@@ -9,6 +9,19 @@ from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 
 class MemoryProviderTests(unittest.TestCase):
+    def test_system_prompt_includes_compact_soul_persona(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = SQLiteStore(Path(temp_dir) / "app.db")
+            store.initialize()
+            provider = CGMMemoryProvider(store, user_id="u1")
+
+            out = provider.system_prompt_block()
+
+        self.assertIn("SOUL.md", out)
+        self.assertIn("知情陪伴者", out)
+        self.assertIn("cgm_reports_generate", out)
+        self.assertLess(len(out), 2600)
+
     def test_memory_relevant_keywords_cover_new_categories(self) -> None:
         samples = [
             "今天血糖有点乱，我很焦虑。",

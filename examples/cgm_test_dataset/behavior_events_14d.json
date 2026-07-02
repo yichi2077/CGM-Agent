@@ -1,0 +1,554 @@
+{
+  "events": [
+    {
+      "event_id": "evt-meal-00-000",
+      "type": "meal",
+      "ts_start": "2026-04-25T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-00-001",
+      "type": "meal",
+      "ts_start": "2026-04-25T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-00-002",
+      "type": "meal",
+      "ts_start": "2026-04-25T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 64,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-00-003",
+      "type": "exercise",
+      "ts_start": "2026-04-25T19:50:00",
+      "ts_end": "2026-04-25T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-meal-01-004",
+      "type": "meal",
+      "ts_start": "2026-04-26T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-01-005",
+      "type": "meal",
+      "ts_start": "2026-04-26T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-01-006",
+      "type": "meal",
+      "ts_start": "2026-04-26T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 64,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-01-007",
+      "type": "exercise",
+      "ts_start": "2026-04-26T19:50:00",
+      "ts_end": "2026-04-26T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-meal-02-008",
+      "type": "meal",
+      "ts_start": "2026-04-27T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-02-009",
+      "type": "meal",
+      "ts_start": "2026-04-27T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-02-010",
+      "type": "meal",
+      "ts_start": "2026-04-27T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-02-011",
+      "type": "exercise",
+      "ts_start": "2026-04-27T19:50:00",
+      "ts_end": "2026-04-27T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-note-03-015",
+      "type": "note",
+      "ts_start": "2026-04-28T00:00:00",
+      "ts_end": "2026-04-28T06:00:00",
+      "subtype": "poor_sleep",
+      "value": 5.5,
+      "unit": "hours",
+      "note": "short sleep"
+    },
+    {
+      "event_id": "evt-meal-03-012",
+      "type": "meal",
+      "ts_start": "2026-04-28T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 52,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-03-013",
+      "type": "meal",
+      "ts_start": "2026-04-28T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-03-014",
+      "type": "meal",
+      "ts_start": "2026-04-28T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-meal-04-016",
+      "type": "meal",
+      "ts_start": "2026-04-29T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-04-017",
+      "type": "meal",
+      "ts_start": "2026-04-29T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 70,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-symptom-04-020",
+      "type": "symptom",
+      "ts_start": "2026-04-29T14:30:00",
+      "ts_end": "2026-04-29T17:30:00",
+      "subtype": "stress",
+      "value": null,
+      "unit": null,
+      "note": "stressful afternoon"
+    },
+    {
+      "event_id": "evt-meal-04-018",
+      "type": "meal",
+      "ts_start": "2026-04-29T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-04-019",
+      "type": "exercise",
+      "ts_start": "2026-04-29T19:50:00",
+      "ts_end": "2026-04-29T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-meal-05-021",
+      "type": "meal",
+      "ts_start": "2026-04-30T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-05-022",
+      "type": "meal",
+      "ts_start": "2026-04-30T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 70,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-symptom-05-024",
+      "type": "symptom",
+      "ts_start": "2026-04-30T14:30:00",
+      "ts_end": "2026-04-30T17:30:00",
+      "subtype": "stress",
+      "value": null,
+      "unit": null,
+      "note": "stressful afternoon"
+    },
+    {
+      "event_id": "evt-meal-05-023",
+      "type": "meal",
+      "ts_start": "2026-04-30T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-meal-06-025",
+      "type": "meal",
+      "ts_start": "2026-05-01T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-06-026",
+      "type": "meal",
+      "ts_start": "2026-05-01T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-06-027",
+      "type": "meal",
+      "ts_start": "2026-05-01T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-06-028",
+      "type": "exercise",
+      "ts_start": "2026-05-01T19:50:00",
+      "ts_end": "2026-05-01T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-meal-07-029",
+      "type": "meal",
+      "ts_start": "2026-05-02T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-07-030",
+      "type": "meal",
+      "ts_start": "2026-05-02T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-07-031",
+      "type": "meal",
+      "ts_start": "2026-05-02T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 64,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-meal-08-032",
+      "type": "meal",
+      "ts_start": "2026-05-03T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-08-033",
+      "type": "meal",
+      "ts_start": "2026-05-03T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-08-034",
+      "type": "meal",
+      "ts_start": "2026-05-03T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 64,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-08-035",
+      "type": "exercise",
+      "ts_start": "2026-05-03T19:50:00",
+      "ts_end": "2026-05-03T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-note-09-039",
+      "type": "note",
+      "ts_start": "2026-05-04T00:00:00",
+      "ts_end": "2026-05-04T06:00:00",
+      "subtype": "poor_sleep",
+      "value": 5.5,
+      "unit": "hours",
+      "note": "short sleep"
+    },
+    {
+      "event_id": "evt-meal-09-036",
+      "type": "meal",
+      "ts_start": "2026-05-04T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 52,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-09-037",
+      "type": "meal",
+      "ts_start": "2026-05-04T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-09-038",
+      "type": "meal",
+      "ts_start": "2026-05-04T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-meal-10-040",
+      "type": "meal",
+      "ts_start": "2026-05-05T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-10-041",
+      "type": "meal",
+      "ts_start": "2026-05-05T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 70,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-symptom-10-044",
+      "type": "symptom",
+      "ts_start": "2026-05-05T14:30:00",
+      "ts_end": "2026-05-05T17:30:00",
+      "subtype": "stress",
+      "value": null,
+      "unit": null,
+      "note": "stressful afternoon"
+    },
+    {
+      "event_id": "evt-meal-10-042",
+      "type": "meal",
+      "ts_start": "2026-05-05T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-10-043",
+      "type": "exercise",
+      "ts_start": "2026-05-05T19:50:00",
+      "ts_end": "2026-05-05T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-meal-11-045",
+      "type": "meal",
+      "ts_start": "2026-05-06T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-11-046",
+      "type": "meal",
+      "ts_start": "2026-05-06T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-11-047",
+      "type": "meal",
+      "ts_start": "2026-05-06T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-meal-12-048",
+      "type": "meal",
+      "ts_start": "2026-05-07T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-12-049",
+      "type": "meal",
+      "ts_start": "2026-05-07T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-12-050",
+      "type": "meal",
+      "ts_start": "2026-05-07T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    },
+    {
+      "event_id": "evt-exercise-12-051",
+      "type": "exercise",
+      "ts_start": "2026-05-07T19:50:00",
+      "ts_end": "2026-05-07T20:15:00",
+      "subtype": "post_meal_walk",
+      "value": 25,
+      "unit": "minutes",
+      "note": "post-dinner walk"
+    },
+    {
+      "event_id": "evt-meal-13-052",
+      "type": "meal",
+      "ts_start": "2026-05-08T07:35:00",
+      "ts_end": null,
+      "subtype": "breakfast",
+      "value": 42,
+      "unit": "grams",
+      "note": "breakfast carbs"
+    },
+    {
+      "event_id": "evt-meal-13-053",
+      "type": "meal",
+      "ts_start": "2026-05-08T12:35:00",
+      "ts_end": null,
+      "subtype": "lunch",
+      "value": 58,
+      "unit": "grams",
+      "note": "lunch carbs"
+    },
+    {
+      "event_id": "evt-meal-13-054",
+      "type": "meal",
+      "ts_start": "2026-05-08T18:50:00",
+      "ts_end": null,
+      "subtype": "dinner",
+      "value": 52,
+      "unit": "grams",
+      "note": "dinner carbs"
+    }
+  ]
+}

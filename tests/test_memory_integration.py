@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from hermes_cgm_agent.domain import CandidateStatus, EvidenceRef, GlucosePoint, L1Episode
@@ -39,6 +39,20 @@ class MemoryIntegrationTests(unittest.TestCase):
                 GlucosePoint(
                     user_id="user-1",
                     timestamp=datetime(2026, 5, 31, i, 0, tzinfo=timezone.utc),
+                    value=v,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+
+    def _seed_recent_points(self) -> None:
+        anchor = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        for i, v in enumerate([90, 100, 150, 190]):
+            self.cgm.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=anchor - timedelta(minutes=(3 - i) * 5),
                     value=v,
                     unit="mg/dL",
                     source="sensor:test",
@@ -165,7 +179,7 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertIn("user-memory recall", recall)
 
     def test_provider_prefetch_includes_warm_and_l0_summaries(self) -> None:
-        self._seed_points()
+        self._seed_recent_points()
         ConsolidationService(repository=self.mem).synthesize_state(
             "user-1",
             window_start=datetime(2026, 5, 25, tzinfo=timezone.utc),
@@ -180,6 +194,24 @@ class MemoryIntegrationTests(unittest.TestCase):
 
         self.assertIn("[CGM state summary]", recall)
         self.assertIn("[CGM L0 context]", recall)
+
+    def test_provider_prefetch_marks_warm_summary_stale_when_l0_has_no_recent_points(self) -> None:
+        self._seed_points()
+        ConsolidationService(repository=self.mem).synthesize_state(
+            "user-1",
+            window_start=datetime(2026, 5, 25, tzinfo=timezone.utc),
+            window_end=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            period="weekly",
+            metrics_summary={"tir_pct": 75},
+        )
+        provider = CGMMemoryProvider(self.store, user_id="user-1")
+        provider.initialize(session_id=self.session_id, user_id="user-1")
+
+        recall = provider.prefetch("today")
+
+        self.assertIn("[CGM state summary]", recall)
+        self.assertIn("[CGM L0 context unavailable]", recall)
+        self.assertNotIn("[CGM L0 context] 14d points=", recall)
 
     def test_provider_sync_turn_and_precompress_preserve_relevant_context(self) -> None:
         provider = CGMMemoryProvider(self.store, user_id="user-1")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from hermes_cgm_agent.domain import EvidenceRef, GlucosePoint, HypothesisState, L3Hypothesis
@@ -158,6 +158,75 @@ class TimeseriesToolTests(unittest.TestCase):
         self.assertEqual(audit_payload["tool_name"], "timeseries.get_aggregate")
         self.assertEqual(audit_payload["status"], "ok")
         self.assertEqual(audit_payload["aggregate"]["point_count"], 4)
+
+    def test_timeseries_get_aggregate_accepts_one_minute_expected_interval(self) -> None:
+        for index in range(20):
+            self.repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 5, 31, 0, index, tzinfo=timezone.utc),
+                    value=100 + index,
+                    unit="mg/dL",
+                    source="sensor:1min",
+                    quality_flag="valid",
+                )
+            )
+
+        body = self.executor.execute(
+            tool_name="timeseries.get_aggregate",
+            session_id=self.session_id,
+            arguments={
+                "data_scope": {
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-05-31T00:20:00+00:00",
+                    "source": "sensor:1min",
+                },
+                "window_label": "day",
+                "expected_interval_minutes": 1,
+            },
+        ).to_dict()
+
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["aggregate"]["point_count"], 20)
+        self.assertEqual(body["aggregate"]["data_coverage"], 100.0)
+
+    def test_timeseries_get_realtime_snapshot_returns_latest_trend_signals(self) -> None:
+        base = datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc)
+        for index in range(13):
+            measured_at = base + timedelta(minutes=index * 5)
+            self.repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=measured_at,
+                    received_at=measured_at + timedelta(seconds=30),
+                    value=100 + index * 2,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
+
+        body = self.executor.execute(
+            tool_name="timeseries.get_realtime_snapshot",
+            session_id=self.session_id,
+            arguments={
+                "data_scope": {
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-05-31T01:05:00+00:00",
+                    "source": "sensor:test",
+                },
+                "expected_interval_minutes": 5,
+                "now": "2026-05-31T01:00:00+00:00",
+            },
+        ).to_dict()
+
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["snapshot"]["latest_glucose_mg_dl"], 124)
+        self.assertEqual(body["snapshot"]["delta_15min"], 6.0)
+        self.assertEqual(body["snapshot"]["slope_15min_mg_dl_per_min"], 0.4)
+        self.assertEqual(body["snapshot"]["missing_rate_1h"], 0.0)
 
     def test_hypothesis_update_returns_state_and_audit(self) -> None:
         memory = SQLiteMemoryRepository(self.store)

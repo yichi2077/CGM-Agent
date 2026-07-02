@@ -60,6 +60,23 @@ def _load_module(module_name: str, path: Path):
     return module
 
 
+def _hermes_e2e_model_config() -> dict[str, str | None]:
+    try:
+        from hermes_cli.runtime_provider import resolve_runtime_provider
+
+        runtime = resolve_runtime_provider()
+    except Exception:
+        runtime = {}
+    return {
+        "provider": os.environ.get("HERMES_E2E_PROVIDER")
+        or str(runtime.get("provider") or "deepseek"),
+        "model": os.environ.get("HERMES_E2E_MODEL")
+        or str(runtime.get("model") or "deepseek-v4-flash"),
+        "base_url": os.environ.get("HERMES_E2E_BASE_URL")
+        or runtime.get("base_url"),
+    }
+
+
 class _ToolCollector:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
@@ -161,10 +178,11 @@ class TestAIAgentFullChain(unittest.TestCase):
         """AIAgent sends message -> LLM calls cgm_scheduling_push_tick -> result."""
         from run_agent import AIAgent
 
+        model_config = _hermes_e2e_model_config()
         agent = AIAgent(
-            model="mimo-v2.5-pro",
-            provider="xiaomi",
-            base_url="https://token-plan-cn.xiaomimimo.com/v1",
+            model=model_config["model"],
+            provider=model_config["provider"],
+            base_url=model_config["base_url"],
             enabled_toolsets=["cgm"],
             skip_memory=True,
             max_iterations=5,
@@ -182,10 +200,11 @@ class TestAIAgentFullChain(unittest.TestCase):
         """AIAgent with only CGM tools can be created and chat."""
         from run_agent import AIAgent
 
+        model_config = _hermes_e2e_model_config()
         agent = AIAgent(
-            model="mimo-v2.5-pro",
-            provider="xiaomi",
-            base_url="https://token-plan-cn.xiaomimimo.com/v1",
+            model=model_config["model"],
+            provider=model_config["provider"],
+            base_url=model_config["base_url"],
             enabled_toolsets=["cgm"],
             skip_memory=True,
             max_iterations=3,

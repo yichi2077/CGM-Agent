@@ -8,6 +8,9 @@ from pathlib import Path
 from hermes_cgm_agent.domain import (
     DataScope,
     DeviceSession,
+    GlucoseEvent,
+    GlucoseEventSeverity,
+    GlucoseEventType,
     GlucosePoint,
     ImportIssue,
     RawCGMRecord,
@@ -34,8 +37,9 @@ class CGMRepositoryTests(unittest.TestCase):
         status = self.repository.status()
 
         self.assertTrue(status.tables_present)
-        self.assertEqual(status.table_count, 6)
+        self.assertEqual(status.table_count, 7)
         self.assertEqual(status.glucose_point_count, 0)
+        self.assertEqual(status.detected_glucose_event_count, 0)
 
     def test_import_batch_round_trips_records_and_issues(self) -> None:
         batch = RawImportBatch(
@@ -76,6 +80,7 @@ class CGMRepositoryTests(unittest.TestCase):
             GlucosePoint(
                 user_id="user-1",
                 timestamp=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+                received_at=datetime(2026, 5, 31, 0, 1, tzinfo=timezone.utc),
                 value=6.0,
                 unit="mmol/L",
                 source="sensor:a",
@@ -122,6 +127,38 @@ class CGMRepositoryTests(unittest.TestCase):
         self.assertEqual([point.source for point in points], ["sensor:a", "sensor:b"])
         self.assertEqual(len(source_points), 1)
         self.assertEqual(source_points[0].value_mg_dl, 108.11)
+        self.assertEqual(
+            source_points[0].received_at,
+            datetime(2026, 5, 31, 0, 1, tzinfo=timezone.utc),
+        )
+
+    def test_detected_glucose_events_persist_separately_from_user_events(self) -> None:
+        event = GlucoseEvent(
+            event_id="det-1",
+            user_id="user-1",
+            event_type=GlucoseEventType.DATA_GAP,
+            ts_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            ts_end=datetime(2026, 5, 31, 0, 45, tzinfo=timezone.utc),
+            severity=GlucoseEventSeverity.INFO,
+            duration_minutes=45,
+            point_count=0,
+            summary="Data gap of 45 min between valid points.",
+        )
+
+        self.repository.create_glucose_event(event)
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 6, 1, 0, 0, tzinfo=timezone.utc),
+        )
+        saved = self.repository.list_glucose_events(scope)
+        status = self.repository.status()
+
+        self.assertEqual([item.event_id for item in saved], ["det-1"])
+        self.assertEqual(saved[0].event_type, GlucoseEventType.DATA_GAP)
+        self.assertEqual(saved[0].duration_minutes, 45)
+        self.assertEqual(status.detected_glucose_event_count, 1)
+        self.assertEqual(self.repository.list_user_events(scope), [])
 
     def test_device_sessions_round_trip_missing_ranges(self) -> None:
         self.repository.create_device_session(

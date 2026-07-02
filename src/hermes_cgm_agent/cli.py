@@ -43,6 +43,7 @@ from hermes_cgm_agent.services.scheduling import (
     PushSchedulerConfig,
     PushSchedulerService,
 )
+from hermes_cgm_agent.services.sources import SourcePollConfig, SourcePollService
 from hermes_cgm_agent.services.tools import ToolExecutor, build_default_tool_registry
 from hermes_cgm_agent.config import AppConfig, default_hermes_exe
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
@@ -108,6 +109,21 @@ def build_parser() -> argparse.ArgumentParser:
     dexcom_sync.add_argument("--days", type=int, default=7)
     dexcom_sync.add_argument("--force", action="store_true")
     dexcom_sync.add_argument("--session-id", default="dexcom-cli-session")
+
+    source_poll = sub.add_parser(
+        "source-poll",
+        help=(
+            "Poll an xDrip/Juggluco/Nightscout-compatible HTTP feed once, "
+            "archive raw payload, insert deduped points, and persist detected events."
+        ),
+    )
+    source_poll.add_argument("--user-id", required=True)
+    source_poll.add_argument("--kind", required=True, choices=["xdrip", "juggluco", "nightscout"])
+    source_poll.add_argument("--url", required=True)
+    source_poll.add_argument("--count", type=int, default=12)
+    source_poll.add_argument("--source", default=None, help="Optional stable source label override")
+    source_poll.add_argument("--db-path", default=None, help="SQLite DB path (default: runtime DB)")
+    source_poll.add_argument("--expected-interval-min", type=int, default=5)
 
     synthesize = sub.add_parser(
         "memory-synthesize",
@@ -338,9 +354,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"glucose_point_count: {cgm_status.glucose_point_count}")
         print(f"import_batch_count: {cgm_status.import_batch_count}")
         print(f"user_event_count: {cgm_status.user_event_count}")
+        print(f"detected_glucose_event_count: {cgm_status.detected_glucose_event_count}")
         print("cgm_importer_present: true")
         print("cgm_importer_formats: csv,json")
         print("cgm_normalizer_present: true")
+        print("cgm_source_collector_present: true")
+        print("cgm_source_collector_kinds: xdrip,juggluco,nightscout")
         print("cgm_analytics_present: true")
         print("cgm_analytics_metrics: TIR,TAR,TBR,MBG,CV,GMI,LBGI,HBGI,data_coverage")
         print("cgm_event_tools_present: true")
@@ -365,8 +384,8 @@ def main(argv: list[str] | None = None) -> int:
         print("push_scheduler_present: true")
         print("push_tiers: daily,weekly,monthly")
         print("silent_consent_present: true")
-        print("current_phase: tiered-push product loop implemented")
-        print("prototype_limit: authoritative KB verification and the external delivery channel (email/webhook timing) remain workflow-dependent")
+        print("current_phase: f2 source collector implemented; real-device validation pending")
+        print("prototype_limit: authoritative KB verification, real-device CGM source validation, and email delivery remain workflow-dependent")
         print("test_command: PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests")
         return 0 if status["available"] else 1
 
@@ -418,6 +437,17 @@ def main(argv: list[str] | None = None) -> int:
             days=args.days,
             force=args.force,
             session_id=args.session_id,
+        )
+
+    if args.command == "source-poll":
+        return _source_poll(
+            db_path=Path(args.db_path) if args.db_path else config.database_path,
+            user_id=args.user_id,
+            kind=args.kind,
+            url=args.url,
+            count=args.count,
+            source=args.source,
+            expected_interval_minutes=args.expected_interval_min,
         )
 
     if args.command == "memory-synthesize":
@@ -772,6 +802,39 @@ def _dexcom_sync(
     body["database_path"] = str(db_path)
     print(json.dumps(body, ensure_ascii=False, sort_keys=True))
     return 0 if response.status == "ok" else 1
+
+
+def _source_poll(
+    *,
+    db_path: Path,
+    user_id: str,
+    kind: str,
+    url: str,
+    count: int,
+    source: str | None,
+    expected_interval_minutes: int,
+) -> int:
+    store = SQLiteStore(db_path)
+    store.initialize()
+    service = SourcePollService(
+        repository=SQLiteCGMRepository(store),
+        config=SourcePollConfig(expected_interval_minutes=expected_interval_minutes),
+    )
+    try:
+        result = service.poll(
+            user_id=user_id,
+            kind=kind,
+            url=url,
+            count=count,
+            source=source,
+        )
+    except Exception as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False))
+        return 1
+    body = result.to_dict()
+    body["database_path"] = str(db_path)
+    print(json.dumps(body, ensure_ascii=False, sort_keys=True))
+    return 0
 
 
 def _memory_synthesize(

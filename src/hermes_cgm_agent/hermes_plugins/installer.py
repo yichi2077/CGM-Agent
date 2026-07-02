@@ -7,7 +7,7 @@ import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from hermes_cgm_agent.config import default_hermes_exe
+from hermes_cgm_agent.config import default_hermes_exe, default_hermes_home
 
 
 ROOT_MARKER_NAME = "cgm-agent-project-root.txt"
@@ -117,7 +117,7 @@ def _resolve_hermes_home(explicit: Path | None = None) -> Path:
     env = os.environ.get("HERMES_HOME")
     if env:
         return Path(env).expanduser().resolve()
-    return (Path.home() / ".hermes").resolve()
+    return default_hermes_home()
 
 
 def _resolve_hermes_bin(explicit: str | None = None) -> str:

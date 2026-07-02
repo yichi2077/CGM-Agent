@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import ValidationError
 
 from hermes_cgm_agent.domain import DataScope, EvidenceRef
-from hermes_cgm_agent.services.analytics import CGMAnalyticsService
+from hermes_cgm_agent.services.analytics import (
+    AnalyticsConfig,
+    CGMAnalyticsService,
+    RealtimeSignalConfig,
+    RealtimeSignalService,
+)
 from hermes_cgm_agent.services.arguments import parse_limit
 from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
 from hermes_cgm_agent.services.tools.handlers.helpers import aggregate_ref, point_ref
@@ -73,6 +79,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
         try:
             scope = DataScope.model_validate(arguments.get("data_scope"))
             window_label = arguments.get("window_label")
+            expected_interval = _parse_expected_interval(arguments.get("expected_interval_minutes"))
         except (TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -83,7 +90,9 @@ class TimeseriesHandlerMixin(BaseToolHandler):
             )
 
         points = self.repository.list_glucose_points(scope)
-        aggregate = CGMAnalyticsService().compute_aggregate(
+        aggregate = CGMAnalyticsService(
+            AnalyticsConfig(expected_interval_minutes=expected_interval)
+        ).compute_aggregate(
             points=points,
             scope=scope,
             window_label=window_label,
@@ -115,3 +124,80 @@ class TimeseriesHandlerMixin(BaseToolHandler):
                 "aggregate": aggregate.model_dump(mode="json", by_alias=True),
             },
         )
+
+    def _get_realtime_snapshot(
+        self,
+        *,
+        arguments: dict[str, Any],
+        session_id: str,
+    ) -> ToolExecutionResponse:
+        spec = self.registry.get("timeseries.get_realtime_snapshot")
+        try:
+            scope = DataScope.model_validate(arguments.get("data_scope"))
+            expected_interval = _parse_expected_interval(arguments.get("expected_interval_minutes"))
+            stale_after = _parse_positive_int(arguments.get("stale_after_minutes"), default=10)
+            now = _parse_optional_datetime(arguments.get("now"))
+        except (TypeError, ValueError, ValidationError) as exc:
+            return self._error_response(
+                session_id=session_id,
+                tool_name=spec.name,
+                risk_level=spec.risk_level,
+                data_scope=arguments.get("data_scope"),
+                message=str(exc),
+            )
+
+        points = self.repository.list_glucose_points(scope)
+        snapshot = RealtimeSignalService(
+            RealtimeSignalConfig(
+                expected_interval_minutes=expected_interval,
+                stale_after_minutes=stale_after,
+            )
+        ).compute(points=points, scope=scope, now=now)
+        evidence_refs = [
+            EvidenceRef(
+                kind="aggregate",
+                ref_id=aggregate_ref(scope, "realtime"),
+                summary=f"latest={snapshot.latest_glucose_mg_dl}, missing_rate_1h={snapshot.missing_rate_1h}%",
+            ).model_dump(mode="json")
+        ]
+        audit_id = self.audit_service.log(
+            session_id=session_id,
+            event_type="tool_call",
+            payload={
+                "tool_name": spec.name,
+                "status": "ok",
+                "data_scope": scope.model_dump(mode="json"),
+                "risk_level": spec.risk_level,
+                "evidence_refs": evidence_refs,
+                "snapshot": snapshot.to_dict(),
+            },
+        )
+        return ToolExecutionResponse(
+            status="ok",
+            evidence_refs=evidence_refs,
+            audit_id=audit_id,
+            payload={"snapshot": snapshot.to_dict()},
+        )
+
+
+def _parse_expected_interval(value: Any) -> int:
+    return _parse_positive_int(value, default=5)
+
+
+def _parse_positive_int(value: Any, *, default: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("expected interval settings must be integers")
+    if value < 1:
+        raise ValueError("expected interval settings must be positive")
+    return value
+
+
+def _parse_optional_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        raise ValueError("now must be an ISO 8601 datetime string")
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed
