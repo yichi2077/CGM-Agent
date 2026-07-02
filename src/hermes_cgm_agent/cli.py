@@ -167,6 +167,45 @@ def build_parser() -> argparse.ArgumentParser:
     push_tick.add_argument("--timezone", default="Asia/Shanghai")
     push_tick.add_argument("--db-path", default=None, help="SQLite DB path (default: runtime DB)")
 
+    replay = sub.add_parser(
+        "replay",
+        help=(
+            "Accelerated historical-data replay (demo/dev): import a CGM dataset, "
+            "walk a simulated clock day-by-day triggering scheduling.push_tick, and "
+            "optionally deliver each push. Drives the full loop without a live "
+            "sensor. CLI-only (never a Hermes tool)."
+        ),
+    )
+    replay.add_argument(
+        "--dataset",
+        default=None,
+        help="CGM CSV path (default: examples/cgm_test_dataset/cgm_3x14.csv)",
+    )
+    replay.add_argument("--user-id", default="demo-user")
+    replay.add_argument("--days", type=int, default=None, help="Trim to the last N days")
+    replay.add_argument(
+        "--speed",
+        choices=["instant", "daily-step"],
+        default="instant",
+        help="'instant' runs all days at once; 'daily-step' pauses between days",
+    )
+    replay.add_argument("--step-seconds", type=float, default=2.0)
+    replay.add_argument(
+        "--deliver",
+        action="store_true",
+        help="Forward each emitted push to delivery.send (local_file)",
+    )
+    replay.add_argument(
+        "--no-align-end-to-now",
+        dest="align_end_to_now",
+        action="store_false",
+        help="Keep native dataset timestamps instead of shifting the end to ~yesterday",
+    )
+    replay.add_argument("--push-hour", type=int, default=9)
+    replay.add_argument("--timezone", default="Asia/Shanghai")
+    replay.add_argument("--replace", action="store_true", help="Overwrite duplicate points")
+    replay.add_argument("--db-path", default=None, help="SQLite DB path (default: runtime DB)")
+
     sub.add_parser(
         "kb-validate",
         help="Validate the authoritative knowledge base (structure + verified sign-off provenance)",
@@ -452,6 +491,21 @@ def main(argv: list[str] | None = None) -> int:
             user_id=args.user_id,
             now=args.now,
             timezone_name=args.timezone,
+        )
+
+    if args.command == "replay":
+        return _replay(
+            db_path=Path(args.db_path) if args.db_path else config.database_path,
+            dataset=Path(args.dataset) if args.dataset else _default_demo_csv(),
+            user_id=args.user_id,
+            days=args.days,
+            speed=args.speed,
+            step_seconds=args.step_seconds,
+            deliver=args.deliver,
+            align_end_to_now=args.align_end_to_now,
+            push_hour=args.push_hour,
+            timezone_name=args.timezone,
+            replace=args.replace,
         )
 
     if args.command == "migrate-db":
@@ -1037,6 +1091,46 @@ def _push_tick(
         now=_parse_iso_datetime(now) if now else None,
     )
     print(json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True))
+    return 0
+
+
+def _replay(
+    *,
+    db_path: Path,
+    dataset: Path,
+    user_id: str,
+    days: int | None,
+    speed: str,
+    step_seconds: float,
+    deliver: bool,
+    align_end_to_now: bool,
+    push_hour: int,
+    timezone_name: str,
+    replace: bool,
+) -> int:
+    from hermes_cgm_agent.services.replay import ReplayConfig, ReplayService
+
+    if not dataset.exists():
+        print(json.dumps({"status": "error", "message": f"dataset not found: {dataset}"}))
+        return 1
+
+    store = SQLiteStore(db_path)
+    store.initialize()
+    report = ReplayService(store=store).run(
+        ReplayConfig(
+            dataset=dataset,
+            user_id=user_id,
+            days=days,
+            speed=speed,
+            step_seconds=step_seconds,
+            deliver=deliver,
+            align_end_to_now=align_end_to_now,
+            push_hour=push_hour,
+            timezone=timezone_name,
+            replace=replace,
+        )
+    )
+    print(json.dumps(report.to_dict(), ensure_ascii=False, sort_keys=True))
     return 0
 
 

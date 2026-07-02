@@ -178,3 +178,11 @@
 - 微信发送发生在 **Hermes 侧**（原则 VII）：cron 调 `cgm_scheduling_push_tick` → 逐字转发 `content` 到微信 → 成功后调 `cgm_delivery_send`（channel=local_file, payload_ref=push_id）落审计并触发回写。运维 runbook 见 `docs/RUNBOOK-wechat-push.md`。
 **理由**：原则 VII 划清边界——节奏(cadence)与渠道(channel)属 Hermes，能力层只把"确定性"（push_events 状态、companion 文案）落在工具输出与持久化。真正缺失的只是 `delivery_id` 从未被填，故在 delivery 侧最小修补，不动稳定的调度器。
 **影响**：`services/tools/handlers/delivery.py`（+`_link_push_event` + 两处调用）；`docs/RUNBOOK-wechat-push.md`（新增）；`tests/test_delivery_channels.py`（LocalFile/Webhook bridge tests）。架构不变。
+
+### D051 — 回放引擎：加速历史数据回放驱动全链路（CLI-only，不做 Hermes 工具）
+**背景**：F2 数据来源未决——真实 CGM 数据源（Nightscout/Libre）本轮推迟，只有手动 CSV。无持续数据流则闭环（点→L0/consolidation→推送→投递）无法端到端演示，核心价值（长期记忆、主动陪伴）没有可跑的 demo。
+**决策**：新增 `services/replay/engine.py`（`ReplayService`/`ReplayConfig`/`ReplayReport`），把历史数据集**加速回放**：导入归一化→（可选 `align_end_to_now` 把时间戳整体平移到"昨天结束"，使回放后真实对话的 L0 窗口能看到数据）→一次性全量入库（`UNIQUE(user_id,timestamp,source)` 使重跑幂等；每个 tick 以 `window_end=sim_now` 截窗，未来点对该 tick 不可见）→逐模拟日经 **`executor.execute("scheduling.push_tick", {now: sim})`** 走真实工具路径（审计对等）→`deliver=True` 时对每个 pushed 项调 `delivery.send`（触发 D052 回写）。
+- **CLI-only，不注册为 Hermes 工具**：回放操纵模拟时钟，暴露给模型等于交出调度策略面，违背 D048"now 仅供测试/回放"。保留为 dev/demo CLI 表面（`replay` 子命令）。
+- **不改 `PushSchedulerService`**：回放是纯编排层，只调既有工具。
+**理由**：MVP 需要"可跑、可演示"的闭环，但真实数据源是独立的战略决策（另出 ADR）。回放用确定性合成数据集（`examples/cgm_test_dataset/`）先把管路跑通、把 demo 立起来，与真实数据源解耦。走 executor 而非直调 service 保证审计/幂等/工具契约与生产一致。
+**影响**：新增 `services/replay/{__init__,engine}.py`、`tests/test_replay_engine.py`（instant 产出 weekly 推送/幂等/deliver 回写+manifest/align 平移/days 截取，5 项）、CLI `replay` 子命令。无新工具、无 schema 变更（漂移守卫不受影响）。架构不变。

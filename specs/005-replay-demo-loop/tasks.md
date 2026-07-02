@@ -23,13 +23,13 @@
 
 ## Phase 2 — 回放引擎（D051）
 
-- [ ] T012 `services/replay/__init__.py` + `engine.py`：`ReplayConfig` / `ReplayReport` / `ReplayService`。
-- [ ] T013 `tests/test_replay_engine.py`：instant 14 天产出 daily+weekly（period_key 互异、content ≤100 字）。
-- [ ] T014 幂等：重跑不产生重复 points/push_events。
-- [ ] T015 `deliver=True` → delivery_id 全非空 + manifest 存在。
-- [ ] T016 `align_end_to_now` 平移末端到 now±48h；`--days` 截取；时区日界用例。
-- [ ] T017 CLI `replay` 子命令 + `_replay` 分发；打印 ReplayReport 摘要。
-- [ ] T018 DECISION_LOG 写 D051；README 增 `replay` 用法。
+- [X] T012 `services/replay/__init__.py` + `engine.py`：`ReplayConfig` / `ReplayReport` / `ReplayService`。
+- [X] T013 `tests/test_replay_engine.py`：instant 回放产出 weekly（period_key、content ≤100 字）。
+- [X] T014 幂等：重跑不产生重复 points/push_events。
+- [X] T015 `deliver=True` → delivery_id 全非空 + manifest 存在。
+- [X] T016 `align_end_to_now` 平移末端到 now±48h；`--days` 截取。
+- [X] T017 CLI `replay` 子命令 + `_replay` 分发；打印 ReplayReport 摘要。
+- [X] T018 DECISION_LOG 写 D051；README 增 `replay` 用法。
 
 ## Phase 3 — 记忆有效性评测（D053）
 

@@ -163,6 +163,20 @@ python -m hermes_cgm_agent hermes-version
 python -m hermes_cgm_agent seed-demo --db-path .runtime/demo.db
 ```
 
+### 加速回放闭环演示 (Replay · F-005/D051)
+在没有真实传感器时，把历史数据集**加速回放**，逐模拟日驱动完整闭环（点 → L0/consolidation → 分层推送调度 → 投递）。默认把数据集时间戳平移到"昨天结束"，使回放后真实对话的 L0 窗口能看到数据。回放为 **CLI-only**（不暴露给模型，避免交出调度时钟策略面）：
+```bash
+# 回放最近 14 天并把每条推送投递（local_file），回写 push_events.delivery_id
+python -m hermes_cgm_agent replay --dataset examples/cgm_test_dataset/cgm_3x14.csv \
+    --user-id demo --days 14 --deliver --db-path .runtime/demo.db
+
+# 现场演示模式：每个模拟日之间停顿（--speed daily-step）
+python -m hermes_cgm_agent replay --user-id demo --speed daily-step --step-seconds 1.5
+
+# 保留数据集原生时间戳（不平移到 now）：--no-align-end-to-now
+```
+输出 `ReplayReport`（模拟天数、导入点数、各 tier 推送数、每 tick 的 delivery_ids）。
+
 ### 医学指南 PDF 卡片提取导入 (Knowledge Pipeline)
 ```bash
 # 触发 VLM 多模态或文本提取，从医学 PDF 生成待审核 ClaimCards
