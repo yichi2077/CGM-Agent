@@ -33,15 +33,15 @@
 
 ## Phase 3 — 记忆有效性评测（D053）
 
-- [ ] T019 `eval/memory/queries.jsonl` 扩到 ~20 条（L1/L2/warm，中英混合）。
-- [ ] T020 `eval/memory/fixture.jsonl`（相对 now 播种种子语料）。
-- [ ] T021 `services/memory/eval_recall.py`：`seed_fixture` + `evaluate_memory_recall`（双库对照命中率 + Markdown 报告）。
-- [ ] T022 `tests/test_eval_memory.py`：fixture 播种 / 有记忆命中·无记忆不命中 / 门禁失败 / 报告渲染。
-- [ ] T023 CLI `eval-memory --queries --fixture --min-recall --report` + `_eval_memory` 分发。
-- [ ] T024 `eval/memory/report-latest.md` 证据报告；`eval/README.md` 增"Personal Memory Recall"节。
-- [ ] T025 DECISION_LOG 写 D053；README 增 `eval-memory` 用法。
+- [X] T019 `eval/memory/queries.jsonl` 扩到 20 条（L1/L2/L3/warm/mixed，中英混合）。
+- [X] T020 `eval/memory/fixture.jsonl`（相对 now 播种种子语料，16 行）。
+- [X] T021 `services/memory/eval_recall.py`：`seed_fixture` + `evaluate_memory_recall`（双库对照命中率 + Markdown 报告）。
+- [X] T022 `tests/test_eval_memory.py`：fixture 播种 / 有记忆命中·无记忆不命中 / 门禁语义 / 报告渲染。
+- [X] T023 CLI `eval-memory --queries --fixture --min-recall --report` + `_eval_memory` 分发。
+- [X] T024 `eval/memory/report-latest.md` 证据报告（delta=1.0）；`eval/README.md` 增"Personal Memory Recall"节。
+- [X] T025 DECISION_LOG 写 D053；README 增 `eval-memory` 用法。
 
 ## 验证
 
-- [ ] T026 `PYTHONPATH=src python3 -m unittest discover -s tests` 全绿（≥462 + 新增，Hermes-venv 外仅既有 2 skip）。
-- [ ] T027 CLI 手动验证：`replay --deliver`（delivery_id 回写 + manifest）+ `eval-memory`（证据报告 delta>0）。
+- [X] T026 `PYTHONPATH=src python3 -m unittest discover -s tests` 全绿（Hermes-venv 外仅既有 2 skip）。
+- [X] T027 CLI 手动验证：`replay --deliver`（delivery_id 回写 + manifest）+ `eval-memory`（证据报告 delta=1.0）。

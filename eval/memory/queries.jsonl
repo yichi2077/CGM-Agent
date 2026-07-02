@@ -1,4 +1,20 @@
 {"query":"昨晚睡觉时又低了","expected_layer":"L1","expected_terms":["overnight","low"],"note":"口语化 nocturnal low recall"}
-{"query":"火锅后血糖飙升","expected_layer":"L1","expected_terms":["dinner","high","meal"],"note":"餐后高血糖情节召回"}
-{"query":"最近午餐后运动有没有帮助","expected_layer":"L1","expected_terms":["exercise","lowered","glucose"],"note":"行为-血糖关系召回"}
+{"query":"火锅后血糖飙升","expected_layer":"L1","expected_terms":["hotpot","spike"],"note":"餐后高血糖情节召回"}
+{"query":"最近午餐后运动有没有帮助","expected_layer":"L1","expected_terms":["exercise","lowered"],"note":"行为-血糖关系召回"}
 {"query":"我是不是对面条比较敏感","expected_layer":"L2","expected_terms":["noodle","post_meal_rise"],"note":"画像 Hot 注入应覆盖"}
+{"query":"散步对血糖有什么作用","expected_layer":"L2","expected_terms":["walk","lower"],"note":"运动画像"}
+{"query":"早餐后血糖稳不稳","expected_layer":"L2","expected_terms":["breakfast","stable"],"note":"早餐画像"}
+{"query":"空腹喝咖啡会怎样","expected_layer":"L2","expected_terms":["coffee","rise"],"note":"咖啡画像"}
+{"query":"没睡好会不会低血糖","expected_layer":"L2","expected_terms":["sleep","overnight"],"note":"睡眠-低血糖画像"}
+{"query":"周末血糖是不是更乱","expected_layer":"L2","expected_terms":["weekend","variability"],"note":"周末画像"}
+{"query":"白米饭和糙米哪个升糖高","expected_layer":"L3","expected_terms":["white rice","brown rice"],"note":"假设-主食"}
+{"query":"晚上散步对隔夜血糖好吗","expected_layer":"L3","expected_terms":["evening walk","overnight"],"note":"假设-晚间运动"}
+{"query":"高纤维早餐有用吗","expected_layer":"L3","expected_terms":["high fiber","variability"],"note":"假设-纤维"}
+{"query":"熬夜影响第二天空腹血糖吗","expected_layer":"L3","expected_terms":["late night","fasting"],"note":"假设-熬夜"}
+{"query":"这周整体怎么样","expected_layer":"warm","expected_terms":["TIR","dinner"],"note":"warm 状态摘要"}
+{"query":"晚餐后血糖高不高","expected_layer":"warm","expected_terms":["dinner","overnight"],"note":"warm 晚餐"}
+{"query":"我最近有夜间低血糖吗","expected_layer":"L1","expected_terms":["nocturnal","hypoglycemia"],"note":"夜低情节"}
+{"query":"压力大的时候血糖如何","expected_layer":"L1","expected_terms":["stress","elevated"],"note":"压力情节"}
+{"query":"面条午餐后血糖怎样","expected_layer":"L1","expected_terms":["noodle","post_meal_rise"],"note":"面条情节"}
+{"query":"运动后血糖会降吗","expected_layer":"L2","expected_terms":["walk","lower"],"note":"运动画像 2"}
+{"query":"我的血糖有什么个人规律","expected_layer":"mixed","expected_terms":["noodle","overnight","walk"],"note":"综合个体规律"}

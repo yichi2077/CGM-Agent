@@ -214,6 +214,17 @@ python -m hermes_cgm_agent memory-synthesize --user-id user-1 --window-start 202
 
 模型 / cron 只**触发** tick；分层选择、内容生成、静默即认可均在 `PushSchedulerService` 内，外部无法干预。幂等由 `push_events` UNIQUE 约束兜底——同一 `(user, tier, period)` 被重复触发不会重复推送。
 
+### 记忆有效性评测 (Memory Efficacy · F-005/D053)
+量化"长期记忆是否真的供给个体化事实"：对 ~20 条需个人历史才能答对的查询，对比"有记忆库"与"空库"两种 `prefetch` 的上下文召回。`delta = 有记忆 − 空库` 即证据。v1 为**确定性上下文召回**（不用 LLM、可进 CI）：
+```bash
+# 打印 with/without 召回 + delta + 逐查询表
+python -m hermes_cgm_agent eval-memory
+
+# CI 门禁形式：有记忆召回低于阈值即 exit 1，并写出 Markdown 证据报告
+python -m hermes_cgm_agent eval-memory --min-recall 0.8 --report eval/memory/report-latest.md
+```
+> v1 度量的是上下文**可得性(recall)**，非检索排序精度或答案质量——后两者为显式 KNOWN GAP。详见 `eval/README.md`。
+
 ### 数据库路径合并迁移
 将老旧本地开发数据库与密钥同步迁移合并到官方规范的 Hermes Home 存储路径下：
 ```bash

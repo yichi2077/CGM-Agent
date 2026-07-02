@@ -1,0 +1,16 @@
+{"kind":"l1","episode_type":"nocturnal_low","days_ago":2,"summary":"凌晨 overnight low 血糖降到 55 mg/dL，夜间低血糖 nocturnal hypoglycemia"}
+{"kind":"l1","episode_type":"postprandial_spike","days_ago":3,"summary":"火锅 hotpot 晚餐 dinner 后血糖飙升 high spike 到 220"}
+{"kind":"l1","episode_type":"exercise_effect","days_ago":4,"summary":"午餐后散步 lunch walk 运动 exercise 后血糖下降 lowered glucose"}
+{"kind":"l1","episode_type":"postprandial_rise","days_ago":5,"summary":"面条 noodle 午餐后上升明显 post_meal_rise"}
+{"kind":"l1","episode_type":"stress_high","days_ago":6,"summary":"工作压力大 stress 当天血糖整体偏高 elevated"}
+{"kind":"l2","key":"noodle_sensitivity","summary":"你对面条 noodle 较敏感，餐后上升 post_meal_rise 明显"}
+{"kind":"l2","key":"exercise_effect","summary":"午餐后散步 walk 通常帮助降低 lower 血糖"}
+{"kind":"l2","key":"breakfast_stable","summary":"早餐 breakfast 后血糖通常比较稳定 stable"}
+{"kind":"l2","key":"coffee_effect","summary":"空腹喝咖啡 coffee 似乎让血糖轻微上升 slight rise"}
+{"kind":"l2","key":"sleep_low","summary":"睡眠不足 poor sleep 的夜晚更容易出现夜间低血糖 overnight low"}
+{"kind":"l2","key":"weekend_pattern","summary":"周末 weekend 作息紊乱，血糖波动 variability 更大"}
+{"kind":"l3","state":"observing","evidence_count":2,"statement":"白米饭 white rice 比糙米 brown rice 引起更高 higher 的餐后血糖"}
+{"kind":"l3","state":"observing","evidence_count":3,"statement":"晚间散步 evening walk 有助于隔夜 overnight 血糖平稳"}
+{"kind":"l3","state":"stable","evidence_count":5,"statement":"高纤维 high fiber 早餐降低上午波动 morning variability"}
+{"kind":"l3","state":"observing","evidence_count":2,"statement":"熬夜 late night 与次日空腹血糖升高 fasting rise 相关"}
+{"kind":"warm","period":"weekly","window_days":7,"content":"本周 TIR 72%，晚餐后 dinner 偏高，夜间低血糖 overnight low 减少"}

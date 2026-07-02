@@ -274,6 +274,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail (exit 1) if hit@3 is below this threshold, e.g. 0.95 (CI gate)",
     )
 
+    eval_memory = sub.add_parser(
+        "eval-memory",
+        help="Evaluate personal-memory recall: with-memory vs empty store (D053)",
+    )
+    eval_memory.add_argument("--queries", default="eval/memory/queries.jsonl")
+    eval_memory.add_argument("--fixture", default="eval/memory/fixture.jsonl")
+    eval_memory.add_argument(
+        "--min-recall",
+        type=float,
+        default=None,
+        help="Fail (exit 1) if mean with-memory recall is below this threshold (CI gate)",
+    )
+    eval_memory.add_argument(
+        "--report",
+        default=None,
+        help="Write a Markdown evidence report to this path",
+    )
+
     hermes_install = sub.add_parser("hermes-install", help="Install or refresh Hermes user-plugin integration")
     hermes_install.add_argument("--project-root", default=None)
     hermes_install.add_argument("--hermes-home", default=None)
@@ -566,6 +584,14 @@ def main(argv: list[str] | None = None) -> int:
             queries_path=Path(args.queries),
             kb_path=Path(args.kb) if args.kb else None,
             min_hit3=args.min_hit3,
+        )
+
+    if args.command == "eval-memory":
+        return _eval_memory(
+            queries_path=Path(args.queries),
+            fixture_path=Path(args.fixture),
+            min_recall=args.min_recall,
+            report_path=Path(args.report) if args.report else None,
         )
 
     if args.command == "hermes-install":
@@ -1336,6 +1362,31 @@ def _eval_rag(
     if emit_report:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     if min_hit3 is not None and report["hit_at_3"] < min_hit3:
+        return 1
+    return 0
+
+
+def _eval_memory(
+    *,
+    queries_path: Path,
+    fixture_path: Path,
+    min_recall: float | None = None,
+    report_path: Path | None = None,
+    emit_report: bool = True,
+) -> int:
+    from hermes_cgm_agent.services.memory.eval_recall import evaluate_memory_recall
+
+    report = evaluate_memory_recall(
+        queries_path=queries_path,
+        fixture_path=fixture_path,
+        report_path=report_path,
+    )
+    if min_recall is not None:
+        report["min_recall"] = min_recall
+        report["passed"] = report["mean_recall_with"] >= min_recall
+    if emit_report:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    if min_recall is not None and report["mean_recall_with"] < min_recall:
         return 1
     return 0
 

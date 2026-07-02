@@ -2,6 +2,28 @@
 
 Evaluation assets for the CGM memory and authoritative KB tracks.
 
+## Personal Memory Recall (D053)
+
+`eval/memory/queries.jsonl` holds ~20 bilingual queries that need personal
+history to answer; `eval/memory/fixture.jsonl` is the deterministic seed corpus
+(L1 episodes, L2 profile beliefs, L3 hypotheses, a warm summary). The runner
+seeds one store and leaves another empty, runs `CGMMemoryProvider.prefetch` on
+both, and scores the fraction of each query's `expected_terms` present in the
+injected context:
+
+```bash
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-memory
+# CI gate form — exit 1 if mean with-memory recall drops below the threshold:
+PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent eval-memory --min-recall 0.8 --report eval/memory/report-latest.md
+```
+
+`delta = mean_recall_with − mean_recall_without` is the evidence that the memory
+subsystem — not the prompt — supplies the personalized facts. **v1 measures
+context *availability* (recall), not retrieval ranking precision or answer
+quality**; both are documented known gaps (no LLM is used, so the gate is
+deterministic and zero-cost). `report-latest.md` is the committed evidence
+artifact.
+
 ## Authoritative RAG
 
 `eval/rag/queries.jsonl` contains bilingual queries with expected claim-card ids.

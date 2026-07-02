@@ -186,3 +186,12 @@
 - **不改 `PushSchedulerService`**：回放是纯编排层，只调既有工具。
 **理由**：MVP 需要"可跑、可演示"的闭环，但真实数据源是独立的战略决策（另出 ADR）。回放用确定性合成数据集（`examples/cgm_test_dataset/`）先把管路跑通、把 demo 立起来，与真实数据源解耦。走 executor 而非直调 service 保证审计/幂等/工具契约与生产一致。
 **影响**：新增 `services/replay/{__init__,engine}.py`、`tests/test_replay_engine.py`（instant 产出 weekly 推送/幂等/deliver 回写+manifest/align 平移/days 截取，5 项）、CLI `replay` 子命令。无新工具、无 schema 变更（漂移守卫不受影响）。架构不变。
+
+### D053 — 记忆有效性评测：确定性上下文召回度量（with vs without memory，v1 不用 LLM）
+**背景**：项目核心价值点是"多层次长期记忆 + RAG"，但此前**没有任何指标证明记忆让回答变好**——只有权威 KB 的 `eval-rag` hit@3，个人记忆侧零度量。核心卖点缺核心证据。
+**决策**：新增 `services/memory/eval_recall.py` + `eval/memory/{queries,fixture}.jsonl` + CLI `eval-memory`。v1 用**确定性上下文召回**：对每条查询在两个库上各跑 `CGMMemoryProvider.prefetch(query)`——一个播种 fixture 语料（L1 情节 + L2 画像 + L3 假设 + warm 摘要），一个空库；得分 = 查询 `expected_terms` 在注入上下文中的命中比例。`mean_recall_with − mean_recall_without = delta` 即"记忆子系统供给个体事实"的证据。`--min-recall` 作 CI 门禁（低于阈值 exit 1，类比 `eval-rag --min-hit3`）。
+- **v1 明确度量"上下文可得性(recall)"，不是检索排序精度、也不是答案质量**：当前 fixture 的 delta≈1.0（有记忆全召回、空库零召回），证明的是"没有记忆子系统则零个体事实进入 prompt"这一管路事实。
+- **不用 LLM**（原则 V）：确定性、零成本、可进 CI。**LLM 评判答案质量 + 检索排序精度（>top_k 干扰项下的选择性）是显式 KNOWN GAP**，留待后续修订。
+- **时间戳相对 now 播种**（吸取 Phase 0 教训，杜绝固定日期腐烂）。
+**理由**：核心卖点必须有可复现证据。先用确定性 recall 把"记忆是否供给个体事实"这一最基础的事实钉死并纳入 CI，再逐步升级到排序精度与答案质量——分层建证据，避免一步到位引入 LLM 评判的成本与不确定性。
+**影响**：新增 `services/memory/eval_recall.py`、`eval/memory/{queries.jsonl(扩到20),fixture.jsonl}`、`eval/memory/report-latest.md`（证据）、`tests/test_eval_memory.py`、CLI `eval-memory` + `eval/README.md` 章节。无新工具、无 schema 变更。架构不变。
