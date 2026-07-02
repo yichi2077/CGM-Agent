@@ -11,6 +11,7 @@ from hermes_cgm_agent.services.memory.consolidation import (
     ConsolidationReport,
     ConsolidationService,
 )
+from hermes_cgm_agent.services.memory.derive import episodes_from_detected_events
 from hermes_cgm_agent.services.memory.l0_builder import L0BuildConfig, L0ContextBuilder
 from hermes_cgm_agent.services.memory.provider import (
     CGMMemoryProvider,
@@ -19,6 +20,11 @@ from hermes_cgm_agent.services.memory.provider import (
 from hermes_cgm_agent.services.memory.review import (
     IngestResult,
     MemoryReviewService,
+)
+from hermes_cgm_agent.services.memory.stream import (
+    StreamMemoryConfig,
+    StreamMemoryResult,
+    StreamMemoryService,
 )
 from hermes_cgm_agent.services.memory.tools import MemoryListResult, MemoryToolService
 from hermes_cgm_agent.services.memory.user_md_sync import (
@@ -46,6 +52,7 @@ __all__ = [
     "ConsolidationConfig",
     "ConsolidationReport",
     "ConsolidationService",
+    "episodes_from_detected_events",
     "L0BuildConfig",
     "L0ContextBuilder",
     "ConversationMemoryExtractor",
@@ -53,6 +60,9 @@ __all__ = [
     "MemoryContextAssembler",
     "MemoryListResult",
     "MemoryReviewService",
+    "StreamMemoryConfig",
+    "StreamMemoryResult",
+    "StreamMemoryService",
     "MemoryToolService",
     "CGM_USER_MD_END",
     "CGM_USER_MD_START",

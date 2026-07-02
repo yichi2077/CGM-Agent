@@ -162,3 +162,27 @@
 - **v1 metadata-first（U4/D1）**：manifest = `delivery_id` + `push_id`(=`payload_ref`) + `delivered_at`，`tier`/`period_key`/`metrics`/`event_summaries` 仅在 arguments 已含时携带；`payload_ref→summary→metrics` 解析留作后续，不阻塞 v1。
 **理由**：原则 VII PHI 隐私——allowlist 是**代码级**安全边界而非 prompt 约定，deny-by-default 使任何未来字段默认不外泄；endpoint 只来自 env 杜绝模型重定向；https + 禁重定向防明文与跨主机转发泄漏（S1）；at-most-once 把重试复杂度留给 Hermes 层。安全控制测试做成确定性（无真实 socket/线程）以保"全程绿灯"。冲突裁决遵循宪法 **Security > Functionality > Aesthetics > Performance > Developer Convenience**。
 **影响**：改 `services/tools/handlers/delivery.py`（新增 `_deliver_webhook` + `_filter_webhook_payload` + `_NoRedirectHandler`/`_build_no_redirect_opener`/`_urlopen_no_redirect`）；新增 `tests/test_webhook_delivery.py`（成功/失败模式/PHI 过滤/审计/https-禁重定向，14 项确定性）。`local_file`/`email` 行为不变。测试 450→464（+webhook 14）全绿；另有仓库既有 `test_hermes_e2e`（httpx/Hermes-venv guard）跳过 1，合计 465。架构不变（双轨隔离/只读 KB/安全路由/PHI 0600 均保持）。详见 `specs/004-push-delivery-loop/{plan.md,tasks.md}`。
+### D050 - Device-agnostic simulation pipeline for 0-to-1 CGM validation
+**Decision**: Introduce `services/simulation/` and `cgm-agent simulate` as the
+formal pre-user validation path. The replay source is device agnostic, starts
+with CSV, preserves native row cadence, and feeds the existing normalizer,
+repository, analytics, event detector, memory consolidation, push scheduler, and
+report service. The default CLI DB is isolated under `.runtime/simulation/*`;
+writing to the canonical Hermes DB requires an explicit `--db-path`. The real
+Hermes stage is guarded by preflight and returns exit code 2 for environment
+failures instead of pretending to pass.
+
+**Rationale**: The frozen Dexcom mock path should remain regression coverage,
+not the acceptance backbone. The project needs a deterministic replay pipeline
+that can prove the full product chain runs without vendor coupling or real
+patient data. `--time-base original` is stable for CI; `shift-to-now` is required
+when validating Hermes freshness-sensitive behavior.
+
+**Impact**: Added `src/hermes_cgm_agent/services/simulation/*`,
+`services/memory/derive.py`, `cgm-agent simulate`, focused tests
+`test_sim_clock`, `test_sim_source`, `test_sim_ingest`, `test_sim_runner`,
+`test_simulation_hermes_e2e`, and Spec-Kit artifacts under
+`specs/005-simulation-pipeline/`. Report safety routing now receives
+`ReportInput.anchor_at` so accelerated replay does not accidentally use wall
+clock recovery windows. See
+`docs/adr/ADR-0002-simulated-source-ingest.md`.

@@ -101,6 +101,31 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.source, "nightscout:demo")
         self.assertEqual(args.expected_interval_min, 1)
 
+    def test_simulate_command_parses(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "simulate",
+                "--csv",
+                "sample.csv",
+                "--user-id",
+                "user-1",
+                "--max-speed",
+                "--time-base",
+                "shift-to-now",
+                "--days",
+                "3",
+                "--hermes",
+            ]
+        )
+
+        self.assertEqual(args.command, "simulate")
+        self.assertEqual(args.csv, "sample.csv")
+        self.assertEqual(args.user_id, "user-1")
+        self.assertTrue(args.max_speed)
+        self.assertEqual(args.time_base, "shift-to-now")
+        self.assertEqual(args.days, 3)
+        self.assertTrue(args.hermes)
+
     def test_memory_synthesize_command_parses(self) -> None:
         args = build_parser().parse_args(
             [

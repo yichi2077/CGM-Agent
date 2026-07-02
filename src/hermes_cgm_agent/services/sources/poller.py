@@ -19,6 +19,11 @@ from hermes_cgm_agent.domain import (
 from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.analytics import EventDetectionConfig, GlucoseEventDetector
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.services.memory import (
+    SQLiteMemoryRepository,
+    StreamMemoryConfig,
+    StreamMemoryService,
+)
 from hermes_cgm_agent.services.sources.http import HTTPSourceClient
 from hermes_cgm_agent.services.sources.models import SourceKind, SourcePollResult
 from hermes_cgm_agent.services.sources.parser import parse_source_payload
@@ -34,6 +39,8 @@ class SourcePollConfig:
     event_lookback_minutes: int = 60
     suspect_low_mg_dl: float = 40.0
     suspect_high_mg_dl: float = 400.0
+    auto_memory_enabled: bool = True
+    warm_summary_min_interval_minutes: int = 60
 
 
 class SourcePollService:
@@ -44,6 +51,7 @@ class SourcePollService:
         client: SourceHTTPClient | None = None,
         detector: GlucoseEventDetector | None = None,
         config: SourcePollConfig | None = None,
+        memory_service: StreamMemoryService | None = None,
     ) -> None:
         self.repository = repository
         self.client = client or HTTPSourceClient()
@@ -51,6 +59,7 @@ class SourcePollService:
         self.detector = detector or GlucoseEventDetector(
             EventDetectionConfig(expected_interval_minutes=self.config.expected_interval_minutes)
         )
+        self.memory_service = memory_service
 
     def poll(
         self,
@@ -116,6 +125,7 @@ class SourcePollService:
         event_count = 0
         event_inserted = 0
         event_duplicate = 0
+        inserted_events = []
         if parsed.readings:
             events = self._detect_events(
                 user_id=user_id,
@@ -127,8 +137,19 @@ class SourcePollService:
                 try:
                     self.repository.create_glucose_event(event)
                     event_inserted += 1
+                    inserted_events.append(event)
                 except sqlite3.IntegrityError:
                     event_duplicate += 1
+
+        if self.config.auto_memory_enabled:
+            self._memory_service().ingest_poll_result(
+                user_id=user_id,
+                source=source_label,
+                reading_times=[reading.measured_at for reading in parsed.readings],
+                inserted_point_count=inserted,
+                inserted_events=inserted_events,
+                now=received,
+            )
 
         return SourcePollResult(
             user_id=user_id,
@@ -146,6 +167,20 @@ class SourcePollService:
             detected_event_duplicate=event_duplicate,
             received_at=received,
         )
+
+    def _memory_service(self) -> StreamMemoryService:
+        if self.memory_service is None:
+            self.memory_service = StreamMemoryService(
+                cgm_repository=self.repository,
+                memory_repository=SQLiteMemoryRepository(self.repository.store),
+                config=StreamMemoryConfig(
+                    expected_interval_minutes=self.config.expected_interval_minutes,
+                    warm_refresh_min_interval_minutes=(
+                        self.config.warm_summary_min_interval_minutes
+                    ),
+                ),
+            )
+        return self.memory_service
 
     def _detect_events(
         self,

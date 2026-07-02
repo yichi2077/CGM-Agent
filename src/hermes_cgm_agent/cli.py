@@ -38,11 +38,13 @@ from hermes_cgm_agent.services.memory import (
     MemoryContextAssembler,
     SQLiteMemoryRepository,
 )
+from hermes_cgm_agent.services.memory.derive import episodes_from_detected_events
 from hermes_cgm_agent.services.memory.user_md_sync import render_l2_user_md_block
 from hermes_cgm_agent.services.scheduling import (
     PushSchedulerConfig,
     PushSchedulerService,
 )
+from hermes_cgm_agent.services.simulation import CsvReplaySource, HermesStage, SimulationRunner
 from hermes_cgm_agent.services.sources import SourcePollConfig, SourcePollService
 from hermes_cgm_agent.services.tools import ToolExecutor, build_default_tool_registry
 from hermes_cgm_agent.config import AppConfig, default_hermes_exe
@@ -124,6 +126,36 @@ def build_parser() -> argparse.ArgumentParser:
     source_poll.add_argument("--source", default=None, help="Optional stable source label override")
     source_poll.add_argument("--db-path", default=None, help="SQLite DB path (default: runtime DB)")
     source_poll.add_argument("--expected-interval-min", type=int, default=5)
+
+    simulate = sub.add_parser(
+        "simulate",
+        help="Replay a CGM CSV through streaming ingest, analytics, memory, push, and reports",
+    )
+    simulate.add_argument(
+        "--csv",
+        default=str(
+            Path(__file__).resolve().parents[2]
+            / "examples"
+            / "g0_g7_demo"
+            / "cgm_14d_realistic.csv"
+        ),
+    )
+    simulate.add_argument("--user-id", default="demo-prediabetes-sim")
+    simulate.add_argument("--source", default="simulation:csv")
+    simulate.add_argument("--timezone", default="Asia/Shanghai")
+    simulate.add_argument("--db-path", default=None)
+    simulate.add_argument("--acceleration", type=float, default=300.0)
+    simulate.add_argument("--realtime", action="store_true")
+    simulate.add_argument("--max-speed", action="store_true")
+    simulate.add_argument(
+        "--time-base",
+        choices=["original", "shift-to-now"],
+        default="original",
+    )
+    simulate.add_argument("--days", type=int, default=None)
+    simulate.add_argument("--out-dir", default=None)
+    simulate.add_argument("--hermes", action="store_true")
+    simulate.add_argument("--fail-fast", action="store_true")
 
     synthesize = sub.add_parser(
         "memory-synthesize",
@@ -448,6 +480,22 @@ def main(argv: list[str] | None = None) -> int:
             count=args.count,
             source=args.source,
             expected_interval_minutes=args.expected_interval_min,
+        )
+
+    if args.command == "simulate":
+        return _simulate(
+            csv_path=Path(args.csv),
+            user_id=args.user_id,
+            source_label=args.source,
+            timezone_name=args.timezone,
+            db_path=Path(args.db_path) if args.db_path else None,
+            acceleration=1.0 if args.realtime else args.acceleration,
+            max_speed=args.max_speed,
+            time_base=args.time_base,
+            days=args.days,
+            out_dir=Path(args.out_dir) if args.out_dir else None,
+            hermes=args.hermes,
+            fail_fast=args.fail_fast,
         )
 
     if args.command == "memory-synthesize":
@@ -837,6 +885,69 @@ def _source_poll(
     return 0
 
 
+def _simulate(
+    *,
+    csv_path: Path,
+    user_id: str,
+    source_label: str,
+    timezone_name: str,
+    db_path: Path | None,
+    acceleration: float,
+    max_speed: bool,
+    time_base: str,
+    days: int | None,
+    out_dir: Path | None,
+    hermes: bool,
+    fail_fast: bool,
+) -> int:
+    if not csv_path.exists():
+        print(
+            json.dumps(
+                {"status": "error", "message": f"CSV not found: {csv_path}"},
+                ensure_ascii=False,
+            )
+        )
+        return 1
+    if out_dir is None:
+        run_ts = utc_now().strftime("%Y%m%d-%H%M%S")
+        out_dir = Path(".runtime") / "simulation" / run_ts
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if db_path is None:
+        db_path = out_dir / "app.db"
+
+    source = CsvReplaySource(
+        csv_path,
+        source_name=csv_path.name,
+        time_base=time_base,
+        days=days,
+        default_timezone=timezone_name,
+    )
+    runner = SimulationRunner(
+        db_path=db_path,
+        out_dir=out_dir,
+        user_id=user_id,
+        source_label=source_label,
+        timezone_name=timezone_name,
+        acceleration=acceleration,
+        max_speed=max_speed,
+    )
+    result = runner.run(source, fail_fast=fail_fast)
+    body = result.to_dict()
+
+    if hermes:
+        stage = HermesStage(db_path=db_path, time_base=time_base)
+        stage_result = stage.preflight()
+        stage_path = stage.write_result(out_dir, stage_result)
+        body["hermes_stage"] = stage_result.to_dict()
+        body["hermes_stage_path"] = str(stage_path)
+        print(json.dumps(body, ensure_ascii=False, sort_keys=True))
+        if stage_result.exit_code != 0:
+            return stage_result.exit_code
+    else:
+        print(json.dumps(body, ensure_ascii=False, sort_keys=True))
+    return result.exit_code
+
+
 def _memory_synthesize(
     *,
     db_path: Path,
@@ -930,22 +1041,7 @@ def _episodes_from_detected_events(
     demo orchestration; it does not change the production confirmation-gated
     memory path (D026).
     """
-    episodes: list[L1Episode] = []
-    for event in events:
-        episodes.append(
-            L1Episode(
-                episode_id=f"evt-{event.event_id}",
-                user_id=event.user_id,
-                occurred_at=event.ts_start,
-                episode_type=getattr(event.event_type, "value", event.event_type),
-                summary=event.summary,
-                evidence_refs=event.evidence_refs,
-                confidence=0.9,
-                created_at=now,
-                last_referenced_at=now,
-            )
-        )
-    return episodes
+    return episodes_from_detected_events(events, now=now)
 
 
 def _seed_demo(

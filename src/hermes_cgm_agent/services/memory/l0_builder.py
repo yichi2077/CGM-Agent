@@ -124,8 +124,12 @@ class L0ContextBuilder:
             day_points = by_day[day]
             day_scope = DataScope(
                 user_id=scope.user_id,
-                window_start=min(point.timestamp for point in day_points),
-                window_end=max(point.timestamp for point in day_points) + timedelta(microseconds=1),
+                window_start=datetime.combine(day, datetime.min.time()).replace(
+                    tzinfo=zone
+                ),
+                window_end=datetime.combine(
+                    day + timedelta(days=1), datetime.min.time()
+                ).replace(tzinfo=zone),
                 source=scope.source,
             )
             out.append(

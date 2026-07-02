@@ -104,7 +104,11 @@ class ReportService:
             events = [event for event in events if event.user_confirmed]
         detected_events = self.event_detector.detect(points=points, scope=scope)
         warnings = self._data_quality_warnings(points=points, aggregate=aggregate)
-        safety_decision = self.safety_router.evaluate(scope=scope, points=points)
+        safety_decision = self.safety_router.evaluate(
+            scope=scope,
+            points=points,
+            now=report_input.anchor_at,
+        )
 
         # Check vulnerable population
         vulnerable_items = self.memory_repository.list_profile_items(scope.user_id, key="vulnerable_population")

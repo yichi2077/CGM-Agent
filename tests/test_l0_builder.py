@@ -72,6 +72,32 @@ class L0ContextBuilderTests(unittest.TestCase):
         self.assertEqual(body["context"]["window"]["user_id"], "user-1")
         self.assertTrue(body["evidence_refs"])
 
+    def test_daily_aggregate_uses_calendar_day_scope_for_sparse_real_points(self) -> None:
+        start = datetime(2026, 7, 2, 4, 55, tzinfo=timezone.utc)
+        for index in range(26):
+            self._point((start + timedelta(minutes=index * 3)).isoformat(), 100)
+
+        context = L0ContextBuilder(
+            repository=self.repository,
+            config=L0BuildConfig(timezone="UTC"),
+        ).build(
+            user_id="user-1",
+            anchor_at=datetime(2026, 7, 3, 0, 0, tzinfo=timezone.utc),
+        )
+
+        day = context.daily_aggregates[0]
+        self.assertEqual(
+            day.aggregate.window_start,
+            datetime(2026, 7, 2, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            day.aggregate.window_end,
+            datetime(2026, 7, 3, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(day.aggregate.point_count, 26)
+        self.assertEqual(day.aggregate.data_coverage, 9.03)
+        self.assertLessEqual(day.aggregate.data_coverage, 100)
+
     def test_budget_trims_recent_points(self) -> None:
         for hour in range(24):
             ts = datetime(2026, 6, 14, 0, 0, tzinfo=timezone.utc) + timedelta(minutes=hour * 5)

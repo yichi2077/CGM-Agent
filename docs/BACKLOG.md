@@ -22,6 +22,12 @@ This section supersedes all older status rows below when they conflict.
   must record that they are not clinically signed off.
 - Advanced analytics `MAGE`, `MODD`, and `CONGA` are implemented and covered by
   tests. AGP percentile visualization remains deferred.
+- Feature 005 simulation pipeline is implemented as a device-agnostic CSV replay
+  path: `cgm-agent simulate` defaults to an isolated run DB, writes
+  `simulation_report.json`/`.md`, and uses a guarded Hermes preflight with exit
+  code 2 for runtime/environment failures. See
+  `specs/005-simulation-pipeline/` and
+  `docs/adr/ADR-0002-simulated-source-ingest.md`.
 - Non-LLM local regression suite: `489 tests OK`. Live Hermes AIAgent E2E now
   depends on valid DeepSeek credentials instead of the previous hardcoded Mimo
   provider.
