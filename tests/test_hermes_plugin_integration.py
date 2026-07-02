@@ -49,6 +49,14 @@ class HermesPluginIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         sys.path.insert(0, str(HERMES_REPO))
+        # cgm_memory/__init__.py imports `agent.memory_provider`, which only
+        # exists inside the Hermes runtime venv. Skip cleanly when running in
+        # the standalone CGM venv (mirrors the test_hermes_e2e guard, D049).
+        if importlib.util.find_spec("agent") is None:
+            raise unittest.SkipTest(
+                "Hermes runtime ('agent' package) unavailable; "
+                "run inside the Hermes venv to exercise plugin integration"
+            )
         cls.cgm_plugin = _load_module(
             "test_cgm_plugin",
             PROJECT_ROOT / "integrations" / "hermes" / "cgm" / "__init__.py",

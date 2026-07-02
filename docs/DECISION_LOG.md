@@ -162,3 +162,19 @@
 - **v1 metadata-first（U4/D1）**：manifest = `delivery_id` + `push_id`(=`payload_ref`) + `delivered_at`，`tier`/`period_key`/`metrics`/`event_summaries` 仅在 arguments 已含时携带；`payload_ref→summary→metrics` 解析留作后续，不阻塞 v1。
 **理由**：原则 VII PHI 隐私——allowlist 是**代码级**安全边界而非 prompt 约定，deny-by-default 使任何未来字段默认不外泄；endpoint 只来自 env 杜绝模型重定向；https + 禁重定向防明文与跨主机转发泄漏（S1）；at-most-once 把重试复杂度留给 Hermes 层。安全控制测试做成确定性（无真实 socket/线程）以保"全程绿灯"。冲突裁决遵循宪法 **Security > Functionality > Aesthetics > Performance > Developer Convenience**。
 **影响**：改 `services/tools/handlers/delivery.py`（新增 `_deliver_webhook` + `_filter_webhook_payload` + `_NoRedirectHandler`/`_build_no_redirect_opener`/`_urlopen_no_redirect`）；新增 `tests/test_webhook_delivery.py`（成功/失败模式/PHI 过滤/审计/https-禁重定向，14 项确定性）。`local_file`/`email` 行为不变。测试 450→464（+webhook 14）全绿；另有仓库既有 `test_hermes_e2e`（httpx/Hermes-venv guard）跳过 1，合计 465。架构不变（双轨隔离/只读 KB/安全路由/PHI 0600 均保持）。详见 `specs/004-push-delivery-loop/{plan.md,tasks.md}`。
+
+### D050 — email 投递通道冻结为 KNOWN GAP（保留 enum + queued，不实际发送）
+**背景**：`delivery.send` 三通道中 `local_file`/`webhook` 已闭合，`email` 自 F5 起仅记 `queued` 从未真正发送。F5 已确定 MVP 最后一公里走 Hermes 微信（见 `docs/RUNBOOK-wechat-push.md`），email 无真实用户。
+**决策**：**冻结不删除**。保留 channel enum 的 `email` 值与 `queued` stub 分支，代码注释标 `KNOWN GAP (D050)`；删除会破坏 Hermes 已通过 `plugin.yaml` 看到的 channel 契约且零收益。新增 pinning 测试锁定"email → status queued、无副作用、不创建 deliveries 目录"，防止未来改动悄悄声称远端发送成功。
+**理由**：原则 I 医学零容错延伸到投递诚实性——绝不谎报送达。冻结比删除更保守：契约稳定、行为诚实、可测。email 真实发送留待有用户后重启。
+**影响**：`services/tools/handlers/delivery.py`（注释）；`tests/test_delivery_channels.py`（EmailFreezeTests）。行为不变（本就 queued）。
+
+### D052 — 推送→投递桥：delivery 侧回写 `push_events.delivery_id`（调度器不动，微信发送归 Hermes）
+**背景**：F5 last-mile 断链——`PushSchedulerService._record_push` 写 `push_events` 时 `delivery_id=None` 且**从不**调用 `delivery.send`；`push_tick` 与 `delivery.send` 是两个割裂步骤，投递发生后 push 行的 `delivery_id` 永远为空，审计闭环缺失。
+**决策**：**delivery 侧回写 + Hermes 运维 runbook；不改 `PushSchedulerService`**。
+- 否决方案 (a) 给调度器注入 `delivery_callback`：会把策略层耦合到传输层，违背 D048 刻意保持的调度器零耦合/模型零策略面。
+- 否决方案 (c) 新增 `hermes_gateway` 通道：与 `local_file` manifest 邮箱重复。
+- 采纳：`delivery.py` 新增 `_link_push_event(user_id, push_id, delivery_id)`，投递达到 `sent`（local_file/webhook）后执行 `UPDATE push_events SET delivery_id=? WHERE push_id=? AND user_id=? AND delivery_id IS NULL`；`payload_ref`=push_id（D049 U4 约定），不匹配则静默 no-op，`IS NULL` 防二次覆盖，best-effort 不因链接失败而使已成功的投递失败。无 schema/工具/plugin.yaml 变更（漂移守卫不受影响）。
+- 微信发送发生在 **Hermes 侧**（原则 VII）：cron 调 `cgm_scheduling_push_tick` → 逐字转发 `content` 到微信 → 成功后调 `cgm_delivery_send`（channel=local_file, payload_ref=push_id）落审计并触发回写。运维 runbook 见 `docs/RUNBOOK-wechat-push.md`。
+**理由**：原则 VII 划清边界——节奏(cadence)与渠道(channel)属 Hermes，能力层只把"确定性"（push_events 状态、companion 文案）落在工具输出与持久化。真正缺失的只是 `delivery_id` 从未被填，故在 delivery 侧最小修补，不动稳定的调度器。
+**影响**：`services/tools/handlers/delivery.py`（+`_link_push_event` + 两处调用）；`docs/RUNBOOK-wechat-push.md`（新增）；`tests/test_delivery_channels.py`（LocalFile/Webhook bridge tests）。架构不变。

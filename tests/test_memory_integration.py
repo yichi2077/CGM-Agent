@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from hermes_cgm_agent.domain import CandidateStatus, EvidenceRef, GlucosePoint, L1Episode
@@ -165,11 +165,26 @@ class MemoryIntegrationTests(unittest.TestCase):
         self.assertIn("user-memory recall", recall)
 
     def test_provider_prefetch_includes_warm_and_l0_summaries(self) -> None:
-        self._seed_points()
+        # prefetch() anchors L0 to real wall-clock now (correct production
+        # behavior), so seed relative to now — fixed 2026 dates would age out
+        # of the L0 window and rot this assertion once now moves past the span.
+        now = datetime.now(timezone.utc)
+        base = now - timedelta(hours=6)
+        for i, v in enumerate([90, 100, 150, 190]):
+            self.cgm.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=base + timedelta(hours=i),
+                    value=v,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
         ConsolidationService(repository=self.mem).synthesize_state(
             "user-1",
-            window_start=datetime(2026, 5, 25, tzinfo=timezone.utc),
-            window_end=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            window_start=now - timedelta(days=7),
+            window_end=now,
             period="weekly",
             metrics_summary={"tir_pct": 75},
         )

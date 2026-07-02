@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -73,6 +74,31 @@ def _filter_webhook_payload(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 class DeliveryHandlerMixin(BaseToolHandler):
+    def _link_push_event(self, *, user_id: str, push_id: str, delivery_id: str) -> bool:
+        """Back-write delivery_id onto a matching push_events row (D052).
+
+        Closes the F5 last-mile audit gap: ``PushSchedulerService._record_push``
+        writes push_events with ``delivery_id=None`` and never calls delivery.
+        When a completed delivery's ``payload_ref`` names a real, not-yet-linked
+        push row for this user, stamp the delivery_id. The ``IS NULL`` guard
+        makes this idempotent and stops a later delivery clobbering the first
+        link. A ``payload_ref`` matching no push row is a silent no-op — non-push
+        deliveries keep working unchanged. Best-effort: a link failure never
+        fails a delivery that already succeeded.
+        """
+        try:
+            with self.repository.store.connect() as conn:
+                cur = conn.execute(
+                    """
+                    UPDATE push_events SET delivery_id = ?
+                    WHERE push_id = ? AND user_id = ? AND delivery_id IS NULL
+                    """,
+                    (delivery_id, push_id, user_id),
+                )
+                return cur.rowcount > 0
+        except sqlite3.Error:
+            return False
+
     def _delivery_send(
         self,
         *,
@@ -111,9 +137,11 @@ class DeliveryHandlerMixin(BaseToolHandler):
                 delivery_id=delivery_id,
             )
 
-        # local_file is fully handled here; email is still recorded as queued so
-        # a Hermes-owned gateway can fulfil it. We never silently claim a remote
-        # send succeeded.
+        # local_file is fully handled here; email is FROZEN (KNOWN GAP, D050):
+        # recorded as queued, never actually sent. WeChat-via-Hermes is the MVP
+        # last mile (see docs/RUNBOOK-wechat-push.md); email has no user and is
+        # kept only so the channel enum contract Hermes already saw stays stable.
+        # We never silently claim a remote send succeeded.
         delivery_status = "failed"
         manifest_path: str | None = None
         if channel == "local_file":
@@ -130,6 +158,9 @@ class DeliveryHandlerMixin(BaseToolHandler):
             out.write_text(json.dumps(manifest, ensure_ascii=False, sort_keys=True), encoding="utf-8")
             manifest_path = str(out)
             delivery_status = "sent"
+            self._link_push_event(
+                user_id=user_id, push_id=payload_ref, delivery_id=delivery_id
+            )
         else:
             delivery_status = "queued"
 
@@ -220,6 +251,11 @@ class DeliveryHandlerMixin(BaseToolHandler):
                         http_status_code = getattr(resp, "status", None)
                         if http_status_code is not None and 200 <= http_status_code < 300:
                             delivery_status = "sent"
+                            self._link_push_event(
+                                user_id=user_id,
+                                push_id=payload_ref,
+                                delivery_id=delivery_id,
+                            )
                         else:
                             error_type = "http_error"
                 except urllib.error.HTTPError as exc:
