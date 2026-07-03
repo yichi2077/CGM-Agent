@@ -238,8 +238,15 @@ class VirtualCGMDatasetTests(unittest.TestCase):
                 self.assertEqual(aggregate["aggregate"]["point_count"], expected_points)
                 self.assertEqual(report["status"], "ok")
                 self.assertEqual(report["report"]["report_type"], "daily")
-                self.assertIn("overview", section_ids)
-                self.assertIn("metrics", section_ids)
+                # This synthetic day stays entirely in range (no hypo/hyper, no
+                # data gaps) and is fully covered, so the daily report correctly
+                # collapses to the single calm-day summary card. It previously
+                # expanded into overview/metrics sections only because 1-minute
+                # sensor jitter produced false rapid_rise/rapid_fall events that
+                # tripped `_daily_has_exception`; with the resolution-independent
+                # rate detector those false positives are gone.
+                self.assertIn("daily_card", section_ids)
+                self.assertNotIn("overview", section_ids)
                 self.assertTrue(report["evidence_refs"])
                 self.assertTrue(report["rendered_markdown"].strip())
                 self.assertNotIn("no_valid_points", report["rendered_markdown"])

@@ -30,6 +30,18 @@ class EventDetectionConfig:
     # Rate-of-change episodes: mg/dL per minute over a short window.
     rapid_rate_mg_dl_per_min: float = 3.0
     rapid_window_minutes: float = 30
+    # A rate episode must be sustained over at least this span before it is
+    # reported. Without a minimum span the rate is an instantaneous two-point
+    # derivative on the finest available spacing, so at 1-minute cadence a
+    # single noisy 3 mg/dL step trips the threshold (a 3-5 mg/dL sensor jitter
+    # reads as 3-5 mg/dL/min). Requiring a >= 10-minute span makes detection
+    # resolution-independent: the same physiological change is measured over
+    # the same wall-clock window regardless of whether samples arrive every
+    # 1 or 5 minutes, and transient jitter that reverts within the span is
+    # not amplified into an event. 10 min at >= 3 mg/dL/min means a real
+    # >= 30 mg/dL excursion, while a random-walk of sensor noise almost never
+    # accumulates that net displacement over the span.
+    min_rate_span_minutes: float = 10
     # A gap longer than expected_interval * gap_factor counts as a data gap.
     expected_interval_minutes: float = 5
     gap_factor: float = 4.0
@@ -164,13 +176,23 @@ class GlucoseEventDetector:
     ) -> list[GlucoseEvent]:
         events: list[GlucoseEvent] = []
         window = timedelta(minutes=self.config.rapid_window_minutes)
+        min_span = timedelta(minutes=self.config.min_rate_span_minutes)
         for index, start_point in enumerate(points):
             for end_point in points[index + 1 :]:
-                delta_minutes = (end_point.timestamp - start_point.timestamp).total_seconds() / 60
+                span = end_point.timestamp - start_point.timestamp
+                if span > window:
+                    break
+                # Require the rate to be sustained over at least min_span so the
+                # estimate is a trend over a fixed wall-clock window rather than
+                # an instantaneous two-point derivative on the finest sample
+                # spacing. This keeps detection resolution-independent and stops
+                # single-step sensor jitter at 1-minute cadence from tripping the
+                # threshold.
+                if span < min_span:
+                    continue
+                delta_minutes = span.total_seconds() / 60
                 if delta_minutes <= 0:
                     continue
-                if end_point.timestamp - start_point.timestamp > window:
-                    break
                 rate = (end_point.value_mg_dl - start_point.value_mg_dl) / delta_minutes
                 if rate >= self.config.rapid_rate_mg_dl_per_min:
                     events.append(

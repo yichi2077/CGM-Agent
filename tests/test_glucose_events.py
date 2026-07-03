@@ -60,6 +60,50 @@ class GlucoseEventDetectionTests(unittest.TestCase):
         self.assertIn(GlucoseEventType.RAPID_RISE, types)
         self.assertIn(GlucoseEventType.RAPID_FALL, types)
 
+    def test_one_minute_sensor_jitter_does_not_emit_rate_events(self) -> None:
+        # Regression: at 1-minute cadence a two-point derivative amplifies
+        # +/-4 mg/dL sensor jitter into 4 mg/dL/min "rapid" events. A minimum
+        # sustained span must suppress these while a genuine excursion (below)
+        # is still detected.
+        import random
+
+        rng = random.Random(7)
+        base = datetime(2026, 5, 31, 12, 0, tzinfo=timezone.utc)
+        value = 120.0
+        points = []
+        for minute in range(240):
+            value = max(90.0, min(150.0, value + rng.uniform(-4, 4)))
+            points.append(_point_at(base + timedelta(minutes=minute), round(value)))
+        scope = _scope(points)
+
+        events = GlucoseEventDetector().detect(points=points, scope=scope)
+        rate_events = [
+            e
+            for e in events
+            if e.event_type
+            in (GlucoseEventType.RAPID_RISE, GlucoseEventType.RAPID_FALL)
+        ]
+
+        self.assertEqual(rate_events, [])
+
+    def test_rate_detection_is_resolution_independent(self) -> None:
+        # The same physiological rise sampled at 1-minute and 5-minute cadence
+        # must both surface a rapid-rise (and neither should over-count).
+        base = datetime(2026, 5, 31, 12, 0, tzinfo=timezone.utc)
+        one_min = [_point_at(base + timedelta(minutes=m), 100 + 4 * m) for m in range(0, 16)]
+        five_min = [_point_at(base + timedelta(minutes=m), 100 + 4 * m) for m in range(0, 16, 5)]
+
+        def rapid_rises(points):
+            scope = _scope(points)
+            return [
+                e
+                for e in GlucoseEventDetector().detect(points=points, scope=scope)
+                if e.event_type == GlucoseEventType.RAPID_RISE
+            ]
+
+        self.assertEqual(len(rapid_rises(one_min)), 1)
+        self.assertEqual(len(rapid_rises(five_min)), 1)
+
     def test_detects_data_gap(self) -> None:
         base = datetime(2026, 5, 31, 12, 0, tzinfo=timezone.utc)
         # 45-minute gap between two valid points (> 5 * 4 = 20 min).
