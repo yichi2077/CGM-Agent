@@ -70,6 +70,63 @@ class SimulationRunnerTests(unittest.TestCase):
         if "push_idempotent" in payload["invariants"]:
             self.assertTrue(payload["invariants"]["push_idempotent"])
 
+    def test_dense_one_minute_cadence_infers_interval_and_stays_green(self) -> None:
+        # Regression: the project's default virtual fixture is a 1-minute-cadence
+        # AiDEX-style feed. Measured against the hardcoded 5-minute default,
+        # data_coverage overflowed the le=100 constraint and the whole run died
+        # in the wrap-up phase WITHOUT writing simulation_report.json.
+        from datetime import datetime, timedelta, timezone
+
+        lines = ["timestamp,value,unit"]
+        start = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+        for step in range(0, 26 * 60):  # 26 hours at 1-min cadence
+            ts = start + timedelta(minutes=step)
+            lines.append(f"{ts.isoformat()},120,mg/dL")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            csv_path = root / "sample.csv"
+            csv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            result = SimulationRunner(
+                db_path=root / "app.db",
+                out_dir=root / "out",
+                user_id="user-1",
+                source_label="simulation:test",
+                timezone_name="UTC",
+                max_speed=True,
+            ).run(CsvReplaySource(csv_path, default_timezone="UTC"))
+            payload = json.loads(result.report_json.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(result.issues, 0)
+        self.assertEqual(payload["invariants"]["expected_interval_minutes"], 1)
+        self.assertTrue(payload["invariants"]["analytics_deterministic"])
+
+    def test_explicit_expected_interval_overrides_inference(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        lines = ["timestamp,value,unit"]
+        start = datetime(2026, 1, 1, 0, 0, tzinfo=timezone.utc)
+        for step in range(0, 60):
+            ts = start + timedelta(minutes=step)
+            lines.append(f"{ts.isoformat()},120,mg/dL")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            csv_path = root / "sample.csv"
+            csv_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            result = SimulationRunner(
+                db_path=root / "app.db",
+                out_dir=root / "out",
+                user_id="user-1",
+                source_label="simulation:test",
+                timezone_name="UTC",
+                max_speed=True,
+                expected_interval_minutes=5,
+            ).run(CsvReplaySource(csv_path, default_timezone="UTC"))
+            payload = json.loads(result.report_json.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(payload["invariants"]["expected_interval_minutes"], 5)
+
 
 if __name__ == "__main__":
     unittest.main()

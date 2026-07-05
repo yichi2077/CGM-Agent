@@ -1,5 +1,28 @@
 # CGM-Agent Feature Backlog（单一事实源）
 
+## Real-Usability Hardening Snapshot (2026-07-05)
+
+This section supersedes older status rows below when they conflict. See
+`docs/DECISION_LOG.md` D051 for full details.
+
+- **产品范围裁决**：唯一支持的 CGM 硬件目标是**微泰 MicroTech/AiDEX**（用户
+  2026-07-05 指令）。Dexcom 与 xDrip/Juggluco/Nightscout 桥保留为受测兼容代码，
+  不再是路线图条目。F2 的后续动作只针对 AiDEX（厂商 API 验证 / BLE PoC）。
+- **Hermes 真实可用性修复（D051）**：naive datetime 统一按 UTC 处理；
+  `timeseries.get_aggregate` / `timeseries.get_realtime_snapshot` /
+  `scheduling.push_tick` 此前对 LLM 常见的无时区 ISO 输入直接 TypeError 崩溃，
+  已修复并加 executor 兜底（任何异常都返回结构化 error，不再泄漏 traceback 到对话）。
+- **模拟管线致命 bug 修复**：默认 1 分钟节奏夹具 `cgm_14d_1min.csv` 全程回放后
+  在收尾阶段因 `data_coverage=500 > le=100` 崩溃且不产出 simulation_report。
+  现 coverage 封顶 100、采样间隔自动推断（`--expected-interval-min` 可覆盖）、
+  收尾阶段失败会记入审计并仍写出工件。14 天全量回放（max-speed + shift-to-now）
+  已实测 `status: ok`、0 issues、全部不变量为真。
+- `pyproject.toml` 新增 `tzdata` 依赖（Windows/Hermes 全新安装此前会
+  ZoneInfoNotFoundError）。CSV 导入接受 `mmol/l`/`mmol`/`mg/dl`/`mgdl` 等
+  常见单位写法（AiDEX 为 mmol/L 优先生态）。
+- 非 LLM 本地回归：`510 tests OK (skipped=3)`（含新增 G2 插件 executor
+  缓存失效测试 `tests/test_plugin_executor_cache.py`，无 Hermes 环境亦可跑）。
+
 ## Pre-Test Freeze Snapshot (2026-07-02)
 
 This section supersedes all older status rows below when they conflict.

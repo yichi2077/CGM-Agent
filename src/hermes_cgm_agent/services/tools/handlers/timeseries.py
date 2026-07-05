@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import ValidationError
@@ -200,4 +200,7 @@ def _parse_optional_datetime(value: Any) -> datetime | None:
     if not isinstance(value, str):
         raise ValueError("now must be an ISO 8601 datetime string")
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        # Naive == UTC (repository `_dt` convention); LLM callers omit offsets.
+        parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed

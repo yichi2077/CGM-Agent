@@ -100,6 +100,33 @@ class CGMAnalyticsTests(unittest.TestCase):
         self.assertIsNone(aggregate.conga)
         self.assertEqual(aggregate.data_coverage, 0.0)
 
+    def test_denser_than_expected_sampling_caps_coverage_at_100(self) -> None:
+        # Regression: a 1-minute-cadence feed measured against the 5-minute
+        # default produced data_coverage=500 and crashed GlucoseAggregate
+        # validation (le=100). Denser-than-expected sampling IS full coverage.
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 5, 31, 1, 0, tzinfo=timezone.utc),
+        )
+        base = datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc)
+        points = [
+            GlucosePoint(
+                user_id="user-1",
+                timestamp=base + timedelta(minutes=minute),
+                value=110,
+                unit="mg/dL",
+                source="sensor:a",
+                quality_flag="valid",
+            )
+            for minute in range(60)
+        ]
+
+        aggregate = CGMAnalyticsService().compute_aggregate(points=points, scope=scope)
+
+        self.assertEqual(aggregate.point_count, 60)
+        self.assertEqual(aggregate.data_coverage, 100.0)
+
     def test_custom_thresholds_are_supported(self) -> None:
         scope = DataScope(
             user_id="user-1",

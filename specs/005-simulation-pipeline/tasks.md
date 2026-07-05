@@ -17,6 +17,11 @@
 - [X] T009 Add `cgm-agent simulate` CLI.
 - [X] T010 Add focused tests for clock/source/ingest/runner/Hermes guard/CLI.
 - [X] T011 Add ADR-0003, D050, and Spec-Kit artifacts.
+- [X] T012 (2026-07-05, D051) Real-run hardening: infer device cadence from the
+  replayed data (override with `--expected-interval-min`), cap
+  `data_coverage` at 100 (dense 1-minute feeds crashed aggregate validation),
+  and record wrap-up-stage failures into the audit instead of aborting without
+  writing `simulation_report.json`.
 
 ## Deferred
 

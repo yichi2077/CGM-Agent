@@ -35,7 +35,11 @@ class CGMAnalyticsService:
         values = [point.value_mg_dl for point in eligible_points]
         point_count = len(values)
         expected_count = self._expected_point_count(scope)
-        data_coverage = _percentage(point_count, expected_count)
+        # Denser-than-expected sampling (e.g. a 1-minute-cadence device measured
+        # against the 5-minute default) means FULL coverage, not >100%. Left
+        # unclamped this overflowed GlucoseAggregate's le=100 constraint and
+        # crashed every aggregate over dense data with a ValidationError.
+        data_coverage = min(100.0, _percentage(point_count, expected_count))
 
         if point_count == 0:
             return GlucoseAggregate(

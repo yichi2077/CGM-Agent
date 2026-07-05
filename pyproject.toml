@@ -12,6 +12,11 @@ authors = [{ name = "Personal implementation" }]
 dependencies = [
     "cryptography>=45,<47",
     "pydantic>=2,<3",
+    # zoneinfo has no OS tz database to fall back on under Windows — the Hermes
+    # runtime target. Without tzdata every ZoneInfo("Asia/Shanghai") lookup
+    # (scheduler, reports, simulation, consolidation) raises
+    # ZoneInfoNotFoundError on a fresh Windows install.
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]

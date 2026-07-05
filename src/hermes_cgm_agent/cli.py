@@ -153,6 +153,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="original",
     )
     simulate.add_argument("--days", type=int, default=None)
+    simulate.add_argument(
+        "--expected-interval-min",
+        type=int,
+        default=None,
+        help="Device sampling cadence in minutes (default: inferred from the CSV)",
+    )
     simulate.add_argument("--out-dir", default=None)
     simulate.add_argument("--hermes", action="store_true")
     simulate.add_argument("--fail-fast", action="store_true")
@@ -493,6 +499,7 @@ def main(argv: list[str] | None = None) -> int:
             max_speed=args.max_speed,
             time_base=args.time_base,
             days=args.days,
+            expected_interval_minutes=args.expected_interval_min,
             out_dir=Path(args.out_dir) if args.out_dir else None,
             hermes=args.hermes,
             fail_fast=args.fail_fast,
@@ -896,6 +903,7 @@ def _simulate(
     max_speed: bool,
     time_base: str,
     days: int | None,
+    expected_interval_minutes: int | None,
     out_dir: Path | None,
     hermes: bool,
     fail_fast: bool,
@@ -930,6 +938,7 @@ def _simulate(
         timezone_name=timezone_name,
         acceleration=acceleration,
         max_speed=max_speed,
+        expected_interval_minutes=expected_interval_minutes,
     )
     result = runner.run(source, fail_fast=fail_fast)
     body = result.to_dict()

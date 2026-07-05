@@ -11,7 +11,12 @@ from zoneinfo import ZoneInfo
 
 from hermes_cgm_agent.domain import DataScope
 from hermes_cgm_agent.domain.report import ReportInput
-from hermes_cgm_agent.services.analytics import CGMAnalyticsService, GlucoseEventDetector
+from hermes_cgm_agent.services.analytics import (
+    AnalyticsConfig,
+    CGMAnalyticsService,
+    EventDetectionConfig,
+    GlucoseEventDetector,
+)
 from hermes_cgm_agent.services.memory import ConsolidationService, SQLiteMemoryRepository
 from hermes_cgm_agent.services.memory.derive import episodes_from_detected_events
 from hermes_cgm_agent.services.reports.builder import ReportService
@@ -68,6 +73,7 @@ class SimulationRunner:
         timezone_name: str = "Asia/Shanghai",
         acceleration: float = 300.0,
         max_speed: bool = False,
+        expected_interval_minutes: int | None = None,
     ) -> None:
         self.db_path = db_path
         self.out_dir = out_dir
@@ -76,6 +82,9 @@ class SimulationRunner:
         self.timezone_name = timezone_name
         self.acceleration = acceleration
         self.max_speed = max_speed
+        # None -> infer from the replayed data's median cadence (a 1-minute
+        # AiDEX-style feed must not be measured against the 5-minute default).
+        self.expected_interval_minutes = expected_interval_minutes
 
     def run(self, source: CsvReplaySource, *, fail_fast: bool = False) -> SimulationRunResult:
         run_id = uuid.uuid4().hex[:12]
@@ -103,8 +112,14 @@ class SimulationRunner:
             acceleration=self.acceleration,
             max_speed=self.max_speed,
         )
-        analytics = CGMAnalyticsService()
-        detector = GlucoseEventDetector()
+        interval_minutes = self.expected_interval_minutes or _infer_interval_minutes(records)
+        audit.set_invariant("expected_interval_minutes", interval_minutes)
+        analytics = CGMAnalyticsService(
+            AnalyticsConfig(expected_interval_minutes=interval_minutes)
+        )
+        detector = GlucoseEventDetector(
+            EventDetectionConfig(expected_interval_minutes=interval_minutes)
+        )
         scheduler = PushSchedulerService(
             store=store,
             config=PushSchedulerConfig(timezone=self.timezone_name),
@@ -193,24 +208,37 @@ class SimulationRunner:
                     break
 
         end_now = clock.now()
-        self._daily_memory(
-            cgm_repository,
-            memory_repository,
-            consolidation,
-            analytics,
-            detector,
-            end_now,
-        )
-        reporter.generate(
-            ReportInput(
-                report_type="weekly",
-                user_id=self.user_id,
-                audience="self",
-                anchor_at=end_now,
-                timezone=self.timezone_name,
+        # The wrap-up stages must never abort the run silently: a failure here
+        # previously escaped run() entirely, so no simulation_report.json/.md was
+        # written and the CLI died with a raw traceback after replaying the full
+        # dataset. Record the failure and still emit the audit artifacts.
+        try:
+            self._daily_memory(
+                cgm_repository,
+                memory_repository,
+                consolidation,
+                analytics,
+                detector,
+                end_now,
             )
-        )
-        stage_counts["report"] = stage_counts.get("report", 0) + 1
+            reporter.generate(
+                ReportInput(
+                    report_type="weekly",
+                    user_id=self.user_id,
+                    audience="self",
+                    anchor_at=end_now,
+                    timezone=self.timezone_name,
+                )
+            )
+            stage_counts["report"] = stage_counts.get("report", 0) + 1
+        except Exception as exc:
+            audit.issue(
+                stage="wrapup",
+                sim_now=end_now,
+                reading_index=None,
+                message=str(exc),
+                traceback=traceback.format_exc(),
+            )
 
         totals = ingest.totals()
         db_count = len(
@@ -233,18 +261,28 @@ class SimulationRunner:
             window_end=records[-1].sim_ts + timedelta(minutes=5),
             source=self.source_label,
         )
-        det_points = cgm_repository.list_glucose_points(det_scope)
-        agg_first = analytics.compute_aggregate(points=det_points, scope=det_scope)
-        agg_second = analytics.compute_aggregate(points=det_points, scope=det_scope)
-        deterministic = agg_first.model_dump() == agg_second.model_dump()
-        audit.set_invariant("analytics_deterministic", deterministic)
-        if not deterministic:
+        try:
+            det_points = cgm_repository.list_glucose_points(det_scope)
+            agg_first = analytics.compute_aggregate(points=det_points, scope=det_scope)
+            agg_second = analytics.compute_aggregate(points=det_points, scope=det_scope)
+            deterministic = agg_first.model_dump() == agg_second.model_dump()
+            if not deterministic:
+                audit.issue(
+                    stage="invariant",
+                    sim_now=end_now,
+                    reading_index=None,
+                    message="analytics.compute_aggregate produced different results for the same window",
+                )
+        except Exception as exc:
+            deterministic = False
             audit.issue(
                 stage="invariant",
                 sim_now=end_now,
                 reading_index=None,
-                message="analytics.compute_aggregate produced different results for the same window",
+                message=f"analytics determinism check raised: {exc}",
+                traceback=traceback.format_exc(),
             )
+        audit.set_invariant("analytics_deterministic", deterministic)
         audit.set_invariant("emitted_equals_accounted", len(records) == totals.inserted + totals.duplicate + totals.issues)
         audit.set_invariant("db_count_matches_inserted", db_count == totals.inserted)
         audit.set_invariant("db_count", db_count)
@@ -362,6 +400,25 @@ class SimulationRunner:
             report_json=json_path,
             report_md=md_path,
         )
+
+
+def _infer_interval_minutes(records: list) -> int:
+    """Median gap between consecutive readings, in whole minutes (min 1).
+
+    The replayed CSV defines the device cadence; assuming the 5-minute default
+    for a 1-minute feed under-counts expected samples fivefold (and vice versa
+    over-counts gaps for sparse feeds). The median is robust against the
+    occasional real gap in the recording.
+    """
+    deltas = sorted(
+        (later.sim_ts - earlier.sim_ts).total_seconds()
+        for earlier, later in zip(records, records[1:])
+        if later.sim_ts > earlier.sim_ts
+    )
+    if not deltas:
+        return 5
+    median_seconds = deltas[len(deltas) // 2]
+    return max(1, round(median_seconds / 60))
 
 
 def _ceil_hour(value: datetime) -> datetime:

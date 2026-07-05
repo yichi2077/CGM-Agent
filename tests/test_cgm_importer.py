@@ -107,6 +107,46 @@ class CGMImporterTests(unittest.TestCase):
         self.assertEqual(batch.record_count, 2)
         self.assertEqual(batch.records[0].unit, "mg/dL")
 
+    def test_unit_spelling_variants_are_accepted(self) -> None:
+        # AiDEX-style mmol/L-first exports (and other device apps) are not
+        # consistent about unit casing/separators; every common spelling must
+        # map onto the canonical enum instead of producing per-row issues.
+        cases = {
+            "mmol/l": "mmol/L",
+            "MMOL/L": "mmol/L",
+            "mmol": "mmol/L",
+            "mg/dl": "mg/dL",
+            "MG/DL": "mg/dL",
+            "mgdl": "mg/dL",
+        }
+        importer = CGMImporter()
+        for spelled, canonical in cases.items():
+            with self.subTest(unit=spelled):
+                with tempfile.TemporaryDirectory() as tmp:
+                    csv_path = Path(tmp) / "export.csv"
+                    csv_path.write_text(
+                        "timestamp,value,unit\n"
+                        f"2026-07-05T08:00:00+08:00,6.1,{spelled}\n",
+                        encoding="utf-8",
+                    )
+                    batch = importer.import_csv(csv_path, batch_id=f"unit-{spelled}")
+                self.assertEqual(batch.issue_count, 0)
+                self.assertEqual(batch.record_count, 1)
+                self.assertEqual(str(batch.records[0].unit), canonical)
+
+    def test_unknown_unit_still_raises_issue(self) -> None:
+        importer = CGMImporter()
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "export.csv"
+            csv_path.write_text(
+                "timestamp,value,unit\n2026-07-05T08:00:00+08:00,6.1,mols\n",
+                encoding="utf-8",
+            )
+            batch = importer.import_csv(csv_path, batch_id="unit-bad")
+        self.assertEqual(batch.record_count, 0)
+        self.assertEqual(batch.issue_count, 1)
+        self.assertIn("Unsupported glucose unit", batch.issues[0].message)
+
 
 if __name__ == "__main__":
     unittest.main()

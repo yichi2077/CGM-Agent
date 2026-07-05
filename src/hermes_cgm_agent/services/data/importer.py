@@ -262,10 +262,7 @@ class CGMImporter:
         raw_unit = row.get(self.mapping.unit)
         if _is_blank(raw_unit):
             raw_unit = self.mapping.default_unit
-        try:
-            return GlucoseUnit(str(raw_unit))
-        except ValueError as exc:
-            raise ValueError(f"Unsupported glucose unit: {raw_unit}") from exc
+        return _coerce_unit(raw_unit)
 
     @staticmethod
     def _extract_json_rows(payload: Any) -> Iterable[Any] | None:
@@ -290,6 +287,25 @@ def _optional(row: dict[str, Any], field_name: str | None) -> str | None:
     if _is_blank(value):
         return None
     return str(value)
+
+
+def _coerce_unit(raw_unit: Any) -> GlucoseUnit:
+    """Accept the common real-world spellings of glucose units.
+
+    Device/app CSV exports are not consistent about unit casing or separators
+    (AiDEX-style mmol/L-first exports frequently write ``mmol/l`` or ``mmol``;
+    mg/dL appears as ``mg/dl`` or ``mgdl``). The strict ``GlucoseUnit(value)``
+    constructor rejected every one of those variants, turning an otherwise
+    clean import into a per-row issue list.
+    """
+    if isinstance(raw_unit, GlucoseUnit):
+        return raw_unit
+    text = str(raw_unit).strip().lower().replace(" ", "")
+    if text in {"mg/dl", "mgdl"}:
+        return GlucoseUnit.MG_DL
+    if text in {"mmol/l", "mmoll", "mmol"}:
+        return GlucoseUnit.MMOL_L
+    raise ValueError(f"Unsupported glucose unit: {raw_unit}")
 
 
 def _parse_datetime(value: Any) -> datetime:

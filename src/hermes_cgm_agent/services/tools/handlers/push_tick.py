@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from hermes_cgm_agent.services.scheduling import PushSchedulerService
@@ -34,7 +34,11 @@ class PushTickHandlerMixin(BaseToolHandler):
             if now_arg is not None:
                 if not isinstance(now_arg, str):
                     raise ValueError("now must be an ISO-8601 datetime string")
-                now_dt = datetime.fromisoformat(now_arg)
+                now_dt = datetime.fromisoformat(now_arg.replace("Z", "+00:00"))
+                if now_dt.tzinfo is None:
+                    # Naive == UTC (repository `_dt` convention); Hermes cron
+                    # and LLM callers routinely omit the offset.
+                    now_dt = now_dt.replace(tzinfo=timezone.utc)
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
                 session_id=session_id,

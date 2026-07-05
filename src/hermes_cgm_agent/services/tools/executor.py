@@ -117,4 +117,18 @@ class ToolExecutor(
             )
 
         handler = getattr(self, handler_name)
-        return handler(arguments=arguments, session_id=session_id)
+        try:
+            return handler(arguments=arguments, session_id=session_id)
+        except Exception as exc:  # noqa: BLE001 — the tool boundary must never
+            # leak a raw traceback into the Hermes conversation. Handlers catch
+            # their own expected error types; this is the last-resort net for
+            # anything they missed (e.g. datetime naive/aware TypeErrors from
+            # unexpected argument shapes). The failure is audited and returned
+            # as a structured error the model can relay or retry on.
+            return self._error_response(
+                session_id=session_id,
+                tool_name=tool_name,
+                risk_level=spec.risk_level,
+                data_scope=arguments.get("data_scope"),
+                message=f"{type(exc).__name__}: {exc}",
+            )

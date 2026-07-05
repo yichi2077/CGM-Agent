@@ -25,7 +25,7 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -124,6 +124,12 @@ class PushSchedulerService:
     # ── tick ────────────────────────────────────────────────────────────────
     def push_tick(self, *, user_id: str, now: datetime | None = None) -> PushTickResult:
         now = now or utc_now()
+        if now.tzinfo is None:
+            # Naive == UTC (repository `_dt` convention). Hermes cron/LLM callers
+            # often pass naive ISO strings; interpreting them as system-local
+            # would corrupt period keys, and comparing them against aware
+            # timestamps (hypothesis.created_at) raises TypeError.
+            now = now.replace(tzinfo=timezone.utc)
         consent = self.apply_silent_consent(user_id=user_id, now=now)
         pushed: list[dict[str, Any]] = []
         

@@ -110,6 +110,15 @@ class DataScope(CGMBaseModel):
 
     @model_validator(mode="after")
     def validate_window(self) -> DataScope:
+        # Naive bounds are treated as UTC — the same convention the SQLite
+        # layer's `_dt` applies to stored rows. Hermes tool calls routinely
+        # arrive with naive ISO strings (LLMs omit the offset), and a naive
+        # scope compared against aware point timestamps raises TypeError deep
+        # inside analytics. Normalizing here keeps every consumer aware-safe.
+        if self.window_start.tzinfo is None:
+            self.window_start = self.window_start.replace(tzinfo=timezone.utc)
+        if self.window_end.tzinfo is None:
+            self.window_end = self.window_end.replace(tzinfo=timezone.utc)
         if self.window_end <= self.window_start:
             raise ValueError("window_end must be after window_start")
         return self

@@ -186,3 +186,47 @@ when validating Hermes freshness-sensitive behavior.
 `ReportInput.anchor_at` so accelerated replay does not accidentally use wall
 clock recovery windows. See
 `docs/adr/ADR-0003-simulated-source-ingest.md`.
+
+### D051 - Real-usability hardening: naive-datetime convention, dense-cadence coverage, AiDEX-first scope
+**Decision**: (1) Naive datetimes are UTC everywhere above the SQLite layer —
+`DataScope`/`ReportInput` normalize naive bounds in their validators, the
+`push_tick`/`timeseries` tool handlers and `PushSchedulerService.push_tick`
+coerce naive `now` values, and `ToolExecutor.execute` gains a last-resort
+catch-all so no exception can leak a raw traceback into the Hermes chat.
+(2) `data_coverage` is capped at 100: denser-than-expected sampling is full
+coverage, not a validation error. `SimulationRunner` infers the device cadence
+from the replayed data's median interval (override:
+`cgm-agent simulate --expected-interval-min`), and its wrap-up stages record
+failures into the audit instead of aborting without writing
+`simulation_report.json`. (3) The CSV importer accepts the common unit
+spellings (`mmol/l`, `mmol`, `mg/dl`, `mgdl`, case-insensitive) because
+device/app exports are not consistent; unknown units still fail per-row.
+(4) `tzdata` is a hard dependency: the Hermes runtime target is Windows, where
+`ZoneInfo("Asia/Shanghai")` has no OS database to fall back on. (5) Product
+scope: the only supported CGM hardware target is MicroTech/AiDEX (per user
+directive 2026-07-05); Dexcom and the xDrip/Juggluco/Nightscout bridge stay as
+tested compatibility code, not roadmap items.
+
+**Rationale**: A real Hermes LLM emits naive ISO timestamps constantly; before
+this change three LLM-facing tools (`timeseries.get_aggregate`,
+`timeseries.get_realtime_snapshot`, `scheduling.push_tick`) crashed with an
+unhandled `TypeError: can't compare offset-naive and offset-aware datetimes`.
+The 14-day 1-minute default fixture (`cgm_14d_1min.csv`) crashed the entire
+simulation in the wrap-up phase with `data_coverage=500 > le=100` and produced
+no report artifacts at all — found by actually running the documented
+acceptance command, not by unit tests.
+
+**Impact**: `domain/cgm.py` (DataScope validator), `domain/report.py`
+(ReportInput validator), `services/tools/executor.py` (catch-all),
+`services/tools/handlers/{timeseries,push_tick}.py`,
+`services/scheduling/scheduler.py`, `services/analytics/metrics.py` (coverage
+clamp), `services/simulation/runner.py` (cadence inference + wrap-up
+hardening), `services/data/importer.py` (unit aliases), `cli.py`
+(`--expected-interval-min`), `pyproject.toml` (tzdata). New tests:
+`tests/test_tool_boundary_robustness.py` (8), importer unit-alias tests (2),
+sim-runner dense-cadence + override tests (2), analytics coverage-clamp test
+(1), plugin executor-cache keying/invalidation tests runnable without Hermes
+(2, closes the G2 cache-invalidation gap). Suite 495 -> 510 green.
+Acceptance: full 14-day 1-minute fixture replay (`--max-speed
+--time-base shift-to-now`) now finishes `status: ok`, 0 issues, 20010/20010
+points, 14 daily push/memory stages, 15 reports, all invariants true.
