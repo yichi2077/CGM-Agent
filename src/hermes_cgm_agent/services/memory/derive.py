@@ -16,6 +16,12 @@ def episodes_from_detected_events(
     companion narrative reasons over. Gaps stay visible via detected events
     and data-quality warnings.
     """
+    # D058: L1 episodes are recalled into every conversation, so their summary
+    # must be the companion's Chinese life-language (in the user's display
+    # unit), not the detector's raw English clinical string. The English form
+    # stays on the GlucoseEvent for clinician/audit paths.
+    from hermes_cgm_agent.services.reports.narrative_templates import render_episode_summary
+
     episodes: list[L1Episode] = []
     for event in events:
         if getattr(event.event_type, "value", event.event_type) == "data_gap":
@@ -26,7 +32,7 @@ def episodes_from_detected_events(
                 user_id=event.user_id,
                 occurred_at=event.ts_start,
                 episode_type=getattr(event.event_type, "value", event.event_type),
-                summary=event.summary,
+                summary=render_episode_summary(event),
                 evidence_refs=event.evidence_refs,
                 confidence=0.9,
                 created_at=now,

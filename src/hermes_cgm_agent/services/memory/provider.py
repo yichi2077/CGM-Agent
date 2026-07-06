@@ -217,8 +217,15 @@ class CGMMemoryProvider:
         )
         if context.items:
             lines.append("[CGM user-memory recall]")
+            # D058: dedup identical summaries so repeated life-language episodes
+            # ("晚上血糖回落得比较快" ×3) don't crowd the injected context.
+            seen_summaries: set[str] = set()
             for item in context.items:
-                lines.append(f"- ({item['layer']}) {item['summary']}")
+                summary = item["summary"]
+                if summary in seen_summaries:
+                    continue
+                seen_summaries.add(summary)
+                lines.append(f"- ({item['layer']}) {summary}")
         if not lines:
             # First-run / empty store (F1 A5): guide the agent to gently surface that
             # there is no data yet. The user-facing wording is the agent's, in the

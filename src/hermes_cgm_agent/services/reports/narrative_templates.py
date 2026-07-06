@@ -117,6 +117,79 @@ def describe_behavior(statement: str) -> str:
     return _BEHAVIOR_MAP.get(behavior.lower(), behavior)
 
 
+def render_episode_summary(event: Any) -> str:
+    """Render a detected glucose event as Chinese life-language for memory (D058).
+
+    The detector writes an English clinical summary ("Low glucose episode:
+    nadir 48.2 mg/dL for 40 min.") that is the correct raw/audit form on the
+    GlucoseEvent. But the L1 EPISODE derived from it is recalled into every
+    conversation — feeding the companion English mg/dL strings (while the user
+    reads mmol/L) is the number→language failure at the most-used surface.
+    This renders the same fact in the user's voice and display unit; the raw
+    English summary stays on the event for clinician/audit paths.
+    """
+    from hermes_cgm_agent.config import display_glucose_unit
+    from hermes_cgm_agent.domain import GlucoseUnit, convert_glucose_value
+
+    etype = getattr(event.event_type, "value", event.event_type)
+    unit = display_glucose_unit()
+
+    def _fmt(value_mgdl: float | None) -> str | None:
+        if value_mgdl is None:
+            return None
+        if unit == "mmol/L":
+            return f"{round(convert_glucose_value(float(value_mgdl), GlucoseUnit.MG_DL, GlucoseUnit.MMOL_L), 1)} mmol/L"
+        return f"{round(float(value_mgdl), 1)} mg/dL"
+
+    nadir = _fmt(getattr(event, "nadir_value_mg_dl", None))
+    peak = _fmt(getattr(event, "peak_value_mg_dl", None))
+    minutes = round(getattr(event, "duration_minutes", 0) or 0)
+    # Time-of-day anchor gives the user useful "when" context AND keeps
+    # otherwise-generic events (rapid rise/fall) distinct in recall.
+    when = _time_of_day_label(getattr(event, "ts_start", None))
+
+    if etype == "overnight_low":
+        tail = f"，最低到 {nadir}" if nadir else ""
+        return f"夜里有一段血糖偏低{tail}，持续了大约 {minutes} 分钟。"
+    if etype == "hypo":
+        tail = f"，最低到 {nadir}" if nadir else ""
+        return f"{when}有一段血糖偏低{tail}，持续了大约 {minutes} 分钟。"
+    if etype == "hyper":
+        tail = f"，最高到 {peak}" if peak else ""
+        return f"{when}有一段血糖偏高{tail}，持续了大约 {minutes} 分钟。"
+    if etype == "rapid_rise":
+        return f"{when}血糖上冲得比较快。"
+    if etype == "rapid_fall":
+        return f"{when}血糖回落得比较快。"
+    # Fallback: never leak the raw English summary; describe by type.
+    return f"{when}记录到一段{describe_behavior(str(etype))}。"
+
+
+def _time_of_day_label(ts: Any) -> str:
+    """Life-language time-of-day for an event (local Asia/Shanghai)."""
+    if ts is None:
+        return "有一次"
+    try:
+        from zoneinfo import ZoneInfo
+
+        hour = ts.astimezone(ZoneInfo("Asia/Shanghai")).hour
+    except Exception:
+        return "有一次"
+    if 5 <= hour < 9:
+        return "早上"
+    if 9 <= hour < 11:
+        return "上午"
+    if 11 <= hour < 13:
+        return "中午"
+    if 13 <= hour < 17:
+        return "下午"
+    if 17 <= hour < 20:
+        return "傍晚"
+    if 20 <= hour < 23:
+        return "晚上"
+    return "夜里"
+
+
 def render_hypothesis_narrative(state: str, statement: str, evidence_count: int = 0) -> str:
     """Format L3 Hypothesis narrative using协商式 style based on state."""
     behavior_cn = describe_behavior(statement)

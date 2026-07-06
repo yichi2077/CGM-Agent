@@ -4,13 +4,63 @@ from __future__ import annotations
 
 import unittest
 
+import os
+from datetime import datetime, timezone
+from unittest.mock import patch
+
+from hermes_cgm_agent.domain import GlucoseEvent
 from hermes_cgm_agent.services.reports.narrative_templates import (
     validate_companion_text,
     check_companion_text,
     enforce_companion_text,
+    render_episode_summary,
     render_hypothesis_narrative,
     translate_metric,
 )
+
+
+class EpisodeSummaryTests(unittest.TestCase):
+    """D058: L1 episode summaries recalled into conversation must be Chinese
+    life-language in the user's display unit, never the detector's raw English."""
+
+    def _event(self, event_type: str, **kw) -> GlucoseEvent:
+        base = dict(
+            event_id="e1",
+            user_id="u1",
+            event_type=event_type,
+            ts_start=datetime(2026, 7, 5, 14, 0, tzinfo=timezone.utc),  # 22:00 CST
+            ts_end=datetime(2026, 7, 5, 14, 40, tzinfo=timezone.utc),
+            duration_minutes=40,
+            point_count=8,
+            summary="Low glucose episode: nadir 48.2 mg/dL for 40 min.",
+        )
+        base.update(kw)
+        return GlucoseEvent(**base)
+
+    def test_hypo_renders_chinese_mmol_when_configured(self) -> None:
+        event = self._event("hypo", nadir_value_mg_dl=48.2)
+        with patch.dict(os.environ, {"CGM_AGENT_DISPLAY_UNIT": "mmol/L"}, clear=False):
+            text = render_episode_summary(event)
+        self.assertNotIn("mg/dL", text)
+        self.assertIn("mmol/L", text)
+        self.assertIn("偏低", text)
+        self.assertNotIn("Low glucose", text)
+
+    def test_hyper_renders_mgdl_by_default(self) -> None:
+        event = self._event("hyper", peak_value_mg_dl=260.0, summary="High ...")
+        env = {k: v for k, v in os.environ.items() if k != "CGM_AGENT_DISPLAY_UNIT"}
+        with patch.dict(os.environ, env, clear=True):
+            text = render_episode_summary(event)
+        self.assertIn("偏高", text)
+        self.assertIn("mg/dL", text)
+
+    def test_rapid_events_get_time_of_day_anchor(self) -> None:
+        # 22:00 CST -> "晚上"; keeps otherwise-identical rapid events distinct.
+        event = self._event("rapid_fall", summary="Rapid fall: 3.3 mg/dL per min")
+        text = render_episode_summary(event)
+        self.assertIn("晚上", text)
+        self.assertIn("回落", text)
+        self.assertNotIn("mg/dL", text)
 
 
 class NarrativeTemplatesTests(unittest.TestCase):

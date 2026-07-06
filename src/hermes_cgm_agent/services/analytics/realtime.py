@@ -9,6 +9,18 @@ from hermes_cgm_agent.domain import DataScope, GlucosePoint
 from hermes_cgm_agent.domain.cgm import utc_now
 
 
+def _display_glucose(value_mgdl: float | None) -> str | None:
+    """Render a glucose value in the operator's display unit (D058)."""
+    if value_mgdl is None:
+        return None
+    from hermes_cgm_agent.config import display_glucose_unit
+    from hermes_cgm_agent.domain import GlucoseUnit, convert_glucose_value
+
+    if display_glucose_unit() == "mmol/L":
+        return f"{round(convert_glucose_value(float(value_mgdl), GlucoseUnit.MG_DL, GlucoseUnit.MMOL_L), 1)} mmol/L"
+    return f"{round(float(value_mgdl), 1)} mg/dL"
+
+
 @dataclass(frozen=True)
 class RealtimeSignalSnapshot:
     user_id: str
@@ -31,6 +43,10 @@ class RealtimeSignalSnapshot:
             "user_id": self.user_id,
             "calculated_at": self.calculated_at.isoformat(),
             "latest_glucose_mg_dl": self.latest_glucose_mg_dl,
+            # D058: the most common everyday query is "我现在多少". Give the LLM
+            # the value already in the user's display unit ("6.2 mmol/L") so it
+            # never has to do error-prone mg/dL→mmol/L arithmetic itself.
+            "latest_glucose_display": _display_glucose(self.latest_glucose_mg_dl),
             "latest_measured_at": self.latest_measured_at.isoformat() if self.latest_measured_at else None,
             "latest_received_at": self.latest_received_at.isoformat() if self.latest_received_at else None,
             "data_freshness_minutes": self.data_freshness_minutes,

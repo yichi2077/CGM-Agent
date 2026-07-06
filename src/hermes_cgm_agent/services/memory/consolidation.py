@@ -231,9 +231,17 @@ class ConsolidationService:
             self.repository.list_episodes(user_id),
             key=lambda e: e.occurred_at,
             reverse=True,
-        )[:3]
-        if recent:
-            parts.append("近期事件:" + ";".join(e.summary for e in recent) + "。")
+        )
+        # D058: dedup identical life-language summaries — repeating "晚上血糖回落
+        # 得比较快" three times is noise for the reader; keep the first 3 distinct.
+        recent_unique: list[str] = []
+        for episode in recent:
+            if episode.summary not in recent_unique:
+                recent_unique.append(episode.summary)
+            if len(recent_unique) >= 3:
+                break
+        if recent_unique:
+            parts.append("近期事件:" + ";".join(recent_unique) + "。")
         content = " ".join(parts) or f"本{label}暂无足够数据形成状态摘要。"
         summary = MemorySummary(
             summary_id=new_id(),

@@ -398,3 +398,36 @@ successful, which is the whole point of a companion agent.
 **Impact**: `services/reports/builder.py` (`_follow_up_section` rewrite +
 `_follow_up_section_clinical` split, `detected_events` threaded in). F4
 escalation-wording assertions updated to the new phrasing.
+
+### D058 - Conversation-surface language: L1 memory + realtime snapshot in the user's voice
+**Decision**: Audited the everyday **conversation surface** (not the report
+layer) by reading the real prefetch/snapshot output. Two number→language
+failures at the most-used surface, now fixed:
+1. **L1 episode summaries** were the detector's raw English clinical strings
+   ("Low glucose episode: nadir 48.2 mg/dL for 40 min.", "Rapid fall: 3.34
+   mg/dL per min (76.6 -> 59.9)") — injected verbatim into every conversation
+   via memory recall AND the warm digest's "近期事件", in mg/dL while the user
+   reads mmol/L. `render_episode_summary(event)` now renders each L1 episode as
+   Chinese life-language in the display unit, with a time-of-day anchor
+   ("夜里/傍晚/晚上…") that both adds useful "when" context and keeps otherwise-
+   generic rapid rise/fall events distinct. The detector's English summary
+   stays on the GlucoseEvent as the raw/audit form (clinician path unchanged).
+2. **Realtime snapshot** exposed only `latest_glucose_mg_dl`; the most common
+   query ("我现在多少") forced the LLM to do error-prone mg/dL→mmol/L math.
+   Added `latest_glucose_display` ("6.2 mmol/L") so the model gets a ready-to-
+   speak value.
+   Plus: identical life-language summaries are de-duped in the digest "近期事件"
+   and the prefetch recall so repeated events don't crowd the context.
+
+**Rationale**: The conversation surface is what an everyday user touches most,
+and it was leaking raw English mg/dL clinical strings into the companion's
+context — the exact number→language failure the project exists to prevent, at
+the highest-traffic surface. The report layer (D056/D057) was only half the
+audit.
+
+**Impact**: `services/reports/narrative_templates.py` (`render_episode_summary`
++ `_time_of_day_label`), `services/memory/derive.py` (L1 summary), `services/
+memory/consolidation.py` (digest 近期事件 + dedup), `services/memory/
+provider.py` (recall dedup), `services/analytics/realtime.py`
+(`latest_glucose_display`). Storage/analytics/clinician paths and every medical
+number are unchanged — only user-facing rendering.
