@@ -100,6 +100,30 @@ class CGMAnalyticsTests(unittest.TestCase):
         self.assertIsNone(aggregate.conga)
         self.assertEqual(aggregate.data_coverage, 0.0)
 
+    def test_agp_five_level_split_matches_consensus_thresholds(self) -> None:
+        # AGP 2019 consensus (D055): TBR/TAR are totals; very-low (<54) and
+        # very-high (>250) are the Level-2 sub-bands. Values chosen to land one
+        # point in each of the five bands over a 5-point window.
+        scope = DataScope(
+            user_id="user-1",
+            window_start=datetime(2026, 5, 31, 0, 0, tzinfo=timezone.utc),
+            window_end=datetime(2026, 5, 31, 1, 0, tzinfo=timezone.utc),
+        )
+        # 50 (<54 very-low), 60 (54-70 low), 120 (target), 200 (180-250 high),
+        # 300 (>250 very-high)
+        points = [_point(i, v) for i, v in enumerate([50, 60, 120, 200, 300])]
+
+        aggregate = CGMAnalyticsService().compute_aggregate(points=points, scope=scope)
+
+        self.assertEqual(aggregate.tbr, 40.0)            # 50 and 60 both <70
+        self.assertEqual(aggregate.tbr_very_low, 20.0)   # only 50 is <54
+        self.assertEqual(aggregate.tar, 40.0)            # 200 and 300 both >180
+        self.assertEqual(aggregate.tar_very_high, 20.0)  # only 300 is >250
+        self.assertEqual(aggregate.tir, 20.0)            # only 120
+        # Level-2 must never exceed its total band (structural invariant).
+        self.assertLessEqual(aggregate.tbr_very_low, aggregate.tbr)
+        self.assertLessEqual(aggregate.tar_very_high, aggregate.tar)
+
     def test_denser_than_expected_sampling_caps_coverage_at_100(self) -> None:
         # Regression: a 1-minute-cadence feed measured against the 5-minute
         # default produced data_coverage=500 and crashed GlucoseAggregate

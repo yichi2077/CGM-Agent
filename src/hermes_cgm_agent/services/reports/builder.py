@@ -487,8 +487,12 @@ class ReportService:
             else:
                 content = "这段时间暂无可计算的关键指标，先不看平均值、偏高比例或偏低比例。"
         elif audience == ReportAudience.CLINICIAN:
+            # AGP 2019-consensus 5-level split (D055): TBR/TAR are TOTALs; the
+            # very-low (<54) and very-high (>250) Level-2 bands are called out
+            # so severe-hypo/hyper burden is directly readable.
             content = (
-                f"TIR {aggregate.tir}%，TAR {aggregate.tar}%，TBR {aggregate.tbr}%；"
+                f"TIR {aggregate.tir}%，TAR {aggregate.tar}%（其中极高>250 {aggregate.tar_very_high}%），"
+                f"TBR {aggregate.tbr}%（其中极低<54 {aggregate.tbr_very_low}%）；"
                 f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}。"
             )
         elif audience == ReportAudience.FAMILY:
@@ -941,7 +945,8 @@ class ReportService:
             )
         else:
             content = (
-                f"结构化摘要：TIR={aggregate.tir}%，TAR={aggregate.tar}%，TBR={aggregate.tbr}%，"
+                f"结构化摘要：TIR={aggregate.tir}%，TAR={aggregate.tar}%（极高>250 {aggregate.tar_very_high}%），"
+                f"TBR={aggregate.tbr}%（极低<54 {aggregate.tbr_very_low}%），"
                 f"MBG={aggregate.mbg} mg/dL，CV={aggregate.cv}%，GMI={aggregate.gmi}，"
                 f"LBGI={aggregate.lbgi}，HBGI={aggregate.hbgi}，覆盖率={aggregate.data_coverage}%，"
                 f"已确认事件={len([event for event in events if event.user_confirmed])}，"

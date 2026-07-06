@@ -316,3 +316,30 @@ are conversation-loop killers in real use.
 across all 9 handler modules; `services/tools/handlers/events.py` (extras
 folding). Rehearsal: 34/34 checks green (bridge poll -> import -> 18 tools ->
 push+delivery -> memory provider surface).
+
+### D055 - AGP 2019-consensus 5-level TIR split (clinician parity)
+**Decision**: `GlucoseAggregate` gains `tbr_very_low` (<54 mg/dL) and
+`tar_very_high` (>250 mg/dL) alongside the existing total `tbr`/`tar`, giving
+the full AGP 2019 international-consensus 5-level split (Very Low / Low /
+Target / High / Very High). `tbr`/`tar` semantics are unchanged (still the
+totals; Level 1 = total − Level 2). The clinician report metrics section and
+the SELF doctor appendix surface the two Level-2 bands; the companion
+(SELF/FAMILY narrative) is untouched — life-language never shows raw bands.
+
+**Rationale**: Competitive audit against the closed-source standard (Dexcom
+Clarity, Abbott LibreView) and the AGP report every endocrinologist reads:
+all report the 5-level split, and the <54 / >250 Level-2 bands are the
+clinically most important (severe hypo/hyper burden). We reported only 3
+levels, so the doctor-facing report was missing exactly the two bands a
+clinician scans first. Thresholds (54/250) come from the 2019 consensus
+(Battelino et al., Diabetes Care) — the paper is already in our KB — and match
+the safety router's existing red/yellow zone cutoffs, so no new medical
+constant is introduced. First-principles / minimal-addition: this is the one
+genuine clinical-parity gap; predictive hypo alerts, food-photo coaching, and
+insulin-loop features were all evaluated and rejected as out-of-scope for an
+informed-companion agent.
+
+**Impact**: `domain/cgm.py` (two optional fields), `services/analytics/
+metrics.py` (two counts + config thresholds), `services/reports/builder.py`
+(clinician + doctor-appendix sections). New test in `test_cgm_analytics.py`
+asserting the 5-band split and the Level-2 ≤ total invariant. Suite 536 → 537.

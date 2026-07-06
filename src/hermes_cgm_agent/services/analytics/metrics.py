@@ -15,6 +15,11 @@ from hermes_cgm_agent.domain import (
 class AnalyticsConfig:
     low_threshold_mg_dl: float = 70
     high_threshold_mg_dl: float = 180
+    # AGP 2019 international-consensus Level-2 thresholds (D055): severe hypo
+    # <54 mg/dL (3.0 mmol/L) and severe hyper >250 mg/dL (13.9 mmol/L). Same
+    # values the safety router's red/yellow zones already use.
+    very_low_threshold_mg_dl: float = 54
+    very_high_threshold_mg_dl: float = 250
     expected_interval_minutes: int = 5
     conga_interval_hours: int = 1
     included_quality_flags: tuple[str, ...] = ("valid",)
@@ -60,6 +65,12 @@ class CGMAnalyticsService:
         tbr_count = sum(1 for value in values if value < self.config.low_threshold_mg_dl)
         tar_count = sum(1 for value in values if value > self.config.high_threshold_mg_dl)
         tir_count = point_count - tbr_count - tar_count
+        tbr_very_low_count = sum(
+            1 for value in values if value < self.config.very_low_threshold_mg_dl
+        )
+        tar_very_high_count = sum(
+            1 for value in values if value > self.config.very_high_threshold_mg_dl
+        )
         mean_glucose = sum(values) / point_count
         standard_deviation = _population_std(values, mean_glucose)
         cv = (standard_deviation / mean_glucose * 100) if mean_glucose > 0 else None
@@ -80,6 +91,8 @@ class CGMAnalyticsService:
             TIR=_percentage(tir_count, point_count),
             TAR=_percentage(tar_count, point_count),
             TBR=_percentage(tbr_count, point_count),
+            TBR_VERY_LOW=_percentage(tbr_very_low_count, point_count),
+            TAR_VERY_HIGH=_percentage(tar_very_high_count, point_count),
             GMI=_round(gmi),
             CV=_round(cv),
             MBG=_round(mean_glucose),

@@ -315,6 +315,12 @@ class GlucoseAggregate(CGMBaseModel):
     tir: float | None = Field(default=None, alias="TIR", ge=0, le=100)
     tar: float | None = Field(default=None, alias="TAR", ge=0, le=100)
     tbr: float | None = Field(default=None, alias="TBR", ge=0, le=100)
+    # AGP 5-level consensus split (Battelino 2019 / D055). tbr/tar remain the
+    # TOTAL below/above range; these two carve out the clinically critical
+    # Level-2 bands so a clinician can read severe-hypo and severe-hyper burden
+    # directly (Level 1 = total - Level 2). Optional/back-compatible.
+    tbr_very_low: float | None = Field(default=None, alias="TBR_VERY_LOW", ge=0, le=100)
+    tar_very_high: float | None = Field(default=None, alias="TAR_VERY_HIGH", ge=0, le=100)
     gmi: float | None = Field(default=None, alias="GMI", ge=0)
     cv: float | None = Field(default=None, alias="CV", ge=0)
     mbg: float | None = Field(default=None, alias="MBG", ge=0)
