@@ -5,11 +5,11 @@
 - Hermes-facing tool count is 18 active tools, including realtime CGM snapshot reads.
 - F2 data source strategy is accepted in [ADR-0002](docs/adr/ADR-0002-cgm-data-source-strategy.md): default hardware is MicroTech/AiDEX; xDrip/Juggluco/Nightscout HTTP feeds are a compatibility bridge, not the default iPhone-only path.
 - New CLI: `source-poll --user-id ... --kind xdrip|juggluco|nightscout --url ... --count ... --expected-interval-min 5`.
-- Default engineering fixture: `examples/cgm_test_dataset/cgm_14d_1min.csv` is a 14-day, single-user, native 1-minute prediabetes-style synthetic CGM dataset with behavior events and CGM artifacts. The current pre-test freeze uses the corrected v2 fixture documented in `docs/PRETEST-FREEZE-2026-07-02.md`.
+- Default engineering fixture: `examples/cgm_test_dataset/cgm_14d_1min.csv` is a 14-day, single-user, native 1-minute prediabetes-style synthetic CGM dataset with behavior events and CGM artifacts.
 - Storage now distinguishes `timestamp` as measured-at time from `received_at` collector receipt time.
 - Deterministic detected glucose events persist in `detected_glucose_events`; `user_events` remains for user/agent-recorded events.
 - Realtime signals include latest glucose, freshness, 15/30 minute deltas, 15 minute slope, 1 hour rolling mean, and missing-rate.
-- Current local validation: `476 tests, OK (skipped=1)`.
+- Current local validation: `541 tests, OK (skipped=3)`.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](pyproject.toml)
@@ -21,9 +21,9 @@
 
 ## 🌟 核心理念：知情陪伴者 (The Informed Companion)
 
-在循证医学的 **“共享决策 (Shared Decision-Making)”** 框架下，本项目智能体被定义为 **“知情陪伴者 (Informed Companion)”**（参见 [SOUL.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/SOUL.md)）。它的定位不是医疗权威，也不是日常监督者，而是辅助用户回顾历史数据、发现个体规律的可靠盟友。
+在循证医学的 **“共享决策 (Shared Decision-Making)”** 框架下，本项目智能体被定义为 **“知情陪伴者 (Informed Companion)”**（参见 [SOUL.md](SOUL.md)）。它的定位不是医疗权威，也不是日常监督者，而是辅助用户回顾历史数据、发现个体规律的可靠盟友。
 
-### 交互原则 ([SOUL.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/SOUL.md) & [PRD-SUPPLEMENT.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/PRD-SUPPLEMENT.md))
+### 交互原则 ([SOUL.md](SOUL.md) & [PRD-SUPPLEMENT.md](PRD-SUPPLEMENT.md))
 *   **先历史后知识 (History-First)**：当用户评估饮食或作息时，优先检索用户过去的个体经验，而非直接套用通用的医学理论。个体身体经验高于通用指南。
 *   **非指令性 (Non-Directive)**：绝不代替用户做决定，杜绝命令式语气（避免使用 `你应该...`、`需要改善...`）。使用协作探讨语气（如 `我注意到...，要不要留意一下？`）。
 *   **显式不确定性 (Explicit Uncertainty)**：对于个体规律永远使用缓和与不确定的语气（如 `可能...`、`似乎...`、`在你的记录中看起来...`），当数据不足时坦诚告知。
@@ -60,30 +60,30 @@ graph TD
     end
 ```
 
-### 1. 三层记忆模型 ([docs/MEM-ARCH.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/docs/MEM-ARCH.md))
+### 1. 三层记忆模型 ([docs/MEM-ARCH.md](docs/MEM-ARCH.md))
 *   **Hot（工作窗口记忆）**：近期血糖指标、用户画像（L2）与活跃假设（L3）直接从 SQLite 表中直取并拼接注入到 Prompt 上下文中，**不经过检索层**。
 *   **Warm（状态合成记忆）**：通过 Consolidation 梦境合成服务（`consolidation.py`）在后台定期运行，将血糖时序指标与情景数据整合成结构化的日/周用户状态摘要，写入 `memory_summaries` 表，并在 prefetch 时注入。
 *   **Cold（归档与检索记忆）**：历史血糖事件、L1情景情境档案以及医学知识库。按需检索，不主动注入。
 
-### 2. 双轨 RAG 物理隔离 ([docs/adr/ADR-0001-memory-and-knowledge-architecture.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/docs/adr/ADR-0001-memory-and-knowledge-architecture.md))
+### 2. 双轨 RAG 物理隔离 ([docs/adr/ADR-0001-memory-and-knowledge-architecture.md](docs/adr/ADR-0001-memory-and-knowledge-architecture.md))
 *   **权威医学知识轨 (Authoritative KB)**：存放经过临床核验/机器抽取的双语临床指标论断卡片（`ClaimCard`）。该库**只读**且使用 **BM25 纯词法分词检索**，通过 `tier`（优先 curated 卡）与匹配覆盖率避免机器生成的未核验卡片稀释高危指南。
 *   **个人记忆检索轨 (User Memory)**：存放 L1情景档案（`l1_episodes`）。该库支持不对称检索策略，随着数据量增长，可从默认的 BM25 自动升级为可选的语义 dense 向量检索（如 `paraphrase-multilingual-MiniLM`）。
 *   **双轨隔离守卫 (`memory_guard.py`)**：在执行层通过 `assert_track_isolation` 强校验，严禁个人叙事与医学权威信息混淆，防止交叉污染。
 
-### 3. 三区安全路由器 ([src/hermes_cgm_agent/services/safety/router.py](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/src/hermes_cgm_agent/services/safety/router.py))
+### 3. 三区安全路由器 ([src/hermes_cgm_agent/services/safety/router.py](src/hermes_cgm_agent/services/safety/router.py))
 在 LLM 叙事层前置对当前血糖时序数据进行分区拦截：
 *   🟢 **绿区 (70–180 mg/dL)**：安全，正常进行生成与总结。
 *   🟡 **黄区 (54–70 或 180–300 mg/dL)**：偏低/偏高，在正常消息前方添加加粗的 `⚠️ 提示前缀`，叙事不中断。
 *   🔴 **红区 (<54 或 >300 mg/dL)**：**强硬编码拦截**。立刻截断并废弃 LLM 的叙事内容生成，直接返回固定的医疗警示信息，建议用户检查传感器或紧急就医。
 
-### 4. L0 工作上下文压缩 ([src/hermes_cgm_agent/services/memory/l0_builder.py](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/src/hermes_cgm_agent/services/memory/l0_builder.py))
+### 4. L0 工作上下文压缩 ([src/hermes_cgm_agent/services/memory/l0_builder.py](src/hermes_cgm_agent/services/memory/l0_builder.py))
 为防止无界血糖时序爆掉 LLM 上下文，L0 构造器对 14 天的时序数据使用“渐进衰退”策略进行确定性压缩：
 *   *近端（最近 3 天）*：保留完整点级数据。
 *   *中端（第 4-7 天）*：压缩为小时均值、最大值和最小值。
 *   *远端（第 8-14 天）*：仅保留日级聚合指标。
 *   *关键事件*：用户标记的事件及异常检测到的血糖事件始终以高分辨率锚点形式保留。
 
-### 5. 引用校验校验器 ([src/hermes_cgm_agent/services/safety/citation_guard.py](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/src/hermes_cgm_agent/services/safety/citation_guard.py))
+### 5. 引用校验校验器 ([src/hermes_cgm_agent/services/safety/citation_guard.py](src/hermes_cgm_agent/services/safety/citation_guard.py))
 智能体提供了 `rag.verify_quotes` 运行期校验工具。在 Hermes 输送最终回复前，对生成文本内的每一个敏感医学数字与观点，与检索到的论断卡片进行 verbatim 字幕级精确对齐匹配，拦截任何未经证实的幻觉数字。
 
 **报告管线硬门**（F3/D047）：在报告交付前，`builder.py` 强制以 `strict=True` 调用引用守卫，仅作用于外部生成的医学叙事（`medical_narrative`），不触及确定性指标段。未支撑数字直接阻断交付，返回"无法确认"persona 文案（`CITATION_BLOCK_TEMPLATE`）。
@@ -94,7 +94,7 @@ graph TD
 ### 5c. 红区恢复二次确认
 `SafetyRouter` 持有进程内状态 `_last_red_zone`，在红区事件后的 2 小时窗口内（可通过 `CGM_AGENT_RECOVERY_WINDOW_SECONDS` 环境变量覆盖），对后续评估自动比对存档原始红区与当前结果，并将 `recovery_check`（含 `recovery_confirmed` 指标）渲染进报告头。窗口到期自动清状态。
 
-### 6. PHI 数据加密 ([src/hermes_cgm_agent/storage/sqlite.py](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/src/hermes_cgm_agent/storage/sqlite.py))
+### 6. PHI 数据加密 ([src/hermes_cgm_agent/storage/sqlite.py](src/hermes_cgm_agent/storage/sqlite.py))
 SQLite 数据库文件落地在 Unix 系统下采用 `0600` 权限，对涉敏个人健康数据（PHI 字段如事件详情等）采用本地生成的 Fernet 秘钥（保存在库同级目录的 `storage.key` 中）进行应用端加密。
 
 ---
@@ -118,7 +118,7 @@ SQLite 数据库文件落地在 Unix 系统下采用 `0600` 权限，对涉敏�
 ├── integrations/             # 注册到 Hermes 主程序的插件 yaml 声明与 memory 适配器
 │   ├── hermes/cgm/           # cgm 核心工具插件
 │   └── hermes/cgm_memory/    # cgm 外部记忆 provider
-├── tests/                    # 476 项单元与集成测试套件（当前本地基线，含 1 skipped）
+├── tests/                    # 541 项单元与集成测试套件（当前本地基线，含 3 skipped）
 ├── specs/                    # 分阶段功能实现规格蓝图 (Milestone 001 - 004)
 └── docs/                     # ADR 架构决策日志、MEM-ARCH 规范文件等
 ```
@@ -273,6 +273,5 @@ python -m unittest discover -s tests
 
 ## 📄 关联规范文件
 
-*   **最近审计与蓝图闭环进展**: [docs/STATUS-REPORT-2026-06-07.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/docs/STATUS-REPORT-2026-06-07.md)
-*   **架构决策演进**: [docs/DECISION_LOG.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/docs/DECISION_LOG.md)
-*   **记忆架构规范说明**: [docs/MEM-ARCH.md](file:///e:/字幕组测试/CGM-Agent/hermes-cgm-agent-latest/docs/MEM-ARCH.md)
+*   **架构决策演进**: [docs/DECISION_LOG.md](docs/DECISION_LOG.md)
+*   **记忆架构规范说明**: [docs/MEM-ARCH.md](docs/MEM-ARCH.md)
