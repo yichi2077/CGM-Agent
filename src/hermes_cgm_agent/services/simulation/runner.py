@@ -403,22 +403,10 @@ class SimulationRunner:
 
 
 def _infer_interval_minutes(records: list) -> int:
-    """Median gap between consecutive readings, in whole minutes (min 1).
+    """Device cadence of the replayed CSV via the shared median helper (D053)."""
+    from hermes_cgm_agent.services.analytics import median_interval_minutes
 
-    The replayed CSV defines the device cadence; assuming the 5-minute default
-    for a 1-minute feed under-counts expected samples fivefold (and vice versa
-    over-counts gaps for sparse feeds). The median is robust against the
-    occasional real gap in the recording.
-    """
-    deltas = sorted(
-        (later.sim_ts - earlier.sim_ts).total_seconds()
-        for earlier, later in zip(records, records[1:])
-        if later.sim_ts > earlier.sim_ts
-    )
-    if not deltas:
-        return 5
-    median_seconds = deltas[len(deltas) // 2]
-    return max(1, round(median_seconds / 60))
+    return median_interval_minutes([record.sim_ts for record in records])
 
 
 def _ceil_hour(value: datetime) -> datetime:

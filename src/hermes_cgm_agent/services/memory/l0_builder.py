@@ -19,7 +19,13 @@ from hermes_cgm_agent.domain.context import (
     L0_NEAR_POINT_DAYS,
 )
 from hermes_cgm_agent.domain.report import DataQualityWarning
-from hermes_cgm_agent.services.analytics import CGMAnalyticsService, GlucoseEventDetector
+from hermes_cgm_agent.services.analytics import (
+    AnalyticsConfig,
+    CGMAnalyticsService,
+    EventDetectionConfig,
+    GlucoseEventDetector,
+    median_interval_minutes,
+)
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 
 
@@ -42,6 +48,11 @@ class L0ContextBuilder:
         config: L0BuildConfig | None = None,
     ) -> None:
         self.repository = repository
+        # Cadence-adaptive defaults (D053): when no explicit services are
+        # injected, build() re-tunes them to the device's observed sampling
+        # interval so gap detection and coverage stay correct on 1-minute
+        # AiDEX-style feeds. Injected services are always respected as-is.
+        self._services_injected = analytics_service is not None or event_detector is not None
         self.analytics_service = analytics_service or CGMAnalyticsService()
         self.event_detector = event_detector or GlucoseEventDetector()
         self.config = config or L0BuildConfig()
@@ -62,6 +73,14 @@ class L0ContextBuilder:
             source=source,
         )
         points = self.repository.list_glucose_points(scope)
+        if not self._services_injected and points:
+            interval = median_interval_minutes([point.timestamp for point in points])
+            self.analytics_service = CGMAnalyticsService(
+                AnalyticsConfig(expected_interval_minutes=interval)
+            )
+            self.event_detector = GlucoseEventDetector(
+                EventDetectionConfig(expected_interval_minutes=interval)
+            )
         aggregate = self.analytics_service.compute_aggregate(
             points=points,
             scope=scope,

@@ -34,8 +34,11 @@ from hermes_cgm_agent.domain.report import (
     ReportType,
 )
 from hermes_cgm_agent.services.analytics import (
+    AnalyticsConfig,
     CGMAnalyticsService,
+    EventDetectionConfig,
     GlucoseEventDetector,
+    median_interval_minutes,
 )
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.reports.renderer import CITATION_BLOCK_TEMPLATE, render_markdown
@@ -74,6 +77,9 @@ class ReportService:
     ) -> None:
         self.cgm_repository = cgm_repository
         self.report_repository = report_repository
+        # Cadence-adaptive defaults (D053): generate() re-tunes non-injected
+        # services to the observed sampling interval of the report window.
+        self._services_injected = analytics_service is not None or event_detector is not None
         self.analytics_service = analytics_service or CGMAnalyticsService()
         self.event_detector = event_detector or GlucoseEventDetector()
         self.safety_router = safety_router or SafetyRouter()
@@ -94,6 +100,14 @@ class ReportService:
         )
         report_id = uuid.uuid4().hex
         points = self.cgm_repository.list_glucose_points(scope)
+        if not self._services_injected and points:
+            interval = median_interval_minutes([point.timestamp for point in points])
+            self.analytics_service = CGMAnalyticsService(
+                AnalyticsConfig(expected_interval_minutes=interval)
+            )
+            self.event_detector = GlucoseEventDetector(
+                EventDetectionConfig(expected_interval_minutes=interval)
+            )
         aggregate = self.analytics_service.compute_aggregate(
             points=points,
             scope=scope,

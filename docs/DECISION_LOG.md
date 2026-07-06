@@ -266,3 +266,32 @@ provider}.py`, `services/reports/narrative_templates.py` (shared
 deterministic detector semantics — flagged for Damocles review; direction is
 strictly false-positive elimination (no true sustained-change alarm is
 weakened at the sub-threshold amplitudes involved).
+
+### D053 - Cadence plumb-through + push last-mile webhook delivery
+**Decision**: (1) `analytics.median_interval_minutes()` is the shared device-
+cadence inference (median inter-reading gap, >=5 deltas required, clamped to
+[1, 15] minutes). `L0ContextBuilder.build`, `ReportService.generate`, and the
+push scheduler's anomaly/trend detectors re-tune their non-injected
+analytics/event-detector instances to the cadence observed in the points they
+already loaded; explicitly injected services are respected as-is. The
+simulation runner delegates to the same helper. (2) `scheduling.push_tick`
+(tool layer) delivers each successful push through the webhook channel in the
+same tick when `CGM_WEBHOOK_URL` is configured, reusing the delivery mixin on
+the same executor — PHI allowlist, https-only, no-redirect, and domain-only
+audit apply unchanged; the tool response gains a `deliveries` list. Without
+the endpoint the behavior is unchanged (no-op).
+
+**Rationale**: 1-minute AiDEX feeds against the hardcoded 5-minute default
+mis-sized every cadence-derived threshold (a 10-minute sensor outage was
+invisible to L0's gap detection, which waited for >20 minutes). Inferring from
+already-loaded points needs no schema, no config, and no extra queries. The
+push loop previously dead-ended in a no-op `send_os_push` unless the operator
+wired a second cron step calling `delivery.send` — the single most
+user-visible gap for a real deployment ("我配置了推送但手机什么都收不到").
+
+**Impact**: new `services/analytics/cadence.py`; `services/memory/l0_builder.py`,
+`services/reports/builder.py`, `services/scheduling/scheduler.py`,
+`services/simulation/runner.py`, `services/tools/handlers/push_tick.py`.
+New tests: `tests/test_cadence_and_delivery_loop.py` (7). CLI `push-tick`
+still exercises the scheduler only; the production path is the Hermes cron ->
+`scheduling.push_tick` tool, which now closes the loop end-to-end.

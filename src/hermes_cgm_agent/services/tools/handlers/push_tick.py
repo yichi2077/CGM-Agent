@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Any
 
@@ -55,6 +56,33 @@ class PushTickHandlerMixin(BaseToolHandler):
         )
         result = service.push_tick(user_id=user_id, now=now_dt)
 
+        # Last-mile delivery (D053): when a webhook endpoint is configured, a
+        # successful push is delivered in the same tick instead of relying on
+        # the operator to wire a second cron step. Reuses the delivery mixin
+        # on this executor — PHI allowlist, https-only, no-redirect, and the
+        # domain-only audit all apply unchanged. Absent endpoint -> no-op.
+        deliveries: list[dict[str, Any]] = []
+        if os.environ.get("CGM_WEBHOOK_URL"):
+            for entry in result.pushed:
+                delivery_response = self._delivery_send(
+                    arguments={
+                        "user_id": user_id,
+                        "channel": "webhook",
+                        "payload_ref": str(entry.get("push_id") or ""),
+                        "tier": entry.get("tier"),
+                        "period_key": entry.get("period_key"),
+                    },
+                    session_id=session_id,
+                )
+                deliveries.append(
+                    {
+                        "push_id": entry.get("push_id"),
+                        "tier": entry.get("tier"),
+                        "delivery_status": delivery_response.payload.get("delivery_status"),
+                        "delivery_id": delivery_response.payload.get("delivery_id"),
+                    }
+                )
+
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
@@ -77,5 +105,6 @@ class PushTickHandlerMixin(BaseToolHandler):
                 "now": result.now,
                 "pushed": list(result.pushed),
                 "silent_consent": list(result.silent_consent),
+                "deliveries": deliveries,
             },
         )

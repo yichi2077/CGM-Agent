@@ -31,7 +31,23 @@ from zoneinfo import ZoneInfo
 
 from hermes_cgm_agent.domain import DataScope, HypothesisState, GlucoseEventType, ensure_utc
 from hermes_cgm_agent.domain.cgm import utc_now
-from hermes_cgm_agent.services.analytics import CGMAnalyticsService
+from hermes_cgm_agent.services.analytics import (
+    CGMAnalyticsService,
+    EventDetectionConfig,
+    GlucoseEventDetector,
+    median_interval_minutes,
+)
+
+
+def _cadence_tuned_detector(points: list) -> GlucoseEventDetector:
+    """Event detector tuned to the observed sampling interval (D053).
+
+    The scheduler sees whatever cadence the device actually delivers; a
+    hardcoded 5-minute assumption mis-sizes gap detection and episode gating
+    on 1-minute AiDEX-style feeds.
+    """
+    interval = median_interval_minutes([p.timestamp for p in points]) if points else 5
+    return GlucoseEventDetector(EventDetectionConfig(expected_interval_minutes=interval))
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import ConsolidationService, SQLiteMemoryRepository
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
@@ -368,15 +384,13 @@ class PushSchedulerService:
             return True
 
         # Threshold 3: Consecutive >= 2 days same-period anomaly
-        from hermes_cgm_agent.services.analytics.events import GlucoseEventDetector
         from hermes_cgm_agent.domain import DataScope
-        
+
         window_start = now - timedelta(days=2)
         scope = DataScope(user_id=user_id, window_start=window_start, window_end=now)
         points = self.cgm.list_glucose_points(scope)
-        
-        detector = GlucoseEventDetector()
-        events = detector.detect(points=points, scope=scope)
+
+        events = _cadence_tuned_detector(points).detect(points=points, scope=scope)
         anomalies = [e for e in events if e.event_type != GlucoseEventType.DATA_GAP]
         
         day1_periods = set()
@@ -407,9 +421,6 @@ class PushSchedulerService:
         non-DATA_GAP glucose event. Day boundaries use the scheduler timezone.
         A day with no data (or no anomaly) ends the streak.
         """
-        from hermes_cgm_agent.services.analytics.events import GlucoseEventDetector
-
-        detector = GlucoseEventDetector()
         utc = ZoneInfo("UTC")
         today_local = now.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0)
         consecutive_days = 0
@@ -431,7 +442,7 @@ class PushSchedulerService:
             tbr = float(getattr(aggregate, "tbr", 0) or 0)
             anomalous = tar > 0 or tbr > 0
             if not anomalous:
-                events = detector.detect(points=points, scope=scope)
+                events = _cadence_tuned_detector(points).detect(points=points, scope=scope)
                 anomalous = any(e.event_type != GlucoseEventType.DATA_GAP for e in events)
             if anomalous:
                 consecutive_days += 1

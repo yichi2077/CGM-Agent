@@ -95,7 +95,10 @@ class L0ContextBuilderTests(unittest.TestCase):
             datetime(2026, 7, 3, 0, 0, tzinfo=timezone.utc),
         )
         self.assertEqual(day.aggregate.point_count, 26)
-        self.assertEqual(day.aggregate.data_coverage, 9.03)
+        # D053 cadence inference: the fixture's 3-minute median interval sets
+        # expected samples to 480/day (was 288 under the hardcoded 5-minute
+        # default), so 26 points -> 5.42% coverage.
+        self.assertEqual(day.aggregate.data_coverage, 5.42)
         self.assertLessEqual(day.aggregate.data_coverage, 100)
 
     def test_budget_trims_recent_points(self) -> None:
