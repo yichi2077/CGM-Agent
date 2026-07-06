@@ -259,10 +259,14 @@ class ConsolidationService:
         existing = self.repository.list_profile_items(user_id, key=key, active_only=False)
         confidence = min(0.95, round(0.4 + 0.1 * day_count, 4))
         # B1: store a human-readable summary alongside the raw count so the
-        # USER.md L2 export renders a sentence, not bare JSON (D039).
+        # USER.md L2 export renders a sentence, not bare JSON (D039). The
+        # episode type goes through the shared life-language map (D053) so
+        # USER.md and recall lines say 「偏高片段」, not 「hyper」.
+        from hermes_cgm_agent.services.reports.narrative_templates import describe_behavior
+
         value = {
             "recurring_days": day_count,
-            "summary": f"近 {day_count} 天反复出现「{episode_type.replace('_', ' ')}」模式",
+            "summary": f"近 {day_count} 天反复出现「{describe_behavior(episode_type)}」模式",
         }
         if existing:
             item = existing[0]

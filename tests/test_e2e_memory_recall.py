@@ -86,7 +86,7 @@ class E2EMemoryRecallTests(unittest.TestCase):
         self.assertTrue({"L2", "L3"} & layers)
         # the hyper pattern surfaces somewhere in recalled memory.
         joined = " ".join(item["summary"] for item in recall["items"]).lower()
-        self.assertIn("hyper", joined)
+        self.assertIn("偏高片段", joined)  # D053 life-language
 
     def test_seed_demo_is_idempotent(self) -> None:
         first = self._run_seed_demo()

@@ -495,7 +495,7 @@ class ReportService:
             tir_str = translate_metric("TIR", aggregate.tir, audience)
             mbg_str = translate_metric("MBG", aggregate.mbg, audience)
             content = (
-                f"{tir_str}，平均{mbg_str}约 {aggregate.mbg} mg/dL，"
+                f"{tir_str}，平均{mbg_str}约 {_display_glucose(aggregate.mbg)}，"
                 "先看作今天整体还算有秩序。"
             )
         else:
@@ -503,7 +503,7 @@ class ReportService:
             tar_str = translate_metric("TAR", aggregate.tar, audience)
             tbr_str = translate_metric("TBR", aggregate.tbr, audience)
             content = (
-                f"{tir_str}，平均大约 {aggregate.mbg} mg/dL。"
+                f"{tir_str}，平均大约 {_display_glucose(aggregate.mbg)}。"
                 f"{tar_str}约占 {aggregate.tar}%，{tbr_str}约占 {aggregate.tbr}%。"
             )
         return ReportSection(
@@ -1097,6 +1097,23 @@ def resolve_report_scope(
         window_start=window_start,
         window_end=window_end,
     )
+
+
+def _display_glucose(value_mgdl: float | None) -> str:
+    """Render a glucose value in the operator's display unit (D052/D053).
+
+    SELF/FAMILY narrative only — clinician sections keep clinical mg/dL.
+    Storage and analytics are unaffected.
+    """
+    from hermes_cgm_agent.config import display_glucose_unit
+    from hermes_cgm_agent.domain import GlucoseUnit, convert_glucose_value
+
+    if value_mgdl is None:
+        return ""
+    if display_glucose_unit() == "mmol/L":
+        mmol = convert_glucose_value(float(value_mgdl), GlucoseUnit.MG_DL, GlucoseUnit.MMOL_L)
+        return f"{round(mmol, 1)} mmol/L"
+    return f"{value_mgdl} mg/dL"
 
 
 def _window_label(report_type: ReportType | str) -> str:

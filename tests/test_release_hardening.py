@@ -209,6 +209,79 @@ class DisplayUnitTests(unittest.TestCase):
         self.assertNotIn("mg/dL", summary.content)
 
 
+class DisplayUnitReportTests(unittest.TestCase):
+    def test_self_metrics_section_renders_mmol_when_configured(self) -> None:
+        from hermes_cgm_agent.domain.report import ReportInput
+        from hermes_cgm_agent.services.reports import SQLiteReportRepository
+        from hermes_cgm_agent.services.reports.builder import ReportService
+
+        anchor = datetime(2026, 7, 5, 12, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            store = SQLiteStore(Path(tmp) / "app.db")
+            store.initialize()
+            repo = SQLiteCGMRepository(store)
+            # Daily window with timezone=UTC anchors at 07:00 UTC; points at
+            # 04:00-06:00 UTC land inside [07-04T07:00, 07-05T07:00).
+            for i in range(24):
+                repo.create_glucose_point(
+                    GlucosePoint(
+                        user_id="u1",
+                        timestamp=anchor - timedelta(hours=7, minutes=5 * (i + 1)),
+                        value=126,
+                        unit=GlucoseUnit.MG_DL,
+                        source="test",
+                        quality_flag=QualityFlag.VALID,
+                    )
+                )
+            service = ReportService(
+                cgm_repository=repo,
+                report_repository=SQLiteReportRepository(store),
+            )
+            with patch.dict(os.environ, {"CGM_AGENT_DISPLAY_UNIT": "mmol/L"}, clear=False):
+                report = service.generate(
+                    ReportInput(
+                        report_type="daily",
+                        user_id="u1",
+                        audience="self",
+                        timezone="UTC",
+                        anchor_at=anchor,
+                    )
+                )
+        metrics = next(s for s in report.sections if s.section_id == "metrics")
+        self.assertIn("mmol/L", metrics.content)
+        self.assertNotIn("mg/dL", metrics.content)
+        self.assertIn("7.0", metrics.content)  # 126 mg/dL == 7.0 mmol/L
+
+
+class L2SummaryLifeLanguageTests(unittest.TestCase):
+    def test_l2_belief_summary_uses_chinese_behavior_name(self) -> None:
+        from hermes_cgm_agent.domain import L1Episode
+
+        now = datetime(2026, 7, 5, 12, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            store = SQLiteStore(Path(tmp) / "app.db")
+            store.initialize()
+            repo = SQLiteMemoryRepository(store)
+            for day in range(3):
+                repo.create_episode(
+                    L1Episode(
+                        episode_id=f"ep-{day}",
+                        user_id="u1",
+                        occurred_at=now - timedelta(days=day),
+                        episode_type="hyper",
+                        summary=f"High glucose episode day {day}",
+                        confidence=0.9,
+                        created_at=now,
+                        last_referenced_at=now,
+                    )
+                )
+            ConsolidationService(repository=repo).consolidate("u1", now=now)
+            items = repo.list_profile_items("u1", key="pattern:hyper")
+        self.assertEqual(len(items), 1)
+        self.assertIn("偏高片段", items[0].value["summary"])
+        self.assertNotIn("hyper", items[0].value["summary"])
+
+
 class WarmDigestLifeLanguageTests(unittest.TestCase):
     def test_hypothesis_statements_are_translated(self) -> None:
         from hermes_cgm_agent.domain import HypothesisState, L3Hypothesis

@@ -69,7 +69,7 @@ class ConsolidationTests(unittest.TestCase):
         # B1: the belief carries a human-readable summary (renders as a sentence
         # in USER.md, not bare JSON).
         self.assertIn("summary", beliefs[0].value)
-        self.assertIn("hyper", beliefs[0].value["summary"])
+        self.assertIn("偏高片段", beliefs[0].value["summary"])  # D053 life-language
         self.assertEqual(len(hyps), 1)
         self.assertEqual(hyps[0].state, HypothesisState.OBSERVING)
 
