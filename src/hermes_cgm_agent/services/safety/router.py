@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from hermes_cgm_agent.domain import DataScope, EvidenceKind, EvidenceRef, GlucosePoint
+from hermes_cgm_agent.domain import DataScope, EvidenceKind, EvidenceRef, GlucosePoint, ensure_utc
 from hermes_cgm_agent.domain.cgm import utc_now
 
 
@@ -85,7 +85,9 @@ class SafetyRouter:
         # Single, NON-recursive zone decision (analyze D1 — never call evaluate()
         # from within evaluate()).
         decision = self._evaluate_zone(scope=scope, points=points)
-        now = now or utc_now()
+        # naive == UTC (D051): a naive `now` subtracted from the aware stored
+        # red-zone timestamp would raise TypeError mid-report.
+        now = ensure_utc(now or utc_now())
         user_id = scope.user_id
         status = decision.safety_result.get("status")
         window = _recovery_window_seconds()
