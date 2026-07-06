@@ -346,6 +346,11 @@ class ReportService:
     ) -> list[ReportSection]:
         audience = ReportAudience(report_input.audience)
         report_type = ReportType(report_input.report_type)
+        period_label = {
+            ReportType.DAILY: "今天",
+            ReportType.WEEKLY: "这一周",
+            ReportType.DOCTOR: "这两周",
+        }.get(report_type, "这段时间")
 
         # Calculate escalation state
         if report_input.consecutive_anomaly_days is not None:
@@ -368,9 +373,15 @@ class ReportService:
                     aggregate=aggregate,
                     audience=audience,
                     warnings=warnings,
+                    period_label=period_label,
                 )
             ]
 
+        # D056: every section is always BUILT (so the memory-candidate pipeline
+        # and section-existence contracts stay intact); low-signal empty
+        # sections mark themselves `omit_for_companion=True` and the renderer
+        # hides them from everyday/family readers only. This keeps the report
+        # short for a lay reader without touching data completeness or audit.
         sections = [
             self._daily_card_section(
                 scope=scope,
@@ -378,8 +389,9 @@ class ReportService:
                 audience=audience,
                 warnings=warnings,
                 detected_events=detected_events,
+                period_label=period_label,
             ),
-            self._overview_section(scope, aggregate, warnings, audience),
+            self._overview_section(scope, aggregate, warnings, audience, period_label=period_label),
             self._metrics_section(scope, aggregate, audience),
             self._data_quality_section(scope, warnings, audience),
             self._key_events_section(report_id, scope, events, audience),
@@ -391,7 +403,7 @@ class ReportService:
                 report_input.authoritative_context,
                 audience,
             ),
-            self._follow_up_section(scope, aggregate, events, audience, esc_state=esc_state, consecutive_days=consecutive_days),
+            self._follow_up_section(scope, aggregate, events, audience, esc_state=esc_state, consecutive_days=consecutive_days, detected_events=detected_events),
         ]
         # US2/FR-004: state-aware L3 hypothesis narrative (companion audiences only;
         # clinician reports stay pure clinical, Principle IV / F3 isolation).
@@ -417,6 +429,7 @@ class ReportService:
         audience: ReportAudience,
         warnings: list[DataQualityWarning],
         detected_events: list[GlucoseEvent] | None = None,
+        period_label: str = "今天",
     ) -> ReportSection:
         detected_events = detected_events or []
         card = self._daily_card_text(
@@ -425,10 +438,18 @@ class ReportService:
             warnings=warnings,
             detected_events=detected_events,
         )
+        # D056: the daily-card text opens with "今天/今日"; in a weekly/period
+        # report that tense is wrong. Swap the leading temporal word once (both
+        # are 2 chars and only appear at the start of these strings). Also give
+        # the section a period-appropriate title.
+        if period_label != "今天":
+            if card.startswith(("今天", "今日")):
+                card = period_label + card[2:]
+        card_title = "日报卡片" if period_label == "今天" else "这段概况"
         return ReportSection(
             section_id="daily_card",
             kind="daily_card",
-            title="日报卡片",
+            title=card_title,
             content=card,
             data_scope=scope,
             evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)],
@@ -443,6 +464,7 @@ class ReportService:
         aggregate: GlucoseAggregate,
         warnings: list[DataQualityWarning],
         audience: ReportAudience,
+        period_label: str = "这段时间",
     ) -> ReportSection:
         if audience == ReportAudience.CLINICIAN:
             content = (
@@ -451,16 +473,13 @@ class ReportService:
             )
             if warnings:
                 content += " 合并数据质量说明，解读时需结合覆盖率一并判断。"
-        elif audience == ReportAudience.FAMILY:
-            content = (
-                f"这段时间的数据大体够用，记录覆盖约 {aggregate.data_coverage}%，"
-                "先按今天的整体走势来理解就可以。"
-            )
         else:
-            content = (
-                f"这段时间一共记到 {aggregate.point_count} 个有效点，覆盖约 {aggregate.data_coverage}%。"
-                "先把它当成今天生活节奏的一小段切片来看。"
-            )
+            # Everyday / family: describe completeness in plain words (D056) —
+            # never "N 个有效点 / 覆盖 X%", which reads as engineering telemetry.
+            if aggregate.data_coverage >= 70:
+                content = f"{period_label}的记录挺完整的，下面的情况可以比较放心地看。"
+            else:
+                content = f"{period_label}有一部分时间没有记到数据，下面的情况先作个参考。"
         return ReportSection(
             section_id="overview",
             kind="overview",
@@ -496,20 +515,38 @@ class ReportService:
                 f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}。"
             )
         elif audience == ReportAudience.FAMILY:
+            # Family: reassurance-first, minimal numbers, hypo before hyper (a
+            # low is what a caregiver most needs to know). D056: build the
+            # sentence conditionally — never concatenate translate_metric
+            # fragments (that produced "平均平均状态" / "没有偏高约占0%").
             tir_str = translate_metric("TIR", aggregate.tir, audience)
-            mbg_str = translate_metric("MBG", aggregate.mbg, audience)
-            content = (
-                f"{tir_str}，平均{mbg_str}约 {_display_glucose(aggregate.mbg)}，"
-                "先看作今天整体还算有秩序。"
-            )
+            high = aggregate.tar or 0
+            low = aggregate.tbr or 0
+            content = f"{tir_str}，平均血糖大约 {_display_glucose(aggregate.mbg)}。"
+            if low == 0 and high == 0:
+                content += "从整体看大方向挺平稳的。"
+            elif low > 0:
+                content += "偶尔有偏低的时候，平时可以多留意一下。"
+            else:
+                content += "偶尔有偏高的时候，整体问题不大。"
         else:
             tir_str = translate_metric("TIR", aggregate.tir, audience)
-            tar_str = translate_metric("TAR", aggregate.tar, audience)
-            tbr_str = translate_metric("TBR", aggregate.tbr, audience)
-            content = (
-                f"{tir_str}，平均大约 {_display_glucose(aggregate.mbg)}。"
-                f"{tar_str}约占 {aggregate.tar}%，{tbr_str}约占 {aggregate.tbr}%。"
-            )
+            high = aggregate.tar or 0
+            low = aggregate.tbr or 0
+            content = f"{tir_str}，平均血糖大约 {_display_glucose(aggregate.mbg)}。"
+            if high == 0 and low == 0:
+                # Metric-level statement only (D056): TBR/TAR here are window
+                # totals; short individual events can still surface in
+                # 波动片段/我们在一起观察的, so avoid an absolute "完全没有" that
+                # reads as contradicting those sections.
+                content += "从整体比例看，偏高和偏低的时间都很少，大方向挺稳的。"
+            else:
+                bits: list[str] = []
+                if high > 0:
+                    bits.append(f"有大约 {aggregate.tar}% 的时间偏高")
+                if low > 0:
+                    bits.append(f"有大约 {aggregate.tbr}% 的时间偏低")
+                content += "，".join(bits) + "，可以多留意一下。"
         return ReportSection(
             section_id="metrics",
             kind="metrics",
@@ -596,6 +633,7 @@ class ReportService:
             source_tracks=[ReportSourceTrack.FACT],
             confidence=1.0 if not candidates else 0.8,
             g8_memory_candidates=memory_candidates,
+            omit_for_companion=not events,
         )
 
     def _detected_events_section(
@@ -634,6 +672,12 @@ class ReportService:
             ],
             source_tracks=[ReportSourceTrack.FACT],
             confidence=1.0,
+            # Everyday reader (D056): DATA_GAP-only is not a "波动片段" — gaps are
+            # already covered by 数据质量说明. Show this section to companions
+            # only when there is a real (non-gap) glucose event.
+            omit_for_companion=not any(
+                e.event_type != GlucoseEventType.DATA_GAP for e in detected_events
+            ),
         )
 
     def _observations_section(
@@ -657,21 +701,21 @@ class ReportService:
             if audience == ReportAudience.CLINICIAN:
                 observations.append("本窗以高于目标范围时间为主，偏高负担高于偏低负担。")
             elif audience == ReportAudience.FAMILY:
-                observations.append("今天主要是偏高多一点，不过还在可回看的范围里。")
+                observations.append("这段时间主要是偏高多一点，不过还在可回看的范围里。")
             else:
                 observations.append("这段更像是偏高的时候多一点，可能和吃饭节奏或活动安排有些关系。")
         elif (aggregate.tbr or 0) > 0:
             if audience == ReportAudience.CLINICIAN:
                 observations.append("本窗出现低于目标范围时间，需结合具体时段解释。")
             elif audience == ReportAudience.FAMILY:
-                observations.append("今天有一小段偏低，把当时前后发生的事一起放进来看会更清楚。")
+                observations.append("这段时间有一小段偏低，把当时前后发生的事一起放进来看会更清楚。")
             else:
                 observations.append("这段里有一小段偏低，看起来可能和当时的进食或活动前后有关。")
         else:
             if audience == ReportAudience.CLINICIAN:
                 observations.append("有效数据大多位于目标范围内，整体波动负担较轻。")
             elif audience == ReportAudience.FAMILY:
-                observations.append("今天大多数时间都挺平稳，可以先放心。")
+                observations.append("这段时间大多数时间都挺平稳，可以先放心。")
             else:
                 observations.append("这段大多数时候都在范围里，整体看起来比较平顺。")
 
@@ -719,40 +763,75 @@ class ReportService:
         audience: ReportAudience,
         esc_state: EscalationState = EscalationState.NORMAL,
         consecutive_days: int = 0,
+        detected_events: list[GlucoseEvent] | None = None,
     ) -> ReportSection:
-        prompts = []
-        if audience != ReportAudience.CLINICIAN:
-            if esc_state == EscalationState.CONCERN:
-                prompts.append("最近几天都有点波动，你还好吗？")
-            elif esc_state == EscalationState.EXTERNAL_SUPPORT:
-                prompts.append("要不要下次复诊时跟医生聊聊？")
-        if any(not event.user_confirmed for event in events):
-            prompts.append(
-                "有几条待核实的事件留在这里，回头想起时补一句，之后对照会更准。"
-                if audience != ReportAudience.CLINICIAN
-                else "存在待核实事件，后续若补全确认状态，归因解释会更完整。"
-            )
+        detected_events = detected_events or []
+        if audience == ReportAudience.CLINICIAN:
+            return self._follow_up_section_clinical(scope, aggregate, events)
+
+        # Everyday / family (D057): lead with the RIGHT adherence hook, not a
+        # chore list. Positive reinforcement when things go well is the single
+        # strongest adherence driver — the user needs to feel seen and
+        # successful. Escalation concern comes first (safety), then
+        # reinforcement or gentle continuity; data-entry asks are secondary and
+        # framed as benefiting the user, never as work for the system.
+        tir = aggregate.tir if aggregate.tir is not None else 0.0
+        has_anomaly = any(
+            e.event_type != GlucoseEventType.DATA_GAP for e in detected_events
+        )
+        prompts: list[str] = []
+        if esc_state == EscalationState.CONCERN:
+            prompts.append("最近几天都有点波动，你还好吗？我一直在这儿。")
+        elif esc_state == EscalationState.EXTERNAL_SUPPORT:
+            prompts.append("这几天的情况，要不要下次复诊时也跟医生聊聊？我可以帮你把记录整理好。")
+
+        if not prompts:  # not in an escalation state
+            if tir >= 70 and not has_anomaly:
+                prompts.append("这段时间整体保持得挺好，继续现在的节奏就好。")
+            elif tir >= 70:
+                prompts.append("大方向保持得不错，个别小波动我们慢慢看，不用急。")
+            else:
+                prompts.append("这段时间有点起伏，我们一步一步来，不用一次看太多。")
+
         if aggregate.point_count == 0 or aggregate.data_coverage < 70:
-            prompts.append(
-                "这段里有些记录空白，像传感器间隙或暖机期，先记在心里就够了。"
-                if audience != ReportAudience.CLINICIAN
-                else "记录存在缺口，需结合传感器暖机、脱落或遗漏记录解释。"
-            )
+            prompts.append("这段里有些记录空白，可能是传感器间隙或暖机期，先不用在意。")
+        elif not events:
+            # gentle, user-benefit framing — offered once, never nagging
+            prompts.append("要是哪天想起当时吃了什么、动了多少，随手记一笔，之后更容易看出属于你的规律。")
+
+        content = " ".join(prompts)
+        return ReportSection(
+            section_id="follow_up_prompts",
+            kind="follow_up_prompts",
+            title="接下来",
+            content=content,
+            data_scope=scope,
+            evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)] + [_event_evidence(event) for event in events],
+            source_tracks=[ReportSourceTrack.FACT],
+            confidence=0.8,
+        )
+
+    def _follow_up_section_clinical(
+        self,
+        scope: DataScope,
+        aggregate: GlucoseAggregate,
+        events: list[UserEvent],
+    ) -> ReportSection:
+        # Clinician follow-up stays clinical/attribution-oriented (D057): flag
+        # unconfirmed events and data gaps that affect interpretation. No
+        # companion-style encouragement — that belongs to the everyday report.
+        prompts: list[str] = []
+        if any(not event.user_confirmed for event in events):
+            prompts.append("存在待核实事件，后续若补全确认状态，归因解释会更完整。")
+        if aggregate.point_count == 0 or aggregate.data_coverage < 70:
+            prompts.append("记录存在缺口，需结合传感器暖机、脱落或遗漏记录解释。")
         if not events:
-            prompts.append(
-                "如果刚好记得那时吃了什么、动了多少，之后再补进来会更容易看出脉络。"
-                if audience != ReportAudience.CLINICIAN
-                else "若能补充餐食、运动、睡眠事件，可提升归因解释度。"
-            )
+            prompts.append("若能补充餐食、运动、睡眠事件，可提升归因解释度。")
         return ReportSection(
             section_id="follow_up_prompts",
             kind="follow_up_prompts",
             title="后续线索",
-            content=" ".join(prompts) if prompts else (
-                "目前没有额外需要补充的线索。"
-                if audience != ReportAudience.CLINICIAN
-                else "当前无额外待补充线索。"
-            ),
+            content=" ".join(prompts) if prompts else "当前无额外待补充线索。",
             data_scope=scope,
             evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)] + [_event_evidence(event) for event in events],
             source_tracks=[ReportSourceTrack.FACT],
@@ -804,6 +883,12 @@ class ReportService:
             source_tracks=[ReportSourceTrack.FACT],
             confidence=_coverage_confidence(aggregate.data_coverage),
             g8_memory_candidates=candidates,
+            # D056: hide the empty "还没看到稳定模式" filler from everyday readers
+            # (it contradicts "我们在一起观察的"); show it only when there is a
+            # real cross-day recurring pattern in THIS window. Keyed on
+            # `repeated` (not candidate emission, which can fire on a single
+            # window's events) so the render decision matches what the text says.
+            omit_for_companion=not repeated,
         )
 
     def _hypothesis_narrative_section(

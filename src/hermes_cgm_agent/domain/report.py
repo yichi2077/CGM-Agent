@@ -70,6 +70,11 @@ class ReportSection(CGMBaseModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
     warnings: list[DataQualityWarning] = Field(default_factory=list)
     g8_memory_candidates: list[G8MemoryCandidate] = Field(default_factory=list)
+    # D056: an empty low-signal section (no user events / no anomalies / no
+    # pattern) is still built — so the memory-candidate pipeline and
+    # section-existence contracts hold — but the renderer hides it from
+    # everyday/family readers to keep the report short. Clinician sees all.
+    omit_for_companion: bool = False
 
 
 class FactsContext(CGMBaseModel):

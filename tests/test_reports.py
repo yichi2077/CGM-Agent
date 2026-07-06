@@ -90,7 +90,10 @@ class ReportServiceTests(unittest.TestCase):
         self.assertIn("metrics", section_ids)
         self.assertIn("key_events", section_ids)
         self.assertIn("血糖日报", report.rendered_markdown)
-        self.assertIn("用户版", report.rendered_markdown)
+        # D056: everyday report shows a friendly date, not the "叙事版本/用户版"
+        # internal label.
+        self.assertNotIn("叙事版本", report.rendered_markdown)
+        self.assertIn("月", report.rendered_markdown.split("##")[0])
         self.assertEqual(loaded.report_id, report.report_id)
         self.assertEqual(len(report.g8_memory_candidates), 1)
         self.assertEqual(report.g8_memory_candidates[0].target_layer, "L1")
@@ -390,7 +393,9 @@ class ReportServiceTests(unittest.TestCase):
         self.assertIn("可能", self_report.sections[0].content)
         self.assertIn("mg/dL", clinician_report.rendered_markdown)
         self.assertIn("医生报告", clinician_report.rendered_markdown)
-        self.assertIn("家属版", family_report.rendered_markdown)
+        # D056: family report no longer stamps the "家属版" internal label; the
+        # family voice is verified by its section content instead.
+        self.assertNotIn("叙事版本", family_report.rendered_markdown)
         self.assertIn("今天", family_report.sections[0].content)
 
     def test_weekly_patterns_use_negotiated_tone(self) -> None:
@@ -434,6 +439,35 @@ class ReportServiceTests(unittest.TestCase):
                 for candidate in patterns.g8_memory_candidates
             )
         )
+
+    def test_companion_hides_empty_sections_clinician_keeps_them(self) -> None:
+        # D056: an everyday weekly report over a clean window must hide the
+        # empty "生活事件 / 波动片段 / 模式线索" filler; the clinician report over
+        # the SAME data keeps every section for audit. Both keep the sections in
+        # report.sections (candidate pipeline intact) — only rendering differs.
+        self._create_points(values=[95, 100, 105, 110])
+        scope = {
+            "user_id": "user-1",
+            "window_start": "2026-05-31T00:00:00+00:00",
+            "window_end": "2026-06-07T00:00:00+00:00",
+        }
+        self_report = self.report_service.generate(
+            ReportInput(report_type="weekly", user_id="user-1", audience="self", data_scope=scope)
+        )
+        clinician_report = self.report_service.generate(
+            ReportInput(report_type="weekly", user_id="user-1", audience="clinician", data_scope=scope)
+        )
+        # both build the full section set (candidate pipeline / audit contract)
+        self.assertIn("patterns", [s.section_id for s in self_report.sections])
+        self.assertIn("key_events", [s.section_id for s in self_report.sections])
+        # everyday markdown hides the empty filler
+        self.assertNotIn("模式线索", self_report.rendered_markdown)
+        self.assertNotIn("生活事件", self_report.rendered_markdown)
+        self.assertNotIn("波动片段", self_report.rendered_markdown)
+        # clinician markdown keeps them
+        self.assertIn("模式线索", clinician_report.rendered_markdown)
+        self.assertIn("生活事件", clinician_report.rendered_markdown)
+        self.assertIn("波动片段", clinician_report.rendered_markdown)
 
     def _create_points(self, values: list[int] | None = None) -> None:
         for index, value in enumerate(values or [90, 100, 150, 190]):

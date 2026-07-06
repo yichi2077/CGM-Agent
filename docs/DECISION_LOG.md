@@ -343,3 +343,58 @@ informed-companion agent.
 metrics.py` (two counts + config thresholds), `services/reports/builder.py`
 (clinician + doctor-appendix sections). New test in `test_cgm_analytics.py`
 asserting the 5-band split and the Level-2 ≤ total invariant. Suite 536 → 537.
+
+### D056 - Everyday-user report readability (数字→人话)
+**Decision**: The SELF/FAMILY reports are the product's primary surface (the
+clinician report is the low-frequency medical-grade standard, kept precise on
+purpose). This pass makes the everyday report read like a companion, not a
+machine translation:
+1. **Header** — everyday user sees a friendly local date (`5月29日 — 6月5日`;
+   a daily report shows the single start day); no ISO timestamps, UTC offset,
+   user id, timezone, or "叙事版本". Clinician keeps the exact ISO/id/timezone
+   header.
+2. **No sentence-assembly artifacts** — `_metrics_section` builds the SELF/
+   FAMILY sentence conditionally instead of concatenating `translate_metric`
+   fragments (killed "平均平均状态" and "没有偏高约占 0.0%").
+3. **No jargon leak** — the internal "待确认的记忆 / L3" candidate list and the
+   "N 个有效点 / 覆盖率 X%" telemetry are clinician-only; everyday overview
+   states completeness in plain words.
+4. **Right tense** — a weekly report says "这一周", never "今天" (`period_label`
+   threaded into daily-card + overview; the FAMILY observation lines made
+   period-neutral).
+5. **Less noise, no contradiction** — low-signal empty sections (no user
+   events / no anomalies / no recurring pattern) are still BUILT (so the
+   memory-candidate pipeline and section-existence contracts hold) but carry
+   `ReportSection.omit_for_companion=True` and the renderer hides them from
+   everyday/family readers only. This also removes the empty "模式线索" filler
+   that contradicted "我们在一起观察的".
+
+**Rationale**: A product-first read of the actual rendered SELF/FAMILY reports
+(not the code) exposed the exact failure the project exists to avoid — the
+numbers were turned into robotic, self-contradicting, jargon-leaking Chinese.
+The north star is an everyday user understanding their glucose in natural
+language, so this is core, not polish. Crucially the fix keeps every section
+in `report.sections` so no medical/audit surface or memory-candidate flow is
+touched — only the everyday *rendering* changes.
+
+**Impact**: `domain/report.py` (`omit_for_companion` field), `services/
+reports/renderer.py` (audience-split header, friendly date, candidate gate,
+omit gate), `services/reports/builder.py` (metrics sentence, overview plain
+language, period_label, section omit flags). Tests updated to assert the new
+user-facing behavior with clinician-side counterparts.
+
+### D057 - Report follow-up as an adherence hook, not a chore list
+**Decision**: The everyday/family "接下来" section (was "后续线索") leads with
+the right adherence hook: escalation concern first (safety), then positive
+reinforcement when things go well ("整体保持得挺好，继续现在的节奏就好"), then
+a gentle, user-benefit-framed data-entry invitation offered once. The
+clinician follow-up stays attribution-oriented (`_follow_up_section_clinical`).
+
+**Rationale**: The old follow-up was a list of chores done for the *system's*
+benefit ("补充事件会更准"). Positive reinforcement when a user is doing well is
+the single strongest adherence driver — the user needs to feel seen and
+successful, which is the whole point of a companion agent.
+
+**Impact**: `services/reports/builder.py` (`_follow_up_section` rewrite +
+`_follow_up_section_clinical` split, `detected_events` threaded in). F4
+escalation-wording assertions updated to the new phrasing.

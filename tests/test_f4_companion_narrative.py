@@ -219,7 +219,7 @@ class F4CompanionNarrativeTests(unittest.TestCase):
 
         # Day 7+ -> external support.
         md7 = self._daily_self_md(7)
-        self.assertIn("要不要下次复诊时跟医生聊聊？", md7)
+        self.assertIn("要不要下次复诊时也跟医生聊聊？", md7)  # D057 reworded escalation
 
     def test_progressive_concern_escalation_vulnerable(self) -> None:
         # Vulnerable cadence per D046/RC1: concern from day 1, external from day 5.
@@ -235,7 +235,7 @@ class F4CompanionNarrativeTests(unittest.TestCase):
         self.assertNotIn("跟医生聊聊", md3)
 
         md5 = self._daily_self_md(5)
-        self.assertIn("要不要下次复诊时跟医生聊聊？", md5)
+        self.assertIn("要不要下次复诊时也跟医生聊聊？", md5)  # D057 reworded escalation
 
     def test_consecutive_anomaly_days_from_analytics(self) -> None:
         # R021/F-2: counted from CGM analytics, not from persisted push summaries.
