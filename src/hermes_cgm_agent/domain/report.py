@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from datetime import datetime, time
 from enum import Enum
 from typing import Any
 
 from pydantic import Field, model_validator
 
-from hermes_cgm_agent.domain.cgm import CGMBaseModel, DataScope, EvidenceRef, utc_now
+from hermes_cgm_agent.domain.cgm import CGMBaseModel, DataScope, EvidenceRef, ensure_utc, utc_now
 
 
 class ReportType(str, Enum):
@@ -126,12 +126,11 @@ class ReportInput(CGMBaseModel):
 
     @model_validator(mode="after")
     def normalize_anchor(self) -> "ReportInput":
-        # Naive == UTC (repository `_dt` convention). Without this, a naive
-        # anchor_at from a Hermes tool call is interpreted as *system-local*
-        # time by astimezone() in resolve_report_scope, shifting the report
-        # window on machines whose OS timezone differs from the user's.
-        if self.anchor_at.tzinfo is None:
-            self.anchor_at = self.anchor_at.replace(tzinfo=timezone.utc)
+        # Without this, a naive anchor_at from a Hermes tool call is
+        # interpreted as *system-local* time by astimezone() in
+        # resolve_report_scope, shifting the report window on machines whose
+        # OS timezone differs from the user's.
+        self.anchor_at = ensure_utc(self.anchor_at)
         return self
 
     @model_validator(mode="after")

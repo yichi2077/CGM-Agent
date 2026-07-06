@@ -22,6 +22,8 @@ from hermes_cgm_agent.domain.cgm import (
     UserEvent,
     WindowLabel,
     convert_glucose_value,
+    ensure_utc,
+    parse_glucose_unit,
 )
 from hermes_cgm_agent.domain.context import (
     L0Context,
@@ -81,6 +83,8 @@ __all__ = [
     "UserEvent",
     "WindowLabel",
     "convert_glucose_value",
+    "ensure_utc",
+    "parse_glucose_unit",
     "L0Context",
     "L0DailyAggregate",
     "L0HourlySummary",

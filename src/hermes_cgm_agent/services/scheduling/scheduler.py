@@ -25,11 +25,11 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from hermes_cgm_agent.domain import DataScope, HypothesisState, GlucoseEventType
+from hermes_cgm_agent.domain import DataScope, HypothesisState, GlucoseEventType, ensure_utc
 from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.analytics import CGMAnalyticsService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
@@ -123,13 +123,10 @@ class PushSchedulerService:
 
     # ── tick ────────────────────────────────────────────────────────────────
     def push_tick(self, *, user_id: str, now: datetime | None = None) -> PushTickResult:
-        now = now or utc_now()
-        if now.tzinfo is None:
-            # Naive == UTC (repository `_dt` convention). Hermes cron/LLM callers
-            # often pass naive ISO strings; interpreting them as system-local
-            # would corrupt period keys, and comparing them against aware
-            # timestamps (hypothesis.created_at) raises TypeError.
-            now = now.replace(tzinfo=timezone.utc)
+        # Hermes cron/LLM callers often pass naive ISO strings; interpreting
+        # them as system-local would corrupt period keys, and comparing them
+        # against aware timestamps (hypothesis.created_at) raises TypeError.
+        now = ensure_utc(now or utc_now())
         consent = self.apply_silent_consent(user_id=user_id, now=now)
         pushed: list[dict[str, Any]] = []
         

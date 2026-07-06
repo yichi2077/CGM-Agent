@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from hermes_cgm_agent.domain import GlucoseTrend, GlucoseUnit, ImportIssue
+from hermes_cgm_agent.domain import GlucoseTrend, GlucoseUnit, ImportIssue, parse_glucose_unit
 from hermes_cgm_agent.services.sources.models import ParsedSourcePayload, SourceKind, SourceReading
 
 _VALUE_FIELDS = ("sgv", "glucose", "value")
@@ -151,12 +151,10 @@ def _parse_unit(row: dict[str, Any], *, kind: SourceKind) -> GlucoseUnit:
     if raw in (None, ""):
         # xDrip/Juggluco/Nightscout SGV feeds conventionally report mg/dL.
         return GlucoseUnit.MG_DL
-    text = str(raw).strip().lower().replace(" ", "")
-    if text in {"mg/dl", "mgdl"}:
-        return GlucoseUnit.MG_DL
-    if text in {"mmol/l", "mmoll", "mmol"}:
-        return GlucoseUnit.MMOL_L
-    raise ValueError(f"Unsupported glucose unit from {kind}: {raw}")
+    try:
+        return parse_glucose_unit(raw)
+    except ValueError:
+        raise ValueError(f"Unsupported glucose unit from {kind}: {raw}") from None
 
 
 def _parse_trend(row: dict[str, Any]) -> GlucoseTrend:

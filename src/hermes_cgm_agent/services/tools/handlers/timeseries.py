@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
 from pydantic import ValidationError
 
-from hermes_cgm_agent.domain import DataScope, EvidenceRef
+from hermes_cgm_agent.domain import DataScope, EvidenceRef, ensure_utc
 from hermes_cgm_agent.services.analytics import (
     AnalyticsConfig,
     CGMAnalyticsService,
@@ -199,8 +199,5 @@ def _parse_optional_datetime(value: Any) -> datetime | None:
         return None
     if not isinstance(value, str):
         raise ValueError("now must be an ISO 8601 datetime string")
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        # Naive == UTC (repository `_dt` convention); LLM callers omit offsets.
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
+    # LLM callers omit offsets; naive == UTC (ensure_utc).
+    return ensure_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))

@@ -18,6 +18,37 @@ class GlucoseUnit(str, Enum):
     MG_DL = "mg/dL"
 
 
+def ensure_utc(value: datetime) -> datetime:
+    """Enforce the project-wide 'naive == UTC' convention (D051).
+
+    Naive datetimes are stamped UTC; aware datetimes pass through unchanged.
+    This is the single normalizer for every boundary that accepts external
+    timestamps (tool arguments, domain model validators, scheduler entry) —
+    the SQLite layer's `_dt` applies the same rule when serializing.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+
+def parse_glucose_unit(value: Any) -> GlucoseUnit:
+    """Parse the common real-world spellings of glucose units.
+
+    Device/app exports and bridge feeds are not consistent about casing or
+    separators (AiDEX-style mmol/L-first exports write ``mmol/l`` or ``mmol``;
+    mg/dL appears as ``mg/dl`` or ``mgdl``). This is the single alias table —
+    CSV import and the HTTP source parser must accept the same spellings.
+    """
+    if isinstance(value, GlucoseUnit):
+        return value
+    text = str(value).strip().lower().replace(" ", "")
+    if text in {"mg/dl", "mgdl"}:
+        return GlucoseUnit.MG_DL
+    if text in {"mmol/l", "mmoll", "mmol"}:
+        return GlucoseUnit.MMOL_L
+    raise ValueError(f"Unsupported glucose unit: {value}")
+
+
 class GlucoseTrend(str, Enum):
     RISING_FAST = "rising_fast"
     RISING = "rising"
@@ -110,15 +141,12 @@ class DataScope(CGMBaseModel):
 
     @model_validator(mode="after")
     def validate_window(self) -> DataScope:
-        # Naive bounds are treated as UTC — the same convention the SQLite
-        # layer's `_dt` applies to stored rows. Hermes tool calls routinely
-        # arrive with naive ISO strings (LLMs omit the offset), and a naive
-        # scope compared against aware point timestamps raises TypeError deep
-        # inside analytics. Normalizing here keeps every consumer aware-safe.
-        if self.window_start.tzinfo is None:
-            self.window_start = self.window_start.replace(tzinfo=timezone.utc)
-        if self.window_end.tzinfo is None:
-            self.window_end = self.window_end.replace(tzinfo=timezone.utc)
+        # Hermes tool calls routinely arrive with naive ISO strings (LLMs omit
+        # the offset), and a naive scope compared against aware point
+        # timestamps raises TypeError deep inside analytics. Normalizing here
+        # keeps every consumer aware-safe.
+        self.window_start = ensure_utc(self.window_start)
+        self.window_end = ensure_utc(self.window_end)
         if self.window_end <= self.window_start:
             raise ValueError("window_end must be after window_start")
         return self
