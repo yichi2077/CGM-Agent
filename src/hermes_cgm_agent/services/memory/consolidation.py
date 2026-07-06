@@ -212,14 +212,21 @@ class ConsolidationService:
                 line += f",环比{'+' if delta >= 0 else ''}{delta}%"
             parts.append(line + "。")
         if metrics.get("mean_mgdl") is not None:
-            parts.append(f"平均血糖约 {metrics['mean_mgdl']} mg/dL。")
+            parts.append(_format_mean_glucose(metrics["mean_mgdl"]))
         active = [
             h
             for h in self.repository.list_hypotheses(user_id)
             if h.state in (HypothesisState.OBSERVING, HypothesisState.STABLE)
         ]
         if active:
-            parts.append("近期模式:" + ";".join(h.statement for h in active[:3]) + "。")
+            # Life-language (D052): raw statements are English tech jargon
+            # ("Recurring rapid rise pattern") and leak into the conversation
+            # context via prefetch. Same translation the report narrative uses.
+            from hermes_cgm_agent.services.reports.narrative_templates import describe_behavior
+
+            parts.append(
+                "近期模式:" + ";".join(describe_behavior(h.statement) for h in active[:3]) + "。"
+            )
         recent = sorted(
             self.repository.list_episodes(user_id),
             key=lambda e: e.occurred_at,
@@ -330,3 +337,17 @@ class ConsolidationService:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _format_mean_glucose(mean_mgdl: object) -> str:
+    """Render the digest's mean glucose in the operator's display unit (D052).
+
+    Storage/analytics stay mg/dL; only this user-visible sentence converts.
+    """
+    from hermes_cgm_agent.config import display_glucose_unit
+    from hermes_cgm_agent.domain import GlucoseUnit, convert_glucose_value
+
+    if display_glucose_unit() == "mmol/L":
+        mmol = convert_glucose_value(float(mean_mgdl), GlucoseUnit.MG_DL, GlucoseUnit.MMOL_L)
+        return f"平均血糖约 {round(mmol, 1)} mmol/L。"
+    return f"平均血糖约 {mean_mgdl} mg/dL。"

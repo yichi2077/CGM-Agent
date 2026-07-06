@@ -27,6 +27,27 @@ from hermes_cgm_agent.services.tools.registry import ToolRegistry, build_default
 __all__ = ["ToolExecutionResponse", "ToolExecutor"]
 
 
+def _fill_default_user_id(arguments: dict[str, Any]) -> dict[str, Any]:
+    """Inject the deployment's default user id where the caller omitted it.
+
+    P0-1 (D052): in a real Hermes chat the model has no way to know the
+    operator's user id — tool schemas require one, so the model INVENTED a
+    string, silently splitting CGM data / memories / tool reads across ids.
+    Explicit values always win; only missing/blank ids are filled, both at the
+    top level and inside a ``data_scope`` object.
+    """
+    from hermes_cgm_agent.config import default_user_id
+
+    filled = dict(arguments)
+    if not str(filled.get("user_id") or "").strip():
+        if "user_id" in filled or "data_scope" not in filled:
+            filled["user_id"] = default_user_id()
+    scope = filled.get("data_scope")
+    if isinstance(scope, dict) and not str(scope.get("user_id") or "").strip():
+        filled["data_scope"] = {**scope, "user_id": default_user_id()}
+    return filled
+
+
 class ToolExecutor(
     TimeseriesHandlerMixin,
     EventHandlerMixin,
@@ -117,6 +138,7 @@ class ToolExecutor(
             )
 
         handler = getattr(self, handler_name)
+        arguments = _fill_default_user_id(arguments)
         try:
             return handler(arguments=arguments, session_id=session_id)
         except Exception as exc:  # noqa: BLE001 — the tool boundary must never

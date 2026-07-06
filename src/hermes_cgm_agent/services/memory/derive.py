@@ -8,9 +8,18 @@ from hermes_cgm_agent.domain import GlucoseEvent, L1Episode
 def episodes_from_detected_events(
     events: list[GlucoseEvent], *, now: datetime
 ) -> list[L1Episode]:
-    """Derive deterministic L1 episodes from detected glucose events."""
+    """Derive deterministic L1 episodes from detected glucose events.
+
+    DATA_GAP events are excluded (D052): a sensor/collector outage is a data
+    quality fact, not a user behavior pattern — letting it consolidate into an
+    L2 "recurring data_gap" belief and L3 hypothesis pollutes the memory the
+    companion narrative reasons over. Gaps stay visible via detected events
+    and data-quality warnings.
+    """
     episodes: list[L1Episode] = []
     for event in events:
+        if getattr(event.event_type, "value", event.event_type) == "data_gap":
+            continue
         episodes.append(
             L1Episode(
                 episode_id=f"evt-{event.event_id}",

@@ -131,11 +131,15 @@ class CGMMemoryProvider:
         self,
         store: SQLiteStore,
         *,
-        user_id: str = "demo-user",
+        user_id: str | None = None,
         extractor: "ConversationMemoryExtractor | None" = None,
     ) -> None:
+        from hermes_cgm_agent.config import default_user_id
+
         self._store = store
-        self._user_id = user_id
+        # P0-1 (D052): default to the deployment-wide identity so the memory
+        # provider, tool layer, and CLI can never split across different ids.
+        self._user_id = user_id or default_user_id()
         self._repository = SQLiteMemoryRepository(store)
         self._assembler = MemoryContextAssembler(repository=self._repository)
         self._consolidation = ConsolidationService(

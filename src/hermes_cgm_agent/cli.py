@@ -47,7 +47,7 @@ from hermes_cgm_agent.services.scheduling import (
 from hermes_cgm_agent.services.simulation import CsvReplaySource, HermesStage, SimulationRunner
 from hermes_cgm_agent.services.sources import SourcePollConfig, SourcePollService
 from hermes_cgm_agent.services.tools import ToolExecutor, build_default_tool_registry
-from hermes_cgm_agent.config import AppConfig, default_hermes_exe
+from hermes_cgm_agent.config import AppConfig, default_hermes_exe, default_user_id
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 
@@ -194,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="CGM CSV path (default: examples/cgm_test_dataset/cgm_3x14.csv)",
     )
-    seed_demo.add_argument("--user-id", default="demo-user")
+    seed_demo.add_argument("--user-id", default=default_user_id())
     seed_demo.add_argument("--timezone", default="Asia/Shanghai")
     seed_demo.add_argument(
         "--db-path",
@@ -216,7 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
             "timing and delivery."
         ),
     )
-    push_tick.add_argument("--user-id", default="demo-user")
+    push_tick.add_argument("--user-id", default=default_user_id())
     push_tick.add_argument("--now", default=None, help="ISO 8601 datetime override (testing)")
     push_tick.add_argument("--timezone", default="Asia/Shanghai")
     push_tick.add_argument("--db-path", default=None, help="SQLite DB path (default: runtime DB)")
@@ -614,7 +614,7 @@ def main(argv: list[str] | None = None) -> int:
             return _seed_demo(
                 db_path=config.database_path,
                 csv_path=_default_demo_csv(),
-                user_id="demo-user",
+                user_id=default_user_id(),
                 timezone_name="Asia/Shanghai",
                 query="最近血糖怎么样",
             )

@@ -230,3 +230,39 @@ sim-runner dense-cadence + override tests (2), analytics coverage-clamp test
 Acceptance: full 14-day 1-minute fixture replay (`--max-speed
 --time-base shift-to-now`) now finishes `status: ok`, 0 issues, 20010/20010
 points, 14 daily push/memory stages, 15 reports, all invariants true.
+
+### D052 - Pre-release hardening: unified user identity, dense-cadence noise gate, display units, digest life-language
+**Decision**: (1) `config.default_user_id()` (env `CGM_AGENT_USER_ID`, fallback
+`demo-user`) is the single identity for a personal deployment: the memory
+provider defaults to it, `ToolExecutor` fills it into tool arguments whose
+`user_id` (top-level or inside `data_scope`) is missing/blank — explicit
+values always win — and CLI defaults resolve through it. (2)
+`EventDetectionConfig.rapid_min_span_minutes = 5`: rate-of-change is only
+computed over point pairs >=5 minutes apart, so single-minute sensor jitter on
+1-minute AiDEX-style feeds can no longer fabricate rapid_rise/rapid_fall
+events; 5-minute-cadence behavior is byte-identical. (3) DATA_GAP detected
+events no longer derive L1 episodes — an outage is a data-quality fact, not a
+user behavior pattern. (4) `config.display_glucose_unit()` (env
+`CGM_AGENT_DISPLAY_UNIT`, default mg/dL, mmol/L opt-in) controls the warm
+digest's mean-glucose sentence; storage/analytics stay mg/dL. (5) The warm
+digest translates L3 hypothesis statements through the shared
+`describe_behavior()` life-language map instead of injecting English tech
+jargon into the conversation context.
+
+**Rationale**: Found by a release-readiness audit driven by the real 14-day
+simulation store: the LLM had no way to know the operator's user id (memory
+under `demo-user`, data under the import id, tools under an invented id =
+three-way split-brain), and 1-minute cadence turned +-3.5 mg/dL jitter into
+693 L1 episodes -> false 0.95-confidence L2 beliefs -> false STABLE L3
+hypotheses the companion narrative would assert to the user. Display-unit
+preference and noise gating follow the baseline set by mature CGM products
+(xDrip+/Nightscout noise classification and unit settings).
+
+**Impact**: `config.py`, `services/tools/executor.py`,
+`services/analytics/events.py`, `services/memory/{derive,consolidation,
+provider}.py`, `services/reports/narrative_templates.py` (shared
+`describe_behavior`), `cli.py` defaults. New tests:
+`tests/test_release_hardening.py` (13). The rapid-rate gate touches
+deterministic detector semantics — flagged for Damocles review; direction is
+strictly false-positive elimination (no true sustained-change alarm is
+weakened at the sub-threshold amplitudes involved).

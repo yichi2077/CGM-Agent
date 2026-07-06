@@ -83,9 +83,30 @@ def enforce_companion_text(text: str, max_len: int = 80) -> str:
     return text
 
 
-def render_hypothesis_narrative(state: str, statement: str, evidence_count: int = 0) -> str:
-    """Format L3 Hypothesis narrative using协商式 style based on state."""
-    # Clean up English prefix/suffix in statement
+_BEHAVIOR_MAP = {
+    "post lunch spike": "午餐后血糖偏高",
+    "post breakfast spike": "早餐后血糖偏高",
+    "post dinner spike": "晚餐后血糖偏高",
+    "overnight low": "夜间低血糖",
+    "fasting high": "空腹血糖偏高",
+    "hypo": "偏低片段",
+    "hyper": "偏高片段",
+    "rapid rise": "上冲片段",
+    "rapid_rise": "上冲片段",
+    "rapid fall": "回落片段",
+    "rapid_fall": "回落片段",
+    "overnight_low": "夜间偏低片段",
+}
+
+
+def describe_behavior(statement: str) -> str:
+    """Map an internal hypothesis statement to natural Chinese life-language.
+
+    Shared by the report narrative AND the warm state digest (D052): the
+    digest previously injected raw statements like "Recurring rapid rise
+    pattern" into the conversation context, leaking English tech jargon into
+    the companion tone.
+    """
     behavior = statement
     for prefix in ["Recurring ", "recurring "]:
         if behavior.startswith(prefix):
@@ -93,22 +114,13 @@ def render_hypothesis_narrative(state: str, statement: str, evidence_count: int 
     for suffix in [" pattern", " Pattern"]:
         if behavior.endswith(suffix):
             behavior = behavior[:-len(suffix)]
-            
-    # Map common English pattern terms to natural Chinese
-    behavior_map = {
-        "post lunch spike": "午餐后血糖偏高",
-        "post breakfast spike": "早餐后血糖偏高",
-        "post dinner spike": "晚餐后血糖偏高",
-        "overnight low": "夜间低血糖",
-        "fasting high": "空腹血糖偏高",
-        "hypo": "偏低片段",
-        "hyper": "偏高片段",
-        "rapid_rise": "上冲片段",
-        "rapid_fall": "回落片段",
-        "overnight_low": "夜间偏低片段",
-    }
-    behavior_cn = behavior_map.get(behavior.lower(), behavior)
-    
+    return _BEHAVIOR_MAP.get(behavior.lower(), behavior)
+
+
+def render_hypothesis_narrative(state: str, statement: str, evidence_count: int = 0) -> str:
+    """Format L3 Hypothesis narrative using协商式 style based on state."""
+    behavior_cn = describe_behavior(statement)
+
     state_str = getattr(state, "value", state).lower()
     if state_str == "candidate":
         return f"看起来可能和{behavior_cn}有关，你觉得可能是因为这个吗？要不要接下来多留意一下？"

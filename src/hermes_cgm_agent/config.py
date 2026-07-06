@@ -44,6 +44,35 @@ def default_hermes_exe() -> Path | None:
 DEFAULT_HERMES_EXE = default_hermes_exe()
 
 
+DEFAULT_USER_ID_ENV = "CGM_AGENT_USER_ID"
+DISPLAY_UNIT_ENV = "CGM_AGENT_DISPLAY_UNIT"
+
+
+def display_glucose_unit() -> str:
+    """User-facing glucose unit preference (D052).
+
+    Every mature CGM product (xDrip+, Nightscout, vendor apps) treats display
+    units as a basic setting; Chinese AiDEX users think in mmol/L. Internal
+    storage/analytics stay mg/dL — this only affects rendered text. Accepted
+    values: ``mg/dL`` (default) or ``mmol/L`` (common spellings tolerated).
+    """
+    raw = os.getenv(DISPLAY_UNIT_ENV, "").strip().lower().replace(" ", "")
+    if raw in {"mmol/l", "mmoll", "mmol"}:
+        return "mmol/L"
+    return "mg/dL"
+
+
+def default_user_id() -> str:
+    """Single-user identity for a personal deployment (P0-1 / D052).
+
+    Every entry point that needs a user id when the caller did not supply one
+    — the memory provider, tool calls whose arguments omit ``user_id``, and
+    CLI defaults — resolves through here, so CGM data, memories, and tool
+    reads can never split across accidentally different ids.
+    """
+    return os.getenv(DEFAULT_USER_ID_ENV, "").strip() or "demo-user"
+
+
 def default_hermes_home() -> Path:
     env = os.getenv("HERMES_HOME")
     if env:

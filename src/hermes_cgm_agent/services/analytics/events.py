@@ -30,6 +30,14 @@ class EventDetectionConfig:
     # Rate-of-change episodes: mg/dL per minute over a short window.
     rapid_rate_mg_dl_per_min: float = 3.0
     rapid_window_minutes: float = 30
+    # Minimum span a rate may be computed over (P0-2 / D052). A rate taken
+    # from a single 1-minute step is sensor jitter, not a trend: on 1-minute
+    # AiDEX-style feeds a +-3.5 mg/dL wiggle produced hundreds of false
+    # rapid_rise/rapid_fall events that consolidated into false L2 beliefs and
+    # false STABLE L3 hypotheses. Requiring >=5 minutes of span leaves 5-minute
+    # -cadence behavior byte-identical (adjacent points are exactly 5 min
+    # apart) while forcing dense feeds to show a SUSTAINED move.
+    rapid_min_span_minutes: float = 5.0
     # A gap longer than expected_interval * gap_factor counts as a data gap.
     expected_interval_minutes: float = 5
     gap_factor: float = 4.0
@@ -167,7 +175,7 @@ class GlucoseEventDetector:
         for index, start_point in enumerate(points):
             for end_point in points[index + 1 :]:
                 delta_minutes = (end_point.timestamp - start_point.timestamp).total_seconds() / 60
-                if delta_minutes <= 0:
+                if delta_minutes < self.config.rapid_min_span_minutes:
                     continue
                 if end_point.timestamp - start_point.timestamp > window:
                     break
