@@ -150,6 +150,22 @@ python -m hermes_cgm_agent hermes-install
 ```
 *提示：在 Windows 平台下，请使用外部 Hermes 虚拟环境内的 python 解释器（例如 `%LOCALAPPDATA%\hermes\hermes-agent\venv\Scripts\python.exe`）来执行上述命令。*
 
+### 3. 部署配置（环境变量一览）
+
+单用户个人部署的全部可配置项。除标注"建议设置"外均有安全默认值，可不配置。
+
+| 环境变量 | 作用 | 默认值 | 说明 |
+|---|---|---|---|
+| `CGM_AGENT_USER_ID` | **建议设置**。部署的唯一用户身份 | `demo-user` | 记忆 provider、工具调用缺省 user_id、CLI 默认值统一走这里（D052）。设置后模型无需在工具参数里猜 user_id |
+| `CGM_AGENT_DISPLAY_UNIT` | 用户可见文本的血糖单位 | `mg/dL` | 设为 `mmol/L`（国内习惯）后，状态摘要与本人/家属版报告均以 mmol/L 呈现；存储与医生版保持 mg/dL |
+| `CGM_WEBHOOK_URL` | 推送投递 webhook 端点 | 未配置=不投递 | 配置后 `push_tick` 在同一次 tick 内自动投递（HTTPS-only、禁重定向、PHI 白名单过滤，见 D048/D053）|
+| `CGM_AGENT_DB_PATH` | SQLite 数据库路径显式覆盖 | Hermes 主目录 `cgm-agent/app.db` | 一般无需设置；CLI 与插件共用同一解析器防裂脑 |
+| `CGM_AGENT_STORAGE_KEY_PATH` / `CGM_AGENT_STORAGE_KEY` | Fernet 加密密钥位置/内容 | DB 同目录 `storage.key` | 密钥必须与 DB 同迁移 |
+| `CGM_AGENT_RECOVERY_WINDOW_SECONDS` | 红区恢复复查窗口 | `7200`（2 小时） | 见 §5c |
+| `CGM_SOURCE_ALLOW_INSECURE_HTTP` | 允许公网明文 HTTP 数据源（仅测试） | 关闭 | 生产勿开；本地/私网 HTTP 默认即可用 |
+| `CGM_SMTP_HOST` 等 `CGM_SMTP_*` | Email 投递通道（非 MVP，保持 queued） | 未配置 | webhook 是当前实现的远程通道 |
+| `HERMES_HOME` | Hermes 主目录覆盖 | 平台默认 | 影响 DB 路径解析与插件安装位置 |
+
 ---
 
 ## 🛠️ CLI 命令与开发工具集
