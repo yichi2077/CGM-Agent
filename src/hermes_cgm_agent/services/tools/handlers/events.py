@@ -7,7 +7,11 @@ from pydantic import ValidationError
 
 from hermes_cgm_agent.domain import UserEvent
 from hermes_cgm_agent.services.data import EventToolService
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 from hermes_cgm_agent.services.tools.handlers.helpers import event_evidence
 
 
@@ -25,6 +29,19 @@ class EventHandlerMixin(BaseToolHandler):
             if not isinstance(event_raw, dict):
                 raise ValueError("event must be an object")
             event_raw = dict(event_raw)
+            # Tolerant argument shape (D054): real LLMs attach free text under
+            # ad-hoc keys (note/description/...). Instead of rejecting the whole
+            # event for an unknown key, fold unknowns into `payload` — the
+            # documented freeform-details field. The security fields below are
+            # still force-overwritten and can never ride in through this path.
+            known = {"type", "event_type", "ts_start", "ts_end", "payload",
+                     "confidence", "attachment", "is_sensitive"}
+            extras = {k: event_raw.pop(k) for k in list(event_raw) if k not in known}
+            if extras:
+                payload = event_raw.get("payload")
+                merged = dict(payload) if isinstance(payload, dict) else {}
+                merged.update(extras)
+                event_raw["payload"] = merged
             # Force technical/provenance fields server-side (D045 / FR-007, Damocles W2):
             # the model supplies only event_type + ts_start (+ optional ts_end/payload/
             # confidence). The id, owner, provenance and confirmation flag are NOT
@@ -41,7 +58,7 @@ class EventHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         event_id = self.repository.create_user_event(event)
@@ -92,7 +109,7 @@ class EventHandlerMixin(BaseToolHandler):
                     "user_id": arguments.get("user_id"),
                     "event_id": arguments.get("event_id"),
                 },
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         evidence_refs = [

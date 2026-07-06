@@ -12,7 +12,11 @@ from hermes_cgm_agent.services.arguments import (
     require_enum,
 )
 from hermes_cgm_agent.services.memory import MemoryToolService, SQLiteMemoryRepository
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 from hermes_cgm_agent.services.tools.handlers.helpers import parse_candidate_status
 
 
@@ -41,7 +45,7 @@ class MemoryHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         audit_id = self.audit_service.log(
             session_id=session_id,
@@ -98,7 +102,7 @@ class MemoryHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         audit_id = self.audit_service.log(
             session_id=session_id,
@@ -154,7 +158,7 @@ class MemoryHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         audit_id = self.audit_service.log(
             session_id=session_id,
@@ -202,7 +206,7 @@ class MemoryHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         audit_id = self.audit_service.log(
             session_id=session_id,
@@ -248,7 +252,7 @@ class MemoryHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         evidence_payload = [ref.model_dump(mode="json") for ref in saved.evidence_refs]
         audit_id = self.audit_service.log(

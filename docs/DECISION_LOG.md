@@ -295,3 +295,24 @@ user-visible gap for a real deployment ("我配置了推送但手机什么都收
 New tests: `tests/test_cadence_and_delivery_loop.py` (7). CLI `push-tick`
 still exercises the scheduler only; the production path is the Hermes cron ->
 `scheduling.push_tick` tool, which now closes the loop end-to-end.
+
+### D054 - Tool-argument ergonomics for real LLM callers
+**Decision**: (1) `events.create` folds unknown event keys (note/description/
+any ad-hoc field a model invents) into the documented freeform `payload`
+object instead of rejecting the whole event; the server-forced security
+fields (event_id/user_id/created_by/user_confirmed) are still overwritten
+after folding, so nothing model-controlled can ride in. (2) Every tool
+handler's argument-error path routes through
+`describe_argument_error()`: a bare `KeyError('hypothesis_id')` now reads
+"missing required argument: hypothesis_id" instead of the useless `'hypothesis_id'`.
+
+**Rationale**: Found by an accelerated full-system rehearsal driving all 18
+tools with realistic (sloppy) LLM argument shapes against a live store:
+recording "午餐吃了面条" failed outright because the model put text under
+`note`, and the missing-id error gave a model no way to self-correct. Both
+are conversation-loop killers in real use.
+
+**Impact**: `services/tools/handlers/base.py` (helper) + message call sites
+across all 9 handler modules; `services/tools/handlers/events.py` (extras
+folding). Rehearsal: 34/34 checks green (bridge poll -> import -> 18 tools ->
+push+delivery -> memory provider surface).

@@ -13,7 +13,11 @@ from hermes_cgm_agent.services.analytics import (
     RealtimeSignalService,
 )
 from hermes_cgm_agent.services.arguments import parse_limit
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 from hermes_cgm_agent.services.tools.handlers.helpers import aggregate_ref, point_ref
 
 
@@ -34,7 +38,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope=arguments.get("data_scope"),
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         points = self.repository.list_glucose_points(scope)
@@ -86,7 +90,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope=arguments.get("data_scope"),
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         points = self.repository.list_glucose_points(scope)
@@ -143,7 +147,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope=arguments.get("data_scope"),
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         points = self.repository.list_glucose_points(scope)

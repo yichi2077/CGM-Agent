@@ -6,7 +6,11 @@ from typing import Any
 
 from hermes_cgm_agent.domain import ensure_utc
 from hermes_cgm_agent.services.scheduling import PushSchedulerService
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 
 
 class PushTickHandlerMixin(BaseToolHandler):
@@ -45,7 +49,7 @@ class PushTickHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         # The scheduler owns policy/content/state; pass the audit service through

@@ -6,7 +6,11 @@ from pydantic import ValidationError
 
 from hermes_cgm_agent.services.memory import SQLiteMemoryRepository
 from hermes_cgm_agent.services.reports import ReportToolService, SQLiteReportRepository
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 
 
 class ReportHandlerMixin(BaseToolHandler):
@@ -34,7 +38,7 @@ class ReportHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope=arguments.get("data_scope") or {"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         evidence_refs = [ref.model_dump(mode="json") for ref in report.evidence_refs]

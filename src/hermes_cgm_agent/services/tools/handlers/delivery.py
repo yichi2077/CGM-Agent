@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from hermes_cgm_agent.domain.cgm import utc_now
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 
 # Webhook HTTP POST is a single at-most-once call: 10s timeout, no retry (retry
 # is a Hermes/cron concern, not this layer's — FR-008).
@@ -97,7 +101,7 @@ class DeliveryHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         delivery_id = uuid.uuid4().hex

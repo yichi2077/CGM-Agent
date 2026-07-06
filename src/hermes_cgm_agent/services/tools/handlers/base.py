@@ -27,6 +27,18 @@ class ToolExecutionResponse:
         }
 
 
+def describe_argument_error(exc: Exception) -> str:
+    """Actionable message for tool-argument failures (D054).
+
+    ``str(KeyError('user_id'))`` is just ``"'user_id'"`` — an LLM (or human)
+    reading the tool error cannot tell what went wrong or how to fix it.
+    Every handler's argument-parsing ``except`` block routes through here.
+    """
+    if isinstance(exc, KeyError) and exc.args:
+        return f"missing required argument: {exc.args[0]}"
+    return str(exc)
+
+
 class BaseToolHandler:
     """Shared state + error path for the per-domain tool handler mixins.
 

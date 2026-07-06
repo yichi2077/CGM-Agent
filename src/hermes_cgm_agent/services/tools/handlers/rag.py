@@ -4,7 +4,11 @@ import uuid
 from typing import Any
 
 from hermes_cgm_agent.services.rag import AuthoritativeRAGToolService
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 
 
 class RagHandlerMixin(BaseToolHandler):
@@ -28,7 +32,7 @@ class RagHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope=None,
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         audit_id = self.audit_service.log(
             session_id=session_id,
@@ -67,7 +71,7 @@ class RagHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope=None,
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         approval_id = uuid.uuid4().hex
         # Audit records the sign-off provenance only — never claim text (FR-013 /
@@ -110,7 +114,7 @@ class RagHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope=None,
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
         audit_id = self.audit_service.log(
             session_id=session_id,

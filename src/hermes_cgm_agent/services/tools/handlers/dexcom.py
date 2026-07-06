@@ -8,7 +8,11 @@ from hermes_cgm_agent.services.dexcom import (
     DexcomSyncFactory,
     DexcomSyncToolService,
 )
-from hermes_cgm_agent.services.tools.handlers.base import BaseToolHandler, ToolExecutionResponse
+from hermes_cgm_agent.services.tools.handlers.base import (
+    BaseToolHandler,
+    ToolExecutionResponse,
+    describe_argument_error,
+)
 
 
 class DexcomHandlerMixin(BaseToolHandler):
@@ -42,7 +46,7 @@ class DexcomHandlerMixin(BaseToolHandler):
                 tool_name=spec.name,
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
-                message=str(exc),
+                message=describe_argument_error(exc),
             )
 
         payload = result.payload

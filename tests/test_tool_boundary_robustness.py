@@ -160,6 +160,62 @@ class SafetyRouterNaiveNowTests(unittest.TestCase):
         self.assertTrue(second.recovery_check["recovery_confirmed"])
 
 
+class ArgumentErgonomicsTests(_ExecutorFixture):
+    """D054: realistic LLM argument shapes must not kill the conversation."""
+
+    def test_events_create_folds_unknown_keys_into_payload(self) -> None:
+        response = self.executor.execute(
+            tool_name="events.create",
+            arguments={
+                "user_id": "u1",
+                "event": {
+                    "type": "meal",
+                    "ts_start": "2026-07-05T12:00:00",
+                    "note": "午餐 面条",
+                    "description": "还有一杯奶茶",
+                },
+            },
+            session_id="s1",
+        )
+        self.assertEqual(response.status, "ok")
+        event = response.payload["event"]
+        self.assertEqual(event["payload"]["note"], "午餐 面条")
+        self.assertEqual(event["payload"]["description"], "还有一杯奶茶")
+        # Security fields remain server-forced regardless of folding.
+        self.assertEqual(event["created_by"], "agent")
+        self.assertFalse(event["user_confirmed"])
+
+    def test_events_create_cannot_smuggle_security_fields(self) -> None:
+        response = self.executor.execute(
+            tool_name="events.create",
+            arguments={
+                "user_id": "u1",
+                "event": {
+                    "type": "meal",
+                    "ts_start": "2026-07-05T12:00:00",
+                    "created_by": "user",
+                    "user_confirmed": True,
+                    "event_id": "attacker-chosen",
+                },
+            },
+            session_id="s1",
+        )
+        self.assertEqual(response.status, "ok")
+        event = response.payload["event"]
+        self.assertEqual(event["created_by"], "agent")
+        self.assertFalse(event["user_confirmed"])
+        self.assertNotEqual(event["event_id"], "attacker-chosen")
+
+    def test_missing_required_argument_message_is_actionable(self) -> None:
+        response = self.executor.execute(
+            tool_name="hypothesis.update",
+            arguments={"user_id": "u1", "state": "observing"},
+            session_id="s1",
+        )
+        self.assertEqual(response.status, "error")
+        self.assertIn("missing required argument: hypothesis_id", response.payload["error"])
+
+
 class ExecutorCatchAllTests(_ExecutorFixture):
     """No exception may escape the tool boundary into the Hermes chat."""
 
