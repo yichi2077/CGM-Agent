@@ -7,6 +7,18 @@ dist/
 build/
 .venv/
 venv/
+archive/
+
+# Local editor/agent state and generated diagnostics are never source assets.
+.agents/
+.codex/
+.trae/
+.trae-html-share-packages/
+.uploads/
+test-logs/
+
+# Fernet storage keys must never be committed, wherever the DB path points.
+*.key
 
 # Transient page renders produced by `kb-ingest-llm --mode vision` (regenerable)
 src/hermes_cgm_agent/knowledge/review_queue/_page_images/

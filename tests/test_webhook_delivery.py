@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import smtplib
+import ssl
 import tempfile
 import unittest
 import urllib.error
@@ -49,6 +50,7 @@ class _FakeSMTP:
         self.port = port
         self.timeout = timeout
         self.started_tls = False
+        self.tls_context: ssl.SSLContext | None = None
         self.login_args: tuple[str, str] | None = None
         self.messages = []
 
@@ -58,8 +60,9 @@ class _FakeSMTP:
     def __exit__(self, *exc: object) -> bool:
         return False
 
-    def starttls(self) -> None:
+    def starttls(self, context: ssl.SSLContext | None = None) -> None:
         self.started_tls = True
+        self.tls_context = context
 
     def login(self, username: str, password: str) -> None:
         self.login_args = (username, password)
@@ -142,6 +145,12 @@ class EmailDeliveryTests(_WebhookTestBase):
         self.assertIsNone(body["manifest_path"])
         mock_smtp.assert_called_once_with("smtp.example.com", 587, timeout=10)
         self.assertTrue(smtp.started_tls)
+        # starttls must receive a verifying context: the stdlib fallback
+        # context skips certificate/hostname checks, letting a MITM capture
+        # the SMTP credentials sent by the subsequent login().
+        self.assertIsInstance(smtp.tls_context, ssl.SSLContext)
+        self.assertEqual(smtp.tls_context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(smtp.tls_context.check_hostname)
         self.assertEqual(smtp.login_args, ("user", "pass"))
         self.assertEqual(len(smtp.messages), 1)
         message_text = smtp.messages[0].get_content()

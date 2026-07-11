@@ -84,6 +84,7 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_timeseries_get_realtime_snapshot",
                 "cgm_events_create",
                 "cgm_events_confirm",
+                "cgm_meals_find_similar",
                 "cgm_memory_list",
                 "cgm_memory_delete",
                 "cgm_memory_confirm",

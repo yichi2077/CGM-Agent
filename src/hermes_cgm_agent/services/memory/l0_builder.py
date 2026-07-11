@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from hermes_cgm_agent.config import default_timezone
 from hermes_cgm_agent.domain import (
     DataScope,
     L0Context,
@@ -32,7 +33,7 @@ from hermes_cgm_agent.services.data import SQLiteCGMRepository
 @dataclass(frozen=True)
 class L0BuildConfig:
     span_days: int = L0_DEFAULT_SPAN_DAYS
-    timezone: str = "Asia/Shanghai"
+    timezone: str = field(default_factory=default_timezone)
     token_budget: int = L0_DEFAULT_TOKEN_BUDGET
 
 
@@ -48,14 +49,16 @@ class L0ContextBuilder:
         config: L0BuildConfig | None = None,
     ) -> None:
         self.repository = repository
+        self.config = config or L0BuildConfig()
         # Cadence-adaptive defaults (D053): when no explicit services are
         # injected, build() re-tunes them to the device's observed sampling
         # interval so gap detection and coverage stay correct on 1-minute
         # AiDEX-style feeds. Injected services are always respected as-is.
         self._services_injected = analytics_service is not None or event_detector is not None
         self.analytics_service = analytics_service or CGMAnalyticsService()
-        self.event_detector = event_detector or GlucoseEventDetector()
-        self.config = config or L0BuildConfig()
+        self.event_detector = event_detector or GlucoseEventDetector(
+            EventDetectionConfig(timezone=self.config.timezone)
+        )
 
     def build(
         self,
@@ -73,22 +76,31 @@ class L0ContextBuilder:
             source=source,
         )
         points = self.repository.list_glucose_points(scope)
+        # M-06: use local variables for cadence-adapted services instead of
+        # mutating self, so build() stays side-effect-free and re-entrant.
+        analytics_service = self.analytics_service
+        event_detector = self.event_detector
         if not self._services_injected and points:
             interval = median_interval_minutes([point.timestamp for point in points])
-            self.analytics_service = CGMAnalyticsService(
+            analytics_service = CGMAnalyticsService(
                 AnalyticsConfig(expected_interval_minutes=interval)
             )
-            self.event_detector = GlucoseEventDetector(
-                EventDetectionConfig(expected_interval_minutes=interval)
+            event_detector = GlucoseEventDetector(
+                EventDetectionConfig(
+                    expected_interval_minutes=interval,
+                    timezone=self.config.timezone,
+                )
             )
-        aggregate = self.analytics_service.compute_aggregate(
+        aggregate = analytics_service.compute_aggregate(
             points=points,
             scope=scope,
             window_label=f"{self.config.span_days}d",
         )
-        detected_events = self.event_detector.detect(points=points, scope=scope)
+        detected_events = event_detector.detect(points=points, scope=scope)
         confirmed_events = self.repository.list_user_events(scope, confirmed_only=True)
-        daily = self._daily_aggregates(points=points, scope=scope)
+        daily = self._daily_aggregates(
+            points=points, scope=scope, analytics_service=analytics_service
+        )
         context = L0Context(
             window=L0Window(
                 user_id=user_id,
@@ -113,6 +125,7 @@ class L0ContextBuilder:
                     < window_end - timedelta(days=L0_NEAR_POINT_DAYS)
                 ],
                 events=detected_events,
+                timezone_name=self.config.timezone,
             ),
             far_daily_only=[
                 item
@@ -133,7 +146,12 @@ class L0ContextBuilder:
         *,
         points: list,
         scope: DataScope,
+        analytics_service: CGMAnalyticsService | None = None,
     ) -> list[L0DailyAggregate]:
+        # M-06: accept the (possibly cadence-adapted) analytics_service from
+        # build() instead of reading self.analytics_service, so build() can
+        # stay side-effect-free.
+        svc = analytics_service or self.analytics_service
         zone = ZoneInfo(self.config.timezone)
         by_day: dict = defaultdict(list)
         for point in points:
@@ -154,7 +172,7 @@ class L0ContextBuilder:
             out.append(
                 L0DailyAggregate(
                     day=day,
-                    aggregate=self.analytics_service.compute_aggregate(
+                    aggregate=svc.compute_aggregate(
                         points=day_points,
                         scope=day_scope,
                         window_label="day",
@@ -164,10 +182,14 @@ class L0ContextBuilder:
         return out
 
     @staticmethod
-    def _hourly_summaries(*, points: list, events: list) -> list[L0HourlySummary]:
+    def _hourly_summaries(*, points: list, events: list, timezone_name: str) -> list[L0HourlySummary]:
+        # H-08: group by LOCAL hour, not UTC hour.  Without this, a user in
+        # UTC+8 with a 09:30 reading gets bucketed into the 01:00 hour.
+        zone = ZoneInfo(timezone_name)
         by_hour: dict[datetime, list] = defaultdict(list)
         for point in points:
-            hour = point.timestamp.replace(minute=0, second=0, microsecond=0)
+            local_ts = point.timestamp.astimezone(zone)
+            hour = local_ts.replace(minute=0, second=0, microsecond=0)
             by_hour[hour].append(point)
         summaries: list[L0HourlySummary] = []
         for hour in sorted(by_hour):

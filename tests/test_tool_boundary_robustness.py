@@ -142,18 +142,22 @@ class SafetyRouterNaiveNowTests(unittest.TestCase):
         scope = DataScope(
             user_id="u1", window_start=base - timedelta(hours=1), window_end=base
         )
-        red_point = GlucosePoint(
-            user_id="u1",
-            timestamp=base - timedelta(minutes=30),
-            value=40,
-            unit=GlucoseUnit.MG_DL,
-            source="test",
-            quality_flag=QualityFlag.VALID,
-        )
-        first = router.evaluate(scope=scope, points=[red_point], now=base)
+        # A2: sustained red points (>= 10 min span) to pass time gating.
+        red_points = [
+            GlucosePoint(
+                user_id="u1",
+                timestamp=base - timedelta(minutes=30 - 5 * i),
+                value=40,
+                unit=GlucoseUnit.MG_DL,
+                source="test",
+                quality_flag=QualityFlag.VALID,
+            )
+            for i in range(3)
+        ]
+        first = router.evaluate(scope=scope, points=red_points, now=base)
         self.assertEqual(first.safety_result["status"], "red_zone")
 
-        ok_point = red_point.model_copy(update={"value": 110})
+        ok_point = red_points[0].model_copy(update={"value": 110})
         naive_later = datetime(2026, 7, 5, 3, 30)  # naive == UTC
         second = router.evaluate(scope=scope, points=[ok_point], now=naive_later)
         self.assertIsNotNone(second.recovery_check)

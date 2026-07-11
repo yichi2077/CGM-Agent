@@ -117,8 +117,17 @@ class L3Hypothesis(CGMBaseModel):
     # Bi-temporal validity + lineage (D032), mirroring L2.
     valid_from: datetime = Field(default_factory=utc_now)
     valid_to: datetime | None = None
+    supersedes_hypothesis_id: str | None = None
     source_episode_ids: list[str] = Field(default_factory=list)
+    # Durable idempotency ledger for contradictory L1 evidence.  Clinical
+    # occurrence time can predate ingestion, so it is not a safe cursor.
+    contra_episode_ids: list[str] = Field(default_factory=list)
     last_checked: datetime = Field(default_factory=utc_now)
+    # C-02: track when the last *new evidence* was added, not merely when
+    # the hypothesis was last inspected.  Decay (downgrade/archive) must
+    # be based on evidence staleness, otherwise idle_days is always 0
+    # because consolidate() updates last_checked before decay runs.
+    last_evidence_added: datetime | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 

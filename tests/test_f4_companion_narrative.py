@@ -56,12 +56,18 @@ class F4CompanionNarrativeTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def _create_points(self, values: list[int] | None = None) -> None:
+    def _create_points(
+        self,
+        values: list[int] | None = None,
+        *,
+        interval_minutes: int = 60,
+    ) -> None:
         for index, value in enumerate(values or [90, 100, 150, 190]):
             self.cgm_repository.create_glucose_point(
                 GlucosePoint(
                     user_id="user-1",
-                    timestamp=datetime(2026, 5, 31, index, 0, tzinfo=timezone.utc),
+                    timestamp=datetime(2026, 5, 31, tzinfo=timezone.utc)
+                    + timedelta(minutes=index * interval_minutes),
                     value=value,
                     unit="mg/dL",
                     source="sensor:test",
@@ -175,7 +181,7 @@ class F4CompanionNarrativeTests(unittest.TestCase):
                 },
             )
         )
-        self.assertEqual(report_after.safety_result["status"], "clear")
+        self.assertEqual(report_after.safety_result["status"], "yellow_zone")
         self.assertNotIn("【安全免责声明】", report_after.rendered_markdown)
 
     def _daily_self_md(self, consecutive: int) -> str:
@@ -256,7 +262,8 @@ class F4CompanionNarrativeTests(unittest.TestCase):
 
     def test_red_zone_suppresses_escalation_concern(self) -> None:
         # R023/FR-009: red zone replaces sections wholesale; no escalation leakage.
-        self._create_points(values=[40, 45, 50])  # red zone (<54 mg/dL)
+        # A continuous 10-minute red run, rather than isolated hourly samples.
+        self._create_points(values=[40, 45, 50], interval_minutes=5)
         rep = self.report_service.generate(
             ReportInput(
                 report_type="daily",
@@ -316,7 +323,8 @@ class F4CompanionNarrativeTests(unittest.TestCase):
 
     def test_red_zone_suppresses_hypothesis_narrative(self) -> None:
         # R003/FR-009: red zone replaces sections wholesale -> no hypothesis leakage.
-        self._create_points(values=[40, 45, 50])  # all < 54 mg/dL -> red zone
+        # A continuous 10-minute red run, rather than isolated hourly samples.
+        self._create_points(values=[40, 45, 50], interval_minutes=5)
         self._seed_hypothesis("h-cand", "post lunch spike", HypothesisState.CANDIDATE)
 
         report = self._weekly_self()
@@ -430,7 +438,7 @@ class F4CompanionNarrativeTests(unittest.TestCase):
     def test_clinician_report_is_pure_f3_no_companion_leakage(self) -> None:
         # R030/FR-011/FR-001: the clinical path is deterministic pure F3 — even with
         # active hypotheses and high consecutive anomalies, no companion narrative
-        # leaks. (/report routes here via provider audience='CLINICIAN'.)
+        # leaks. (/report routes here via provider audience='SELF'.)
         self._create_points()
         self._seed_hypothesis("h-cand", "post lunch spike", HypothesisState.CANDIDATE)
         rep = self.report_service.generate(

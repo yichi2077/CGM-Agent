@@ -12,7 +12,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from hermes_cgm_agent.domain import EvidenceRef, HypothesisState, L3Hypothesis
+from hermes_cgm_agent.domain import EvidenceRef, GlucosePoint, HypothesisState, L3Hypothesis
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.memory import SQLiteMemoryRepository, new_id
 from hermes_cgm_agent.services.scheduling import PushSchedulerConfig, PushSchedulerService
@@ -144,6 +144,34 @@ class PushSchedulerTests(unittest.TestCase):
             )
         res = self.service.push_tick(user_id="u1", now=now)
         self.assertEqual([p["tier"] for p in res.pushed], ["daily"])
+
+    def test_daily_trend_uses_adjacent_local_days_not_a_sliding_utc_window(self) -> None:
+        service = PushSchedulerService(
+            store=self.store,
+            config=PushSchedulerConfig(timezone="America/Los_Angeles"),
+        )
+        # These episodes are in the same local 00:00-05:59 period on adjacent
+        # local dates, yet are only 19.5 hours apart. A UTC/sliding 24-hour
+        # cutoff would put both into the same bucket and miss the escalation.
+        starts = (
+            datetime(2026, 6, 9, 12, 0, tzinfo=UTC),   # Jun 9 05:00 PDT
+            datetime(2026, 6, 10, 7, 30, tzinfo=UTC),   # Jun 10 00:30 PDT
+        )
+        for start in starts:
+            for offset in (0, 5, 10):
+                service.cgm.create_glucose_point(
+                    GlucosePoint(
+                        user_id="u1",
+                        timestamp=start + timedelta(minutes=offset),
+                        value=200,
+                        unit="mg/dL",
+                        source="sensor",
+                        quality_flag="valid",
+                    )
+                )
+
+        now = datetime(2026, 6, 10, 8, 0, tzinfo=UTC)  # Jun 10 01:00 PDT
+        self.assertTrue(service._should_trigger_daily_trend("u1", now, today_tir=100.0))
 
     def test_non_urgent_push_rate_limit_1_per_day(self) -> None:
         mon = _dt("2026-06-08T09:30:00+00:00")

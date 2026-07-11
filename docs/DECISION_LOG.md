@@ -105,9 +105,9 @@
 **影响**：见 `docs/BUILD-REPORT-2026-06-07-kb-correction.md`。架构不变（Claim Card + BM25 双轨 + verified=false 默认 + 人工签核外置）；为运行 vision 重抽，向 Hermes venv 安装 `pymupdf`/`pdfplumber`（ingest 环境依赖，不改 Hermes 安装树代码）。
 
 ### D043 — 权威 KB population 受控词表归一 + 过滤器不再 fail-open
-**背景**：`rag.authoritative_search` 声明了自由文本 `population` 过滤参数，但 572 张 auto 卡的 `population` 是 ~150 种自由文本（"elderly T2DM with CKD G3a" 等），`_filter_docs` 用精确小写相等匹配，且零命中时 `return filtered or self._docs` **静默返回整库**——一个声明了却不可靠、且静默失效的能力。
+**背景**：`rag.authoritative_search` 声明了自由文本 `population` 过滤参数，但 auto 卡的 `population` 是大量自由文本（"elderly T2DM with CKD G3a" 等），`_filter_docs` 用精确小写相等匹配，且零命中时 `return filtered or self._docs` **静默返回整库**——一个声明了却不可靠、且静默失效的能力。
 **决策**：新增 `normalize_population()` 把自由文本归一到受控类 `{general, pediatric, pregnancy, elderly, inpatient}`（子串启发式，`nonpregnant` 显式排除出 pregnancy）；`ClaimCard.population_class` 派生属性（不改 JSON、无数据迁移）；`_filter_docs` 改按受控类匹配 `{query_class, general}` 并**删除静默 fail-open**；`search()` 输出 `population_class`，工具 payload 输出 `population_filter`；eval harness 透传 `population` 形成端到端回归。
-**理由**：过滤是"功能适应性"承诺，必须可靠且行为诚实——零命中应返回真实（含 general 基线）结果集，而非伪装成"过滤成功"的整库。受控类用派生属性实现，避免 578 卡数据迁移与漂移。
+**理由**：过滤是"功能适应性"承诺，必须可靠且行为诚实——零命中应返回真实（含 general 基线）结果集，而非伪装成"过滤成功"的整库。受控类用派生属性实现，避免 KB 数据迁移与漂移。
 **影响**：`services/rag/authoritative.py`、`rag/__init__.py`、`tools/executor.py`、`tools/registry.py`、`eval_hit3.py`、`eval/rag/queries.jsonl`（+1 population 回归 query）；新测试覆盖 normalize 映射（含 nonpregnant 反例）、free-text→class 过滤、不再 fail-open。架构不变。
 
 ### D044 — 抗幻觉守卫从注释承诺升级为运行期工具 `rag.verify_quotes`
@@ -431,3 +431,49 @@ memory/consolidation.py` (digest 近期事件 + dedup), `services/memory/
 provider.py` (recall dedup), `services/analytics/realtime.py`
 (`latest_glucose_display`). Storage/analytics/clinician paths and every medical
 number are unchanged — only user-facing rendering.
+
+### D059 - Auto evidence cards become reviewable evidence, with fact-driven report retrieval
+**Decision**: Treat `tier` and `verified` as orthogonal fields. `tier` records
+card provenance (`curated` seed vs `auto` machine extraction); `verified`
+records clinician sign-off. Therefore `kb.approve` and the new CLI wrapper
+`kb-approve` may approve cards of any tier, while still requiring reviewer
+provenance and preserving the original tier. `kb-pending` lists unverified cards
+without claim text so a clinician can review card identifiers, source, and page.
+
+The report tool now defaults `retrieve_context` to true. Instead of the old weak
+query (`"{report_type} review for {user_id}"`) for the authoritative track, it
+builds a deterministic query from the report window's aggregate metrics and
+detected glucose events: hypoglycemia recalls 15-15 / 70 / 3.9 terms,
+hyperglycemia recalls ketone / 250 / 13.9 terms, low coverage recalls 14 days /
+70% data-quality terms, and out-of-range TIR/TBR/TAR/CV recalls the matching
+AGP concepts. The personal memory track keeps its generic review query.
+
+Candidate-card merge now enriches synonyms deterministically before writing:
+unit dual-writing (mg/dL <-> mmol/L), bilingual clinical term pairs, and common
+patient phrasing. This is deterministic enrichment, not another LLM write path.
+The authoritative search path also applies narrow deterministic query expansion
+for common patient phrasing (for example "血糖低了手抖怎么办") so colloquial
+questions recall the same safety cards as formal guideline terms.
+
+**Rationale**: The production KB already contains hundreds of machine-extracted
+draft cards, all `verified=false`. Blocking approval to `curated` cards made the
+only trust-promotion path unusable for the actual automated pipeline. Meanwhile
+report retrieval was opt-in and queried too generically to reliably recall
+safety cards. This keeps the clinician as the only trust-promotion actor, while
+making unverified cards usable as clearly marked background evidence until
+sign-off.
+
+**Impact**: `services/rag/authoritative.py` (approve any tier), `knowledge/
+ingest/enrich.py` and `knowledge/ingest/merge.py` (deterministic enrichment),
+`services/reports/retrieval_query.py` and `services/reports/tools.py` (default
+report retrieval + fact-driven authoritative query), `services/memory/
+assembler.py` (population-aware authoritative context), and `cli.py`
+(`kb-pending`, `kb-approve`). Verification: focused KB/RAG/report tests green,
+`kb-validate` green, and `eval-rag --min-hit3 0.95` reached 73/73 hit@3
+(1.0) on `kb-2026-07-v3`. The eval set adds 9 realistic-colloquial regression
+queries (patient phrasing, not card-text tautology) alongside the 44 manual +
+20 generated rows. A takeover review also found two `curated` safety cards
+(pregnancy, older/high-risk TIR) fell outside the top-25 BM25 pool on bare
+colloquial queries and were outranked by off-topic `auto` cards; fixed by
+boosting their colloquial synonyms (deepening `KB_POOL_MIN` was rejected — it
+regressed eval precision), keeping the trusted-first guard and eval gate intact.

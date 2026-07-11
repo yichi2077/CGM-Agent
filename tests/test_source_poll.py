@@ -107,7 +107,8 @@ class SourcePollTests(unittest.TestCase):
         self.assertEqual(points[0].received_at, later + timedelta(minutes=1))
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].event_type, GlucoseEventType.DATA_GAP)
-        self.assertEqual(len(self.memory_repository.list_episodes("user-1")), 1)
+        # A4: data_gap events are no longer promoted to L1 episodes.
+        self.assertEqual(len(self.memory_repository.list_episodes("user-1")), 0)
         self.assertEqual(
             len(self.memory_repository.list_summaries("user-1", period="daily")),
             1,
@@ -157,30 +158,27 @@ class SourcePollTests(unittest.TestCase):
         base = datetime(2026, 6, 1, 0, 0, tzinfo=timezone.utc)
         for day in range(3):
             start = base + timedelta(days=day)
-            later = start + timedelta(minutes=45)
+            # 3 points at 5-min intervals with low values -> sustained hypo
+            # (covered = 10 min duration + 5 min expected = 15 min >= min_episode).
+            # No data_gap because gaps (5 min) < expected * gap_factor (20 min).
             service.client = FakeHTTPClient(
                 [
                     {
-                        "_id": f"r{day}-1",
-                        "sgv": 100,
-                        "date": _epoch_ms(start),
+                        "_id": f"r{day}-{i}",
+                        "sgv": 55,
+                        "date": _epoch_ms(start + timedelta(minutes=5 * i)),
                         "direction": "Flat",
-                    },
-                    {
-                        "_id": f"r{day}-2",
-                        "sgv": 111,
-                        "date": _epoch_ms(later),
-                        "direction": "SingleUp",
-                    },
+                    }
+                    for i in range(3)
                 ]
             )
             result = service.poll(
                 user_id="user-1",
                 kind="xdrip",
                 url="http://127.0.0.1:17580",
-                count=2,
+                count=3,
                 source="virtual:test",
-                received_at=later + timedelta(minutes=1),
+                received_at=start + timedelta(minutes=11),
             )
             self.assertEqual(result.detected_event_inserted, 1)
 
@@ -190,9 +188,9 @@ class SourcePollTests(unittest.TestCase):
         summaries = self.memory_repository.list_summaries("user-1", period="daily")
 
         self.assertEqual(len(episodes), 3)
-        self.assertEqual(profiles[0].key, "pattern:data_gap")
+        self.assertEqual(profiles[0].key, "pattern:hypo")
         self.assertEqual(profiles[0].evidence_count, 3)
-        self.assertEqual(hypotheses[0].statement, "Recurring data gap pattern")
+        self.assertEqual(hypotheses[0].statement, "Recurring hypo pattern")
         self.assertEqual(hypotheses[0].evidence_count, 3)
         self.assertGreaterEqual(len(summaries), 1)
 

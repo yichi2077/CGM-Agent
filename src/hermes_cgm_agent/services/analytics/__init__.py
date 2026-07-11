@@ -8,6 +8,11 @@ from hermes_cgm_agent.services.analytics.events import (
     EventDetectionConfig,
     GlucoseEventDetector,
 )
+from hermes_cgm_agent.services.analytics.meal_correlation import (
+    MealCorrelationAnalyzer,
+    MealGlucoseResponse,
+    SimilarMealResult,
+)
 from hermes_cgm_agent.services.analytics.metrics import (
     AnalyticsConfig,
     CGMAnalyticsService,
@@ -25,6 +30,9 @@ __all__ = [
     "CGMAnalyticsService",
     "EventDetectionConfig",
     "GlucoseEventDetector",
+    "MealCorrelationAnalyzer",
+    "MealGlucoseResponse",
+    "SimilarMealResult",
     "RealtimeSignalConfig",
     "RealtimeSignalService",
     "RealtimeSignalSnapshot",

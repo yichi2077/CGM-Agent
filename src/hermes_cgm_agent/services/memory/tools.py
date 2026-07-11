@@ -36,8 +36,9 @@ class MemoryListResult:
 class MemoryToolService:
     """Business logic behind memory.* tools, separate from audit/response wiring."""
 
-    def __init__(self, repository: SQLiteMemoryRepository) -> None:
+    def __init__(self, repository: SQLiteMemoryRepository, audit_service: Any | None = None) -> None:
         self.repository = repository
+        self._audit_service = audit_service
 
     def list_records(
         self,
@@ -99,7 +100,7 @@ class MemoryToolService:
         raise ValueError("layer must be one of: L1, L2, L3")
 
     def confirm_candidate(self, *, user_id: str, candidate_id: str, confirmed: bool) -> str:
-        resolved = MemoryReviewService(repository=self.repository).confirm_candidate(
+        resolved = MemoryReviewService(repository=self.repository, audit_service=self._audit_service).confirm_candidate(
             candidate_id,
             user_id=user_id,
             confirmed=confirmed,
@@ -125,7 +126,7 @@ class MemoryToolService:
                 "auto_accepted": 0,
                 "pending": 0,
             }
-        result = MemoryReviewService(repository=self.repository).ingest_report_candidates(candidates)
+        result = MemoryReviewService(repository=self.repository, audit_service=self._audit_service).ingest_report_candidates(candidates)
         return {
             "enabled": True,
             "enqueued": result.enqueued,
@@ -141,7 +142,7 @@ class MemoryToolService:
         correction: dict[str, Any],
         hermes_home: str | None = None,
     ) -> str | None:
-        memory_id = MemoryReviewService(repository=self.repository).correct(
+        memory_id = MemoryReviewService(repository=self.repository, audit_service=self._audit_service).correct(
             user_id=user_id,
             target=target,
             correction=correction,

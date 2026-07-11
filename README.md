@@ -9,7 +9,8 @@
 - Storage now distinguishes `timestamp` as measured-at time from `received_at` collector receipt time.
 - Deterministic detected glucose events persist in `detected_glucose_events`; `user_events` remains for user/agent-recorded events.
 - Realtime signals include latest glucose, freshness, 15/30 minute deltas, 15 minute slope, 1 hour rolling mean, and missing-rate.
-- Current local validation: `541 tests, OK (skipped=3)`.
+- Current local validation: `575 tests, OK (skipped=2)`（离线确定性套件；2 个 skip 为需 `CGM_RUN_HERMES_E2E=1` 显式开启的真实 LLM 端到端模块）.
+- Known limitations for this release are tracked in [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](pyproject.toml)
@@ -71,10 +72,10 @@ graph TD
 *   **双轨隔离守卫 (`memory_guard.py`)**：在执行层通过 `assert_track_isolation` 强校验，严禁个人叙事与医学权威信息混淆，防止交叉污染。
 
 ### 3. 三区安全路由器 ([src/hermes_cgm_agent/services/safety/router.py](src/hermes_cgm_agent/services/safety/router.py))
-在 LLM 叙事层前置对当前血糖时序数据进行分区拦截：
-*   🟢 **绿区 (70–180 mg/dL)**：安全，正常进行生成与总结。
-*   🟡 **黄区 (54–70 或 180–300 mg/dL)**：偏低/偏高，在正常消息前方添加加粗的 `⚠️ 提示前缀`，叙事不中断。
-*   🔴 **红区 (<54 或 >300 mg/dL)**：**强硬编码拦截**。立刻截断并废弃 LLM 的叙事内容生成，直接返回固定的医疗警示信息，建议用户检查传感器或紧急就医。
+在 LLM 叙事层前置对当前血糖时序数据进行分区拦截。阈值与代码常量一一对应（`RED_ZONE_LOW/HIGH = 54/300`、`YELLOW_ZONE_LOW/HIGH = 70/250`，均为严格不等式，恰好等于阈值的读数归上一级较安全区）：
+*   🟢 **绿区 (70 ≤ 值 ≤ 250 mg/dL)**：安全，正常进行生成与总结。
+*   🟡 **黄区 (54 ≤ 值 < 70 或 250 < 值 ≤ 300 mg/dL)**：偏低/偏高，在正常消息前方添加加粗的 `⚠️ 提示前缀`，叙事不中断。黄区上界取 250（Level 2 高血糖界）而非 TIR 上界 180——180–250 属于"目标范围外但非警示级"，由指标段客观呈现，不触发警示前缀。
+*   🔴 **红区 (<54 或 >300 mg/dL)**：**强硬编码拦截**。立刻截断并废弃 LLM 的叙事内容生成，直接返回固定的医疗警示信息，建议用户检查传感器或紧急就医。红区事件后 2 小时内自动执行恢复复查（见 §5c）。
 
 ### 4. L0 工作上下文压缩 ([src/hermes_cgm_agent/services/memory/l0_builder.py](src/hermes_cgm_agent/services/memory/l0_builder.py))
 为防止无界血糖时序爆掉 LLM 上下文，L0 构造器对 14 天的时序数据使用“渐进衰退”策略进行确定性压缩：
@@ -89,13 +90,21 @@ graph TD
 **报告管线硬门**（F3/D047）：在报告交付前，`builder.py` 强制以 `strict=True` 调用引用守卫，仅作用于外部生成的医学叙事（`medical_narrative`），不触及确定性指标段。未支撑数字直接阻断交付，返回"无法确认"persona 文案（`CITATION_BLOCK_TEMPLATE`）。
 
 ### 5b. 知识库临床签核工具 `kb.approve`
-`kb.approve` 工具提供唯一受许可的 KB 写入路径：仅允许对 `tier=curated` 卡片执行签核，强制 `reviewer` provenance 字段，幂等且写回 KB JSON。`assert_kb_readonly` 守卫已收紧（denylist 新增 `approve`，仅通过显式 `allow_methods` 豁免），使任何未来新增写方法默认被拦截（净收紧原则 I）。
+Current implementation note (2026-07-08): `tier` records provenance
+(`curated`/`auto`) and `verified` records clinician sign-off. The approval path
+now accepts cards of any tier while still requiring `reviewer` provenance.
+`kb-pending` lists unverified cards for review, and `kb-approve` is the CLI
+wrapper around the same sanctioned write path as the Hermes `kb.approve` tool.
+
+`kb.approve` 工具提供唯一受许可的 KB 写入路径：允许对任意 `tier` 卡片执行签核，强制 `reviewer` provenance 字段，幂等且写回 KB JSON；`tier` 只记录来源，`verified` 才记录临床签核状态。`assert_kb_readonly` 守卫已收紧（denylist 新增 `approve`，仅通过显式 `allow_methods` 豁免），使任何未来新增写方法默认被拦截（净收紧原则 I）。
+
+> ⚠️ **当前版本知识库卡片全部尚未临床签核**（`verified=false`）：签核工具链已就绪，但尚无临床审核者完成签核。引用硬门保证叙事数字在卡片中有出处，不保证卡片抽取本身无误。详见 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) 第 1 条。
 
 ### 5c. 红区恢复二次确认
 `SafetyRouter` 持有进程内状态 `_last_red_zone`，在红区事件后的 2 小时窗口内（可通过 `CGM_AGENT_RECOVERY_WINDOW_SECONDS` 环境变量覆盖），对后续评估自动比对存档原始红区与当前结果，并将 `recovery_check`（含 `recovery_confirmed` 指标）渲染进报告头。窗口到期自动清状态。
 
 ### 6. PHI 数据加密 ([src/hermes_cgm_agent/storage/sqlite.py](src/hermes_cgm_agent/storage/sqlite.py))
-SQLite 数据库文件落地在 Unix 系统下采用 `0600` 权限，对涉敏个人健康数据（PHI 字段如事件详情等）采用本地生成的 Fernet 秘钥（保存在库同级目录的 `storage.key` 中）进行应用端加密。
+SQLite 数据库文件（含 WAL 模式的 `-wal`/`-shm` 伴生文件）落地在 Unix 系统下采用 `0600` 权限，对涉敏个人健康数据（PHI 字段：血糖值、事件详情、报告全文、Dexcom 令牌、记忆各层等）采用本地生成的 Fernet 秘钥（保存在库同级目录的 `storage.key` 中）进行应用端加密。**`storage.key` 丢失则历史加密数据不可恢复——请与数据库文件一同备份。**
 
 ---
 
@@ -118,7 +127,7 @@ SQLite 数据库文件落地在 Unix 系统下采用 `0600` 权限，对涉敏�
 ├── integrations/             # 注册到 Hermes 主程序的插件 yaml 声明与 memory 适配器
 │   ├── hermes/cgm/           # cgm 核心工具插件
 │   └── hermes/cgm_memory/    # cgm 外部记忆 provider
-├── tests/                    # 541 项单元与集成测试套件（当前本地基线，含 3 skipped）
+├── tests/                    # 575 项单元与集成测试套件（离线基线，含 2 个 opt-in LLM e2e skip）
 ├── specs/                    # 分阶段功能实现规格蓝图 (Milestone 001 - 004)
 └── docs/                     # ADR 架构决策日志、MEM-ARCH 规范文件等
 ```
@@ -160,10 +169,10 @@ python -m hermes_cgm_agent hermes-install
 | `CGM_AGENT_DISPLAY_UNIT` | 用户可见文本的血糖单位 | `mg/dL` | 设为 `mmol/L`（国内习惯）后，状态摘要与本人/家属版报告均以 mmol/L 呈现；存储与医生版保持 mg/dL |
 | `CGM_WEBHOOK_URL` | 推送投递 webhook 端点 | 未配置=不投递 | 配置后 `push_tick` 在同一次 tick 内自动投递（HTTPS-only、禁重定向、PHI 白名单过滤，见 D048/D053）|
 | `CGM_AGENT_DB_PATH` | SQLite 数据库路径显式覆盖 | Hermes 主目录 `cgm-agent/app.db` | 一般无需设置；CLI 与插件共用同一解析器防裂脑 |
-| `CGM_AGENT_STORAGE_KEY_PATH` / `CGM_AGENT_STORAGE_KEY` | Fernet 加密密钥位置/内容 | DB 同目录 `storage.key` | 密钥必须与 DB 同迁移 |
+| `CGM_AGENT_STORAGE_KEY_PATH` / `CGM_AGENT_STORAGE_KEY` | Fernet 加密密钥位置/内容 | DB 同目录 `storage.key` | 密钥必须与 DB 同迁移。**⚠️ 密钥丢失则历史加密数据不可恢复，请与 DB 一同备份** |
 | `CGM_AGENT_RECOVERY_WINDOW_SECONDS` | 红区恢复复查窗口 | `7200`（2 小时） | 见 §5c |
 | `CGM_SOURCE_ALLOW_INSECURE_HTTP` | 允许公网明文 HTTP 数据源（仅测试） | 关闭 | 生产勿开；本地/私网 HTTP 默认即可用 |
-| `CGM_SMTP_HOST` 等 `CGM_SMTP_*` | Email 投递通道（非 MVP，保持 queued） | 未配置 | webhook 是当前实现的远程通道 |
+| `CGM_SMTP_HOST` 等 `CGM_SMTP_*` | Email 投递通道（可选） | 未配置=保持 queued | 配置 `CGM_SMTP_HOST`+`CGM_SMTP_TO_ADDRESS` 后即真实发信（TLS 证书校验，正文同 webhook 走 PHI 白名单过滤）；未经生产长期验证，webhook 仍是首选远程通道 |
 | `HERMES_HOME` | Hermes 主目录覆盖 | 平台默认 | 影响 DB 路径解析与插件安装位置 |
 
 ---
@@ -215,6 +224,12 @@ python -m hermes_cgm_agent kb-merge --candidates src/hermes_cgm_agent/knowledge/
 
 # 校验生产卡片库的 Schema 结构与规范
 python -m hermes_cgm_agent kb-validate
+
+# 列出待临床签核卡片；仅输出 id/title/tier/source/page，不输出卡正文
+python -m hermes_cgm_agent kb-pending --format json --limit 20
+
+# 医生签核任意来源层级的卡片；tier 保留为来源，verified 才是签核状态
+python -m hermes_cgm_agent kb-approve --card-id <card-id> --reviewer <doctor-id>
 ```
 
 ### 指标合成与推送调度
@@ -269,9 +284,17 @@ $env:PYTHONPATH="src"
 python -m unittest discover -s tests
 ```
 
+默认套件完全离线、确定性运行。真实 Hermes + LLM 的端到端测试（会产生真实 API 调用与费用）需显式开启：
+
+```powershell
+$env:CGM_RUN_HERMES_E2E="1"
+```
+
 ---
 
 ## 📄 关联规范文件
 
 *   **架构决策演进**: [docs/DECISION_LOG.md](docs/DECISION_LOG.md)
 *   **记忆架构规范说明**: [docs/MEM-ARCH.md](docs/MEM-ARCH.md)
+*   **已知限制与能力边界**: [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
+*   **开源许可**: [LICENSE](LICENSE)（MIT）
