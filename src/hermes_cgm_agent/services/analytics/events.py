@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 
+from hermes_cgm_agent.config import default_timezone
 from hermes_cgm_agent.domain import (
     DataScope,
     EvidenceRef,
@@ -48,7 +49,7 @@ class EventDetectionConfig:
     # Local hours [start, end) considered "overnight" for overnight-low tagging.
     overnight_start_hour: int = 0
     overnight_end_hour: int = 6
-    timezone: str = "Asia/Shanghai"
+    timezone: str = field(default_factory=default_timezone)
 
 
 class GlucoseEventDetector:
@@ -90,11 +91,18 @@ class GlucoseEventDetector:
         scope: DataScope,
     ) -> list[GlucoseEvent]:
         events: list[GlucoseEvent] = []
+        # A threshold run cannot prove persistence across a sensor data gap.
+        # Split it using the same cadence contract as DATA_GAP detection so a
+        # pair of high/low readings hours apart is not promoted as one long
+        # clinical episode (and subsequently into L1 memory).
+        max_gap = timedelta(
+            minutes=self.config.expected_interval_minutes * self.config.gap_factor
+        )
         for event_type, predicate in (
             (GlucoseEventType.HYPO, lambda value: value < self.config.low_threshold_mg_dl),
             (GlucoseEventType.HYPER, lambda value: value > self.config.high_threshold_mg_dl),
         ):
-            for run in _consecutive_runs(points, predicate):
+            for run in _consecutive_runs(points, predicate, max_gap=max_gap):
                 event = self._build_threshold_event(event_type, run, scope)
                 if event is not None:
                     events.append(event)
@@ -158,10 +166,13 @@ class GlucoseEventDetector:
         peak: float,
     ) -> GlucoseEventSeverity:
         if event_type == GlucoseEventType.HYPO:
-            if nadir <= self.config.hypo_alert_threshold_mg_dl:
+            # AGP Level-2 boundaries are strict: <54 and >250 mg/dL.
+            # Exact boundary readings remain Level-1/warning, matching the
+            # safety router and aggregate metrics.
+            if nadir < self.config.hypo_alert_threshold_mg_dl:
                 return GlucoseEventSeverity.ALERT
             return GlucoseEventSeverity.WARNING
-        if peak >= self.config.hyper_alert_threshold_mg_dl:
+        if peak > self.config.hyper_alert_threshold_mg_dl:
             return GlucoseEventSeverity.ALERT
         return GlucoseEventSeverity.WARNING
 
@@ -172,28 +183,35 @@ class GlucoseEventDetector:
     ) -> list[GlucoseEvent]:
         events: list[GlucoseEvent] = []
         window = timedelta(minutes=self.config.rapid_window_minutes)
-        for index, start_point in enumerate(points):
-            for end_point in points[index + 1 :]:
-                delta_minutes = (end_point.timestamp - start_point.timestamp).total_seconds() / 60
-                if delta_minutes < self.config.rapid_min_span_minutes:
-                    continue
-                if end_point.timestamp - start_point.timestamp > window:
-                    break
-                rate = (end_point.value_mg_dl - start_point.value_mg_dl) / delta_minutes
-                if rate >= self.config.rapid_rate_mg_dl_per_min:
-                    events.append(
-                        self._build_rate_event(
-                            GlucoseEventType.RAPID_RISE, start_point, end_point, rate, scope
+        max_gap = timedelta(
+            minutes=self.config.expected_interval_minutes * self.config.gap_factor
+        )
+        # A change across a missing interval is not an observed rapid rise or
+        # fall. Restrict pairwise rate calculations to continuous segments,
+        # using the same gap contract as data-gap and threshold detection.
+        for segment in _continuous_segments(points, max_gap=max_gap):
+            for index, start_point in enumerate(segment):
+                for end_point in segment[index + 1 :]:
+                    delta_minutes = (end_point.timestamp - start_point.timestamp).total_seconds() / 60
+                    if delta_minutes < self.config.rapid_min_span_minutes:
+                        continue
+                    if end_point.timestamp - start_point.timestamp > window:
+                        break
+                    rate = (end_point.value_mg_dl - start_point.value_mg_dl) / delta_minutes
+                    if rate >= self.config.rapid_rate_mg_dl_per_min:
+                        events.append(
+                            self._build_rate_event(
+                                GlucoseEventType.RAPID_RISE, start_point, end_point, rate, scope
+                            )
                         )
-                    )
-                    break
-                if rate <= -self.config.rapid_rate_mg_dl_per_min:
-                    events.append(
-                        self._build_rate_event(
-                            GlucoseEventType.RAPID_FALL, start_point, end_point, rate, scope
+                        break
+                    if rate <= -self.config.rapid_rate_mg_dl_per_min:
+                        events.append(
+                            self._build_rate_event(
+                                GlucoseEventType.RAPID_FALL, start_point, end_point, rate, scope
+                            )
                         )
-                    )
-                    break
+                        break
         return _dedupe_overlapping(events)
 
     def _build_rate_event(
@@ -271,16 +289,44 @@ class GlucoseEventDetector:
         return self.config.overnight_start_hour <= local_hour < self.config.overnight_end_hour
 
 
-def _consecutive_runs(points, predicate):
+def _consecutive_runs(
+    points: list[GlucosePoint],
+    predicate,
+    *,
+    max_gap: timedelta | None = None,
+):
     run: list = []
     for point in points:
         if predicate(point.value_mg_dl):
+            if (
+                run
+                and max_gap is not None
+                and point.timestamp - run[-1].timestamp > max_gap
+            ):
+                yield run
+                run = []
             run.append(point)
         elif run:
             yield run
             run = []
     if run:
         yield run
+
+
+def _continuous_segments(
+    points: list[GlucosePoint],
+    *,
+    max_gap: timedelta,
+):
+    """Yield timestamp-continuous segments according to the data-gap rule."""
+    segment: list[GlucosePoint] = []
+    for point in points:
+        if segment and point.timestamp - segment[-1].timestamp > max_gap:
+            yield segment
+            segment = []
+        segment.append(point)
+    if segment:
+        yield segment
 
 
 def _dedupe_overlapping(events: list[GlucoseEvent]) -> list[GlucoseEvent]:

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from hermes_cgm_agent.domain import DataScope, GlucoseEvent, L1Episode
+from hermes_cgm_agent.domain.cgm import GlucoseEventType
 from hermes_cgm_agent.services.analytics import AnalyticsConfig, CGMAnalyticsService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory.consolidation import ConsolidationReport, ConsolidationService
@@ -49,7 +50,13 @@ class StreamMemoryService:
         self.cgm_repository = cgm_repository
         self.memory_repository = memory_repository
         self.config = config or StreamMemoryConfig()
-        self.consolidation = consolidation or ConsolidationService(repository=memory_repository)
+        # H-13: inject audit_service into ConsolidationService so that
+        # stream-path consolidation also writes audit records.
+        from hermes_cgm_agent.services.audit import AuditService
+        self.consolidation = consolidation or ConsolidationService(
+            repository=memory_repository,
+            audit_service=AuditService(memory_repository.store),
+        )
         self.analytics = analytics or CGMAnalyticsService(
             AnalyticsConfig(expected_interval_minutes=self.config.expected_interval_minutes)
         )
@@ -66,7 +73,13 @@ class StreamMemoryService:
     ) -> StreamMemoryResult:
         created = 0
         duplicates = 0
-        for event in inserted_events:
+        # A4: data_gap events are operational metadata, not clinical episodes.
+        # Filter them out before L1 promotion (parity with derive.py:27-28).
+        filtered_events = [
+            ev for ev in inserted_events
+            if getattr(ev.event_type, "value", str(ev.event_type)) != "data_gap"
+        ]
+        for event in filtered_events:
             episode = self._episode_from_event(event, now=now)
             try:
                 self.memory_repository.create_episode(episode)

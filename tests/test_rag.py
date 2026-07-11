@@ -10,7 +10,11 @@ import os
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.rag import AuthoritativeRAGService, load_knowledge_base
-from hermes_cgm_agent.services.rag.authoritative import ClaimCard, KnowledgeBase
+from hermes_cgm_agent.services.rag.authoritative import (
+    ClaimCard,
+    KnowledgeBase,
+    expand_authoritative_query,
+)
 from hermes_cgm_agent.services.tools import ToolExecutor
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -114,6 +118,30 @@ class AuthoritativeRAGTests(unittest.TestCase):
         results = svc.search("目标范围内时间", top_k=3)
         self.assertTrue(results)
         self.assertTrue(any("tir" in r["doc_id"] for r in results))
+
+    def test_colloquial_low_glucose_query_recalls_15_15_card(self) -> None:
+        svc = AuthoritativeRAGService()
+        results = svc.search("血糖低了手抖怎么办", top_k=3)
+        self.assertTrue(any(r["doc_id"] == "ada-2025-hypoglycemia-levels" for r in results))
+
+    def test_high_glucose_ketone_query_recalls_cdc_dka_card(self) -> None:
+        svc = AuthoritativeRAGService()
+        results = svc.search("高血糖 250 13.9 酮体 DKA sick day", top_k=5)
+        self.assertTrue(
+            any(r["doc_id"] == "cdc-2024-dka-ketone-testing-250-sick-day" for r in results)
+        )
+
+    def test_alcohol_query_recalls_hypoglycemia_safety_card(self) -> None:
+        svc = AuthoritativeRAGService()
+        results = svc.search("喝酒低血糖 夜间 CGM", top_k=5)
+        self.assertTrue(
+            any(r["doc_id"] == "cdc-2024-alcohol-nighttime-hypoglycemia" for r in results)
+        )
+
+    def test_nonalcoholic_query_does_not_trigger_alcohol_safety_expansion(self) -> None:
+        expanded = expand_authoritative_query("nonalcoholic fatty liver disease")
+        self.assertNotIn("hypoglycemia", expanded.casefold())
+        self.assertNotIn("nighttime low", expanded.casefold())
 
     def test_search_can_filter_by_population(self) -> None:
         svc = AuthoritativeRAGService()

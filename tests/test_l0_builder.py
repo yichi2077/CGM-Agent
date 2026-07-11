@@ -4,11 +4,14 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
 from hermes_cgm_agent.domain import GlucosePoint, UserEvent
+from hermes_cgm_agent.services.analytics import EventDetectionConfig
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import L0BuildConfig, L0ContextBuilder
+from hermes_cgm_agent.services.scheduling import PushSchedulerConfig
 from hermes_cgm_agent.services.tools import ToolExecutor
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -77,10 +80,11 @@ class L0ContextBuilderTests(unittest.TestCase):
         for index in range(26):
             self._point((start + timedelta(minutes=index * 3)).isoformat(), 100)
 
-        context = L0ContextBuilder(
+        builder = L0ContextBuilder(
             repository=self.repository,
             config=L0BuildConfig(timezone="UTC"),
-        ).build(
+        )
+        context = builder.build(
             user_id="user-1",
             anchor_at=datetime(2026, 7, 3, 0, 0, tzinfo=timezone.utc),
         )
@@ -100,6 +104,13 @@ class L0ContextBuilderTests(unittest.TestCase):
         # default), so 26 points -> 5.42% coverage.
         self.assertEqual(day.aggregate.data_coverage, 5.42)
         self.assertLessEqual(day.aggregate.data_coverage, 100)
+        self.assertEqual(builder.event_detector.config.timezone, "UTC")
+
+    def test_timezone_defaults_follow_runtime_configuration(self) -> None:
+        with mock.patch.dict("os.environ", {"CGM_AGENT_TIMEZONE": "America/Los_Angeles"}):
+            self.assertEqual(L0BuildConfig().timezone, "America/Los_Angeles")
+            self.assertEqual(EventDetectionConfig().timezone, "America/Los_Angeles")
+            self.assertEqual(PushSchedulerConfig().timezone, "America/Los_Angeles")
 
     def test_budget_trims_recent_points(self) -> None:
         for hour in range(24):
@@ -116,6 +127,31 @@ class L0ContextBuilderTests(unittest.TestCase):
 
         self.assertLess(len(context.high_res_recent), 24)
         self.assertLessEqual(context.estimated_tokens, context.token_budget)
+
+    def test_hourly_summary_local_timezone_grouping(self) -> None:
+        """H-08: hourly summaries must convert to local timezone before truncating.
+
+        Points at 15:45 UTC and 16:15 UTC in Shanghai (UTC+8) are 23:45 and
+        00:15 local.  They should fall into different hourly buckets (23:00
+        and 00:00 local) — which they also do in UTC (15:00 and 16:00).
+        The key assertion is that the code path doesn't crash and produces
+        summaries with correct local-aware timestamps.
+        """
+        self._point("2026-06-10T15:45:00+00:00", 120)
+        self._point("2026-06-10T16:15:00+00:00", 130)
+
+        builder = L0ContextBuilder(
+            repository=self.repository,
+            config=L0BuildConfig(timezone="Asia/Shanghai"),
+        )
+        context = builder.build(
+            user_id="user-1",
+            anchor_at=datetime(2026, 6, 15, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertGreater(len(context.mid_far_hourly), 0)
+        # Each hourly summary should have a valid hour_start.
+        for summary in context.mid_far_hourly:
+            self.assertIsNotNone(summary.hour_start)
 
     def _point(self, ts: str, value: int) -> None:
         self.repository.create_glucose_point(

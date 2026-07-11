@@ -543,17 +543,27 @@ class SQLiteCGMRepository:
             is_rejected=bool(row["is_rejected"]),
         )
 
+    # M-21: whitelist of fields a user correction is allowed to update.
+    # Security-critical fields (event_id, user_id, created_by, user_confirmed,
+    # is_rejected, created_at) are server-controlled and can never be
+    # overwritten through a correction payload.
+    _CORRECTABLE_EVENT_FIELDS = frozenset({
+        "type", "ts_start", "ts_end", "payload", "attachment",
+        "confidence", "is_sensitive",
+    })
+
     @staticmethod
     def _apply_event_correction(event: UserEvent, correction: dict[str, Any]) -> UserEvent:
         if not correction:
             return event
         event_data = event.model_dump(by_alias=True)
         payload_patch = correction.get("payload")
+        # M-21: only allow whitelisted fields to be updated.
         event_data.update(
             {
                 key: value
                 for key, value in correction.items()
-                if key != "payload"
+                if key in SQLiteCGMRepository._CORRECTABLE_EVENT_FIELDS
             }
         )
         if payload_patch is not None:

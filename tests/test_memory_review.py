@@ -69,8 +69,15 @@ class MemoryReviewServiceTests(unittest.TestCase):
         self.assertEqual(self.repo.list_episodes("u1"), [])
 
     def test_memory_confirm_tool_path(self) -> None:
-        cand = self._candidate("c1", requires_confirmation=True)
-        self.review.ingest_report_candidates([cand], now=NOW)
+        # The tool path uses the live clock (unlike the direct service tests
+        # above, which deliberately exercise a fixed historical timestamp).
+        # Keep this fixture within the candidate's 30-day review TTL so this
+        # test covers tool dispatch rather than expiry enforcement.
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        cand = self._candidate("c1", requires_confirmation=True).model_copy(
+            update={"created_at": now}
+        )
+        self.review.ingest_report_candidates([cand], now=now)
         executor = self._executor()
 
         session_id = "memory-test"
@@ -352,6 +359,38 @@ class MemoryReviewServiceTests(unittest.TestCase):
         resolved = self.review.confirm_candidate("c1", user_id="u1", confirmed=True, now=NOW)
         self.assertEqual(resolved.status, CandidateStatus.ACCEPTED)
         self.assertEqual(len(self.repo.list_episodes("u1")), 1)
+
+    def test_ingest_duplicate_candidates_does_not_crash(self) -> None:
+        """C-03: re-ingesting the same report candidates must not crash."""
+        cand = self._candidate("c-dup", requires_confirmation=True)
+        result1 = self.review.ingest_report_candidates([cand], now=NOW)
+        self.assertEqual(result1.pending, 1)
+        # Second call with the same candidate_id must not raise IntegrityError.
+        result2 = self.review.ingest_report_candidates([cand], now=NOW)
+        # Duplicate is skipped, so nothing new is enqueued.
+        self.assertEqual(result2.pending, 0)
+        # Only one candidate in the DB.
+        all_cands = self.repo.list_candidates("u1")
+        self.assertEqual(len(all_cands), 1)
+
+    def test_auto_accept_rollback_on_status_failure(self) -> None:
+        """C-04: if set_candidate_status fails, the L1 episode must be rolled back."""
+        cand = self._candidate("c-auto-fail", requires_confirmation=False)
+
+        original_set_status = self.repo.set_candidate_status
+
+        def _boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("status update failed")
+
+        self.repo.set_candidate_status = _boom  # type: ignore[assignment]
+        try:
+            with self.assertRaises(RuntimeError):
+                self.review.ingest_report_candidates([cand], now=NOW)
+        finally:
+            self.repo.set_candidate_status = original_set_status  # type: ignore[assignment]
+
+        # L1 episode must NOT exist (rolled back by transaction).
+        self.assertEqual(self.repo.list_episodes("u1"), [])
 
     def _candidate(self, candidate_id: str, *, requires_confirmation: bool) -> MemoryCandidate:
         return MemoryCandidate(

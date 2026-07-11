@@ -17,6 +17,16 @@ CITATION_BLOCK_TEMPLATE = (
     "我可以帮你整理原始数据，复诊时带给医生。需要我生成数据摘要吗？"
 )
 
+# Every rendered report carries a fixed medical disclaimer footer, making the
+# SOUL principle "绝不代替用户做医疗决策" explicit at the user touchpoint.
+# Wording must stay companion-tone compliant: no clinical abbreviations, no
+# assertive/causal phrases (see narrative_templates blacklists).
+MEDICAL_DISCLAIMER_FOOTER = (
+    "---\n\n"
+    "_本报告由个人血糖数据整理生成，仅供回顾参考，不构成医疗建议或诊断；"
+    "用药、治疗与饮食方案的调整，请以医生的意见为准。_"
+)
+
 
 def render_markdown(report: Report) -> str:
     title = _report_title(report)
@@ -86,7 +96,7 @@ def render_markdown(report: Report) -> str:
                 lines.append(f"- {candidate.target_layer}: {candidate.summary}")
             lines.append("")
 
-    return "\n".join(lines).strip() + "\n"
+    return "\n".join(lines).strip() + "\n\n" + MEDICAL_DISCLAIMER_FOOTER + "\n"
 
 
 def _friendly_date_range(report: Report) -> str:

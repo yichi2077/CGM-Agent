@@ -29,6 +29,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from hermes_cgm_agent.config import default_timezone
 from hermes_cgm_agent.domain import DataScope, HypothesisState, GlucoseEventType, ensure_utc
 from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.analytics import (
@@ -39,7 +40,11 @@ from hermes_cgm_agent.services.analytics import (
 )
 
 
-def _cadence_tuned_detector(points: list) -> GlucoseEventDetector:
+def _cadence_tuned_detector(
+    points: list,
+    *,
+    timezone_name: str,
+) -> GlucoseEventDetector:
     """Event detector tuned to the observed sampling interval (D053).
 
     The scheduler sees whatever cadence the device actually delivers; a
@@ -47,7 +52,12 @@ def _cadence_tuned_detector(points: list) -> GlucoseEventDetector:
     on 1-minute AiDEX-style feeds.
     """
     interval = median_interval_minutes([p.timestamp for p in points]) if points else 5
-    return GlucoseEventDetector(EventDetectionConfig(expected_interval_minutes=interval))
+    return GlucoseEventDetector(
+        EventDetectionConfig(
+            expected_interval_minutes=interval,
+            timezone=timezone_name,
+        )
+    )
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import ConsolidationService, SQLiteMemoryRepository
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
@@ -64,7 +74,7 @@ _TIER_WINDOW_LABEL = {"daily": "day", "weekly": "week", "monthly": "month"}
 
 @dataclass(frozen=True)
 class PushSchedulerConfig:
-    timezone: str = "Asia/Shanghai"
+    timezone: str = field(default_factory=default_timezone)
     daily_hour: int = 9          # push the daily digest at/after 09:00 local
     weekly_weekday: int = 0      # Monday (Python weekday(): Mon=0)
     monthly_day: int = 1         # 1st of the month
@@ -95,14 +105,20 @@ class PushSchedulerService:
         store: SQLiteStore,
         config: PushSchedulerConfig | None = None,
         audit_service: Any | None = None,
+        session_id: str | None = None,
     ) -> None:
         self.store = store
         self.config = config or PushSchedulerConfig()
         self.cgm = SQLiteCGMRepository(store)
         self.memory = SQLiteMemoryRepository(store)
         self.analytics = CGMAnalyticsService()
-        self.consolidation = ConsolidationService(repository=self.memory)
+        # M-27: inject audit_service into ConsolidationService so domain-level
+        # consolidation events are properly audited.
+        self.consolidation = ConsolidationService(repository=self.memory, audit_service=audit_service)
         self.audit_service = audit_service
+        # M-25: use the actual session_id from the caller so service-level
+        # audit events are traceable to the originating Hermes session.
+        self._session_id = session_id or "push-scheduler"
 
     @property
     def _tz(self) -> ZoneInfo:
@@ -156,7 +172,7 @@ class PushSchedulerService:
                 pushed.append(emitted)
         if self.audit_service is not None and (pushed or consent):
             self.audit_service.log(
-                session_id="push-scheduler",
+                session_id=self._session_id,
                 event_type="push_tick",
                 payload={
                     "user_id": user_id,
@@ -259,32 +275,34 @@ class PushSchedulerService:
         now = now or utc_now()
         threshold = now - timedelta(days=self.config.silence_days)
         advanced: list[dict[str, Any]] = []
-        for hyp in self.memory.list_hypotheses(user_id):
-            if hyp.state != HypothesisState.CANDIDATE:
-                continue
-            last = hyp.last_checked or hyp.created_at
-            if last is not None and last > threshold:
-                continue  # still inside the silence window
-            hyp.state = HypothesisState.OBSERVING
-            hyp.last_checked = now
-            hyp.updated_at = now
-            self.memory.upsert_hypothesis(hyp)
-            advanced.append(
-                {"hypothesis_id": hyp.hypothesis_id, "statement": hyp.statement, "to": "observing"}
-            )
-            if self.audit_service is not None:
-                self.audit_service.log(
-                    session_id="push-scheduler",
-                    event_type="silent_consent",
-                    payload={
-                        "user_id": user_id,
-                        "status": "ok",
-                        "hypothesis_id": hyp.hypothesis_id,
-                        "from": "candidate",
-                        "to": "observing",
-                        "silence_days": self.config.silence_days,
-                    },
+        # Cycle2: wrap all upserts in a single transaction for atomicity.
+        with self.store.transaction():
+            for hyp in self.memory.list_hypotheses(user_id):
+                if hyp.state != HypothesisState.CANDIDATE:
+                    continue
+                last = hyp.last_checked or hyp.created_at
+                if last is not None and last > threshold:
+                    continue  # still inside the silence window
+                hyp.state = HypothesisState.OBSERVING
+                hyp.last_checked = now
+                hyp.updated_at = now
+                self.memory.upsert_hypothesis(hyp)
+                advanced.append(
+                    {"hypothesis_id": hyp.hypothesis_id, "statement": hyp.statement, "to": "observing"}
                 )
+                if self.audit_service is not None:
+                    self.audit_service.log(
+                        session_id=self._session_id,
+                        event_type="silent_consent",
+                        payload={
+                            "user_id": user_id,
+                            "status": "ok",
+                            "hypothesis_id": hyp.hypothesis_id,
+                            "from": "candidate",
+                            "to": "observing",
+                            "silence_days": self.config.silence_days,
+                        },
+                    )
         return advanced
 
     # ── push_events persistence ───────────────────────────────────────────────
@@ -386,27 +404,37 @@ class PushSchedulerService:
         # Threshold 3: Consecutive >= 2 days same-period anomaly
         from hermes_cgm_agent.domain import DataScope
 
-        window_start = now - timedelta(days=2)
-        scope = DataScope(user_id=user_id, window_start=window_start, window_end=now)
+        # Compare the current and preceding *local calendar* days. A sliding
+        # UTC 24-hour cutoff can place two adjacent local-day anomalies in one
+        # bucket (and is wrong on DST transitions), suppressing escalation.
+        now_local = now.astimezone(self._tz)
+        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        previous_start = today_start - timedelta(days=1)
+        scope = DataScope(
+            user_id=user_id,
+            window_start=previous_start.astimezone(ZoneInfo("UTC")),
+            window_end=now,
+        )
         points = self.cgm.list_glucose_points(scope)
 
-        events = _cadence_tuned_detector(points).detect(points=points, scope=scope)
+        events = _cadence_tuned_detector(
+            points, timezone_name=self.config.timezone
+        ).detect(points=points, scope=scope)
         anomalies = [e for e in events if e.event_type != GlucoseEventType.DATA_GAP]
-        
-        day1_periods = set()
-        day2_periods = set()
-        
-        day1_cutoff = now - timedelta(days=1)
-        
+
+        today_periods = set()
+        previous_periods = set()
+        today_date = today_start.date()
+        previous_date = previous_start.date()
         for e in anomalies:
             local_start = e.ts_start.astimezone(self._tz)
             period = local_start.hour // 6
-            if e.ts_start >= day1_cutoff:
-                day1_periods.add(period)
-            else:
-                day2_periods.add(period)
-                
-        if day1_periods.intersection(day2_periods):
+            if local_start.date() == today_date:
+                today_periods.add(period)
+            elif local_start.date() == previous_date:
+                previous_periods.add(period)
+
+        if today_periods.intersection(previous_periods):
             return True
 
         return False
@@ -442,7 +470,9 @@ class PushSchedulerService:
             tbr = float(getattr(aggregate, "tbr", 0) or 0)
             anomalous = tar > 0 or tbr > 0
             if not anomalous:
-                events = _cadence_tuned_detector(points).detect(points=points, scope=scope)
+                events = _cadence_tuned_detector(
+                    points, timezone_name=self.config.timezone
+                ).detect(points=points, scope=scope)
                 anomalous = any(e.event_type != GlucoseEventType.DATA_GAP for e in events)
             if anomalous:
                 consecutive_days += 1

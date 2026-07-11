@@ -5,6 +5,11 @@ from hermes_cgm_agent.knowledge.ingest.hermes_extractor import (
     HermesClaimExtractor,
 )
 from hermes_cgm_agent.knowledge.ingest.merge import MergePreview, merge_candidates_into_kb
+from hermes_cgm_agent.knowledge.ingest.enrich import (
+    enrich_card,
+    enrich_synonyms,
+    verify_bilingual_and_numbers,
+)
 from hermes_cgm_agent.knowledge.ingest.pdf_loader import (
     PageChunk,
     PdfManifestEntry,
@@ -36,6 +41,8 @@ __all__ = [
     "QualityReport",
     "build_candidate_cards",
     "build_sentence_candidates",
+    "enrich_card",
+    "enrich_synonyms",
     "extract_pdf_text",
     "filter_candidates",
     "find_manifest_entry",
@@ -47,4 +54,5 @@ __all__ = [
     "write_candidate_json",
     "write_quality_markdown",
     "write_review_markdown",
+    "verify_bilingual_and_numbers",
 ]

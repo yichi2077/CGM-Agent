@@ -10,6 +10,13 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+# Live-LLM E2E is opt-in ONLY (same gate as test_simulation_hermes_e2e.py):
+# a default `unittest discover` must stay offline and cost-free even on a
+# machine that has Hermes installed. These tests make real provider API calls.
+if os.getenv("CGM_RUN_HERMES_E2E") != "1":
+    raise unittest.SkipTest("Hermes live E2E is opt-in; set CGM_RUN_HERMES_E2E=1 to run")
+
 HERMES_REPO = Path(os.environ.get("LOCALAPPDATA", "")) / "hermes" / "hermes-agent"
 if not HERMES_REPO.exists():
     raise unittest.SkipTest(f"Hermes repo not found at {HERMES_REPO}")

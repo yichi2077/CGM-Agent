@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from hermes_cgm_agent.config import default_timezone
 from hermes_cgm_agent.domain import DataScope
 from hermes_cgm_agent.domain.report import ReportInput
 from hermes_cgm_agent.services.analytics import (
@@ -70,11 +71,13 @@ class SimulationRunner:
         out_dir: Path,
         user_id: str,
         source_label: str = "simulation:csv",
-        timezone_name: str = "Asia/Shanghai",
+        timezone_name: str | None = None,
         acceleration: float = 300.0,
         max_speed: bool = False,
         expected_interval_minutes: int | None = None,
     ) -> None:
+        if timezone_name is None:
+            timezone_name = default_timezone()
         self.db_path = db_path
         self.out_dir = out_dir
         self.user_id = user_id
@@ -360,7 +363,7 @@ class SimulationRunner:
         )
         points = cgm_repository.list_glucose_points(scope)
         events = detector.detect(points=points, scope=scope)
-        for episode in episodes_from_detected_events(events, now=now):
+        for episode in episodes_from_detected_events(events, now=now, timezone_name=self.timezone_name):
             try:
                 memory_repository.create_episode(episode)
             except sqlite3.IntegrityError:

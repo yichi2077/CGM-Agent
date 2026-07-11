@@ -35,6 +35,21 @@ class GlucoseEventDetectionTests(unittest.TestCase):
         self.assertEqual(hypers[0].peak_value_mg_dl, 220)
         self.assertEqual(hypers[0].severity, GlucoseEventSeverity.WARNING)
 
+    def test_level_two_boundaries_are_warnings_not_alerts(self) -> None:
+        """Detector severity uses the same strict AGP boundaries as routing."""
+        for values, event_type in (
+            ([100, 54, 54, 54, 100], GlucoseEventType.HYPO),
+            ([150, 250, 250, 250, 150], GlucoseEventType.HYPER),
+        ):
+            with self.subTest(values=values):
+                events = GlucoseEventDetector().detect(
+                    points=_series(values, start_hour=12),
+                    scope=_scope(_series(values, start_hour=12)),
+                )
+                matching = [event for event in events if event.event_type == event_type]
+                self.assertEqual(len(matching), 1)
+                self.assertEqual(matching[0].severity, GlucoseEventSeverity.WARNING)
+
     def test_overnight_low_is_tagged_when_in_night_hours(self) -> None:
         # 18:00 UTC == 02:00 local Asia/Shanghai (UTC+8), i.e. overnight.
         values = [80, 60, 55, 58, 90]
@@ -74,6 +89,48 @@ class GlucoseEventDetectionTests(unittest.TestCase):
 
         self.assertEqual(len(gaps), 1)
         self.assertEqual(gaps[0].duration_minutes, 45.0)
+
+    def test_threshold_episode_does_not_cross_a_data_gap(self) -> None:
+        """Separated high readings are not evidence of one sustained episode."""
+        base = datetime(2026, 5, 31, 12, 0, tzinfo=timezone.utc)
+        points = [
+            _point_at(base, 100),
+            _point_at(base + timedelta(minutes=5), 220),
+            _point_at(base + timedelta(minutes=50), 225),
+            _point_at(base + timedelta(minutes=55), 230),
+            _point_at(base + timedelta(minutes=60), 100),
+        ]
+        scope = _scope(points)
+
+        events = GlucoseEventDetector().detect(points=points, scope=scope)
+
+        self.assertEqual(
+            [event for event in events if event.event_type == GlucoseEventType.HYPER],
+            [],
+        )
+        self.assertEqual(
+            len([event for event in events if event.event_type == GlucoseEventType.DATA_GAP]),
+            1,
+        )
+
+    def test_rapid_event_does_not_cross_a_data_gap(self) -> None:
+        base = datetime(2026, 5, 31, 12, 0, tzinfo=timezone.utc)
+        points = [
+            _point_at(base, 100),
+            _point_at(base + timedelta(minutes=25), 200),
+        ]
+        scope = _scope(points)
+
+        events = GlucoseEventDetector().detect(points=points, scope=scope)
+
+        self.assertEqual(
+            [event for event in events if event.event_type == GlucoseEventType.RAPID_RISE],
+            [],
+        )
+        self.assertEqual(
+            len([event for event in events if event.event_type == GlucoseEventType.DATA_GAP]),
+            1,
+        )
 
     def test_two_point_short_excursion_does_not_emit_threshold_event(self) -> None:
         # C5: two lows 5 minutes apart (inclusive covered span 10min < 15min

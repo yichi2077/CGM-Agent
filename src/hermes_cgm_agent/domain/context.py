@@ -30,6 +30,7 @@ from hermes_cgm_agent.domain.cgm import (
     utc_now,
 )
 from hermes_cgm_agent.domain.report import DataQualityWarning
+from hermes_cgm_agent.config import default_timezone
 
 L0_DEFAULT_SPAN_DAYS = 14
 L0_NEAR_POINT_DAYS = 3
@@ -43,7 +44,7 @@ class L0Window(CGMBaseModel):
     window_start: datetime
     window_end: datetime
     span_days: int = L0_DEFAULT_SPAN_DAYS
-    timezone: str = "Asia/Shanghai"
+    timezone: str = Field(default_factory=default_timezone)
 
     @model_validator(mode="after")
     def validate_window(self) -> L0Window:

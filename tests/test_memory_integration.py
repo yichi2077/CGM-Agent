@@ -4,8 +4,9 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
-from hermes_cgm_agent.domain import CandidateStatus, EvidenceRef, GlucosePoint, L1Episode
+from hermes_cgm_agent.domain import CandidateStatus, EvidenceRef, GlucosePoint, L1Episode, L2ProfileItem
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import (
@@ -256,6 +257,53 @@ class MemoryIntegrationTests(unittest.TestCase):
         after = self.mem.get_episode(episode.episode_id).last_referenced_at
 
         self.assertGreater(after, before)
+
+    # -- B6: auto-enforced dual-track isolation + hot item cap ---------------
+
+    def test_build_memory_context_truncates_hot_items_at_limit(self) -> None:
+        """B6: hot L2/L3 items are truncated to _MAX_HOT_ITEMS (50) by updated_at desc."""
+        from hermes_cgm_agent.services.memory.assembler import _MAX_HOT_ITEMS
+
+        # Create more than _MAX_HOT_ITEMS active profile items so the cap kicks in.
+        for i in range(_MAX_HOT_ITEMS + 10):
+            self.mem.upsert_profile_item(
+                L2ProfileItem(
+                    item_id=f"p-trunc-{i}",
+                    user_id="user-1",
+                    key=f"habit-{i}",
+                    value={"summary": f"Habit {i}"},
+                    confidence=0.9,
+                    updated_at=NOW - timedelta(minutes=i),
+                )
+            )
+        assembler = MemoryContextAssembler(repository=self.mem)
+        ctx = assembler.build_memory_context(user_id="user-1", query="zzz-no-match")
+
+        hot_items = [item for item in ctx.items if item.get("hot")]
+        self.assertEqual(len(hot_items), _MAX_HOT_ITEMS)
+        # Most recently updated (i=0, updated_at=NOW) should survive the truncation.
+        self.assertEqual(hot_items[0]["summary"], "Habit 0")
+
+    def test_build_memory_context_auto_enforces_track_isolation(self) -> None:
+        """B6: build_memory_context auto-calls assert_track_isolation before return."""
+        self._seed_episode()
+        assembler = MemoryContextAssembler(repository=self.mem)
+
+        with patch(
+            "hermes_cgm_agent.services.memory.assembler.assert_track_isolation"
+        ) as mock_guard:
+            assembler.build_memory_context(user_id="user-1", query="lunch spike")
+            mock_guard.assert_called_once()
+
+    def test_build_authoritative_context_auto_enforces_track_isolation(self) -> None:
+        """B6: build_authoritative_context auto-calls assert_track_isolation."""
+        assembler = MemoryContextAssembler(repository=self.mem)
+
+        with patch(
+            "hermes_cgm_agent.services.memory.assembler.assert_track_isolation"
+        ) as mock_guard:
+            assembler.build_authoritative_context(query="time in range")
+            mock_guard.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -141,7 +141,3 @@ class SQLiteReportRepository:
             audit_id=row["audit_id"],
             generated_at=row["generated_at"],
         )
-
-
-def _json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=True, sort_keys=True)

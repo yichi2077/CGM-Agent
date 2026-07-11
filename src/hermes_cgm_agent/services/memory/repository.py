@@ -268,18 +268,34 @@ class SQLiteMemoryRepository:
         The old item is not deleted: its validity window is closed (valid_to) and
         it is deactivated, preserving history. The replacement records lineage via
         supersedes_item_id and opens a fresh validity window.
+
+        B2: both writes share a single transaction so a crash between the UPDATE
+        and the upsert cannot leave the old item retired with no replacement.
         """
         ts = when or _now()
-        with self.store.connect() as conn:
-            conn.execute(
+        if new_item.item_id == old_item_id:
+            raise ValueError("replacement profile item must use a new item_id")
+        with self.store.transaction() as conn:
+            row = conn.execute(
+                "SELECT user_id FROM l2_profile_items "
+                "WHERE item_id = ? AND valid_to IS NULL",
+                (old_item_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"Active profile item not found: {old_item_id}")
+            if row["user_id"] != new_item.user_id:
+                raise ValueError("replacement profile item must belong to the same user")
+            cursor = conn.execute(
                 "UPDATE l2_profile_items SET valid_to = ?, is_active = 0, updated_at = ? "
                 "WHERE item_id = ? AND valid_to IS NULL",
                 (_dt(ts), _dt(ts), old_item_id),
             )
-        replacement = new_item.model_copy(
-            update={"supersedes_item_id": old_item_id, "valid_from": ts}
-        )
-        return self.upsert_profile_item(replacement)
+            if cursor.rowcount != 1:
+                raise KeyError(f"Active profile item not found: {old_item_id}")
+            replacement = new_item.model_copy(
+                update={"supersedes_item_id": old_item_id, "valid_from": ts}
+            )
+            return self.upsert_profile_item(replacement)
 
     def list_valid_profile_items(
         self,
@@ -304,8 +320,10 @@ class SQLiteMemoryRepository:
                 INSERT INTO l3_hypotheses (
                     hypothesis_id, user_id, statement, state, evidence_count,
                     contra_count, evidence_refs_json, valid_from, valid_to,
-                    source_episode_ids_json, last_checked, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_episode_ids_json, contra_episode_ids_json,
+                    supersedes_hypothesis_id, last_checked, last_evidence_added,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(hypothesis_id) DO UPDATE SET
                     statement = excluded.statement,
                     state = excluded.state,
@@ -315,7 +333,10 @@ class SQLiteMemoryRepository:
                     valid_from = excluded.valid_from,
                     valid_to = excluded.valid_to,
                     source_episode_ids_json = excluded.source_episode_ids_json,
+                    contra_episode_ids_json = excluded.contra_episode_ids_json,
+                    supersedes_hypothesis_id = excluded.supersedes_hypothesis_id,
                     last_checked = excluded.last_checked,
+                    last_evidence_added = excluded.last_evidence_added,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -329,7 +350,10 @@ class SQLiteMemoryRepository:
                     _dt(hypothesis.valid_from),
                     _dt(hypothesis.valid_to) if hypothesis.valid_to else None,
                     _json(hypothesis.source_episode_ids),
+                    _json(hypothesis.contra_episode_ids),
+                    hypothesis.supersedes_hypothesis_id,
                     _dt(hypothesis.last_checked),
+                    _dt(hypothesis.last_evidence_added) if hypothesis.last_evidence_added else None,
                     _dt(hypothesis.created_at),
                     _dt(hypothesis.updated_at),
                 ),
@@ -341,9 +365,16 @@ class SQLiteMemoryRepository:
         user_id: str,
         *,
         states: list[HypothesisState] | None = None,
+        active_only: bool = True,
     ) -> list[L3Hypothesis]:
+        """B2: ``active_only`` (default True) filters out hypotheses whose
+        ``valid_to`` has been closed (superseded / archived), so callers only
+        see currently-valid hypotheses by default.
+        """
         clauses = ["user_id = ?"]
         values: list[Any] = [user_id]
+        if active_only:
+            clauses.append("valid_to IS NULL")
         if states:
             expanded_states: list[str] = []
             for state in states:
@@ -361,6 +392,53 @@ class SQLiteMemoryRepository:
             rows = conn.execute(sql, values).fetchall()
         return [_row_to_hypothesis(row, self.store) for row in rows]
 
+    def supersede_hypothesis(
+        self,
+        hypothesis_id: str,
+        new_hypothesis: L3Hypothesis,
+        now: datetime | None = None,
+    ) -> L3Hypothesis:
+        """B2: bi-temporally retire the old hypothesis and activate its
+        replacement (mirrors :meth:`supersede_profile_item` for L3).
+
+        The old hypothesis is not deleted: its ``valid_to`` is closed and its
+        state set to ``ARCHIVED``, preserving history. The replacement opens a
+        fresh validity window.
+
+        B2: both writes share a single transaction so a crash between the UPDATE
+        and the upsert cannot leave the old hypothesis archived with no
+        replacement (data loss).
+        """
+        ts = now or _now()
+        if new_hypothesis.hypothesis_id == hypothesis_id:
+            raise ValueError("replacement hypothesis must use a new hypothesis_id")
+        with self.store.transaction() as conn:
+            row = conn.execute(
+                "SELECT user_id FROM l3_hypotheses "
+                "WHERE hypothesis_id = ? AND valid_to IS NULL",
+                (hypothesis_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"Active hypothesis not found: {hypothesis_id}")
+            if row["user_id"] != new_hypothesis.user_id:
+                raise ValueError("replacement hypothesis must belong to the same user")
+            cursor = conn.execute(
+                "UPDATE l3_hypotheses SET valid_to = ?, state = ?, updated_at = ? "
+                "WHERE hypothesis_id = ? AND valid_to IS NULL",
+                (
+                    _dt(ts),
+                    HypothesisState.ARCHIVED.value,
+                    _dt(ts),
+                    hypothesis_id,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError(f"Active hypothesis not found: {hypothesis_id}")
+            replacement = new_hypothesis.model_copy(
+                update={"valid_from": ts, "supersedes_hypothesis_id": hypothesis_id}
+            )
+            return self.upsert_hypothesis(replacement)
+
     def delete_hypothesis(self, hypothesis_id: str) -> bool:
         with self.store.connect() as conn:
             cursor = conn.execute(
@@ -372,14 +450,18 @@ class SQLiteMemoryRepository:
     # -- candidate queue -----------------------------------------------------
 
     def enqueue_candidate(self, candidate: MemoryCandidate) -> MemoryCandidate:
+        # B4: set expires_at = created_at + 30 days so stale pending
+        # candidates can be purged by purge_expired_candidates().
+        expires_at = candidate.created_at + timedelta(days=30)
         with self.store.connect() as conn:
             conn.execute(
                 """
                 INSERT INTO memory_candidates (
                     candidate_id, user_id, target_layer, candidate_type, summary,
                     requires_user_confirmation, status, source_report_id,
-                    source_section_id, evidence_refs_json, confidence, created_at, resolved_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source_section_id, evidence_refs_json, confidence, created_at,
+                    resolved_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     candidate.candidate_id,
@@ -395,9 +477,25 @@ class SQLiteMemoryRepository:
                     candidate.confidence,
                     _dt(candidate.created_at),
                     _dt(candidate.resolved_at) if candidate.resolved_at else None,
+                    _dt(expires_at),
                 ),
             )
         return candidate
+
+    def purge_expired_candidates(self, now: datetime | None = None) -> int:
+        """B4: delete pending candidates whose TTL has expired.
+
+        Accepted/rejected candidates are kept (they are resolved history);
+        only ``pending`` entries past their ``expires_at`` are removed.
+        """
+        moment = now or _now()
+        with self.store.connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM memory_candidates "
+                "WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < ?",
+                (_dt(moment),),
+            )
+            return cursor.rowcount
 
     def list_candidates(
         self,
@@ -491,6 +589,27 @@ class SQLiteMemoryRepository:
     ) -> MemorySummary | None:
         rows = self.list_summaries(user_id, period=period, limit=1)
         return rows[0] if rows else None
+
+    def purge_old_summaries(self, user_id: str, keep_count: int = 30) -> int:
+        """B5: keep only the most recent ``keep_count`` summaries for a user,
+        deleting older ones. Prevents unbounded ``memory_summaries`` growth
+        from repeated ``synthesize_state`` runs.
+        """
+        with self.store.connect() as conn:
+            rows = conn.execute(
+                "SELECT summary_id FROM memory_summaries "
+                "WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,),
+            ).fetchall()
+            if len(rows) <= keep_count:
+                return 0
+            to_delete = [row["summary_id"] for row in rows[keep_count:]]
+            placeholders = ",".join("?" for _ in to_delete)
+            cursor = conn.execute(
+                f"DELETE FROM memory_summaries WHERE summary_id IN ({placeholders})",
+                to_delete,
+            )
+            return cursor.rowcount
 
     # -- pending interactions ------------------------------------------------
 
@@ -660,8 +779,23 @@ def _row_to_hypothesis(row: Any, store: SQLiteStore) -> L3Hypothesis:
         evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),
         valid_from=_opt_dt(row["valid_from"], fallback=row["created_at"]),
         valid_to=_opt_dt(row["valid_to"]),
+        supersedes_hypothesis_id=(
+            row["supersedes_hypothesis_id"]
+            if "supersedes_hypothesis_id" in row.keys()
+            else None
+        ),
         source_episode_ids=_parse_str_list(row["source_episode_ids_json"]),
+        contra_episode_ids=_parse_str_list(
+            row["contra_episode_ids_json"]
+            if "contra_episode_ids_json" in row.keys()
+            else None
+        ),
         last_checked=datetime.fromisoformat(row["last_checked"]),
+        last_evidence_added=(
+            _opt_dt(row["last_evidence_added"])
+            if "last_evidence_added" in row.keys()
+            else None
+        ),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )

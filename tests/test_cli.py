@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
-from hermes_cgm_agent.cli import build_parser
+from hermes_cgm_agent.cli import _read_json_object, build_parser
 
 
 class CliTests(unittest.TestCase):
@@ -57,6 +59,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(args.tool_name, "reports.generate")
         self.assertEqual(args.input, "report.json")
         self.assertEqual(args.session_id, "manual-session")
+
+    def test_tool_call_input_accepts_utf8_bom(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "input.json"
+            path.write_text('{"query": "低血糖"}', encoding="utf-8-sig")
+
+            payload = _read_json_object(path)
+
+        self.assertEqual(payload, {"query": "低血糖"})
 
     def test_dexcom_auth_command_parses(self) -> None:
         args = build_parser().parse_args(

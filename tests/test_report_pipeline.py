@@ -18,7 +18,11 @@ from hermes_cgm_agent.domain import DataScope, GlucosePoint
 from hermes_cgm_agent.domain.report import Report, ReportAudience, ReportInput, ReportType
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.reports import ReportService, SQLiteReportRepository
-from hermes_cgm_agent.services.reports.renderer import CITATION_BLOCK_TEMPLATE, render_markdown
+from hermes_cgm_agent.services.reports.renderer import (
+    CITATION_BLOCK_TEMPLATE,
+    MEDICAL_DISCLAIMER_FOOTER,
+    render_markdown,
+)
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 
@@ -116,7 +120,10 @@ class CitationPipelineTests(unittest.TestCase):
                 },
             )
         )
-        self.assertEqual(report.rendered_markdown, CITATION_BLOCK_TEMPLATE)
+        self.assertTrue(report.rendered_markdown.startswith(CITATION_BLOCK_TEMPLATE))
+        self.assertTrue(
+            report.rendered_markdown.rstrip().endswith(MEDICAL_DISCLAIMER_FOOTER)
+        )
         self.assertEqual(report.safety_result.get("status"), "citation_blocked")
 
     def test_block_logs_violation_without_leaking_content(self) -> None:

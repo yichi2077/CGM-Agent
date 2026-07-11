@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from hermes_cgm_agent.knowledge.ingest.enrich import enrich_card, verify_bilingual_and_numbers
 from hermes_cgm_agent.services.rag.authoritative import ClaimCard, load_knowledge_base
 
 DEFAULT_KB_PATH = Path(__file__).resolve().parents[1] / "authoritative_kb.json"
@@ -52,6 +53,13 @@ def merge_candidates_into_kb(
         normalized["verified"] = False
         normalized.pop("reviewer", None)
         normalized.pop("reviewed_at", None)
+        normalized = enrich_card(normalized)
+        # A translated/extracted card with a dropped clinical number cannot
+        # safely enter the retrieval pool.  Keep it out of the merge until a
+        # human fixes the bilingual claim instead of relying on a dead helper.
+        if verify_bilingual_and_numbers(normalized):
+            skipped.append(card_id)
+            continue
         merged_cards.append(_card_dict_from_candidate(normalized))
         existing_by_id[card_id] = None  # type: ignore[assignment]
         added.append(card_id)

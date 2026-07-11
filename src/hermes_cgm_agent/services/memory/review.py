@@ -41,9 +41,14 @@ class MemoryReviewService:
         *,
         repository: SQLiteMemoryRepository,
         consolidation: ConsolidationService | None = None,
+        audit_service: Any | None = None,
     ) -> None:
         self.repository = repository
-        self.consolidation = consolidation or ConsolidationService(repository=repository)
+        # M-27: inject audit_service into ConsolidationService so domain-level
+        # consolidation events are properly audited.
+        self.consolidation = consolidation or ConsolidationService(
+            repository=repository, audit_service=audit_service
+        )
 
     def ingest_report_candidates(
         self,
@@ -54,15 +59,46 @@ class MemoryReviewService:
         now = now or _now()
         auto = 0
         pending = 0
+        # C-03: deduplicate against already-queued candidates so re-running
+        # a report (same deterministic candidate_id) does not crash with
+        # IntegrityError.  Mirrors the check in provider.sync_turn.
+        # Cycle2: check inside per-candidate transaction to close TOCTOU window.
+        user_ids = {c.user_id for c in candidates}
+        existing_ids: set[str] = set()
+        for uid in user_ids:
+            existing_ids.update(
+                c.candidate_id for c in self.repository.list_candidates(uid)
+            )
         for candidate in candidates:
-            self.repository.enqueue_candidate(candidate)
+            if candidate.candidate_id in existing_ids:
+                continue
             if not candidate.requires_user_confirmation:
-                self._accept(candidate, now=now)
-                self.repository.set_candidate_status(
-                    candidate.candidate_id, status=CandidateStatus.ACCEPTED, when=now
-                )
+                # C-04: wrap auto-accept (enqueue + accept + status update)
+                # in a transaction so a crash between steps cannot leave
+                # an L1 episode persisted while the candidate stays PENDING.
+                try:
+                    with self.repository.store.transaction():
+                        # Cycle2: re-check inside transaction to close TOCTOU.
+                        current = self.repository.list_candidates(candidate.user_id)
+                        if any(c.candidate_id == candidate.candidate_id for c in current):
+                            existing_ids.add(candidate.candidate_id)
+                            continue
+                        self.repository.enqueue_candidate(candidate)
+                        self._accept(candidate, now=now)
+                        self.repository.set_candidate_status(
+                            candidate.candidate_id, status=CandidateStatus.ACCEPTED, when=now
+                        )
+                except Exception as exc:
+                    # Cycle2: only swallow duplicate-key IntegrityError; let
+                    # other exceptions (e.g. RuntimeError from status update)
+                    # propagate so callers can handle them.
+                    if "integrity" in str(exc).lower() or "unique" in str(exc).lower():
+                        existing_ids.add(candidate.candidate_id)
+                        continue
+                    raise
                 auto += 1
             else:
+                self.repository.enqueue_candidate(candidate)
                 pending += 1
         return IngestResult(enqueued=len(candidates), auto_accepted=auto, pending=pending)
 
@@ -75,26 +111,32 @@ class MemoryReviewService:
         now: datetime | None = None,
     ) -> MemoryCandidate:
         now = now or _now()
-        pending = {c.candidate_id: c for c in self.repository.list_candidates(user_id)}
-        candidate = pending.get(candidate_id)
-        if candidate is None:
-            raise KeyError(f"Unknown candidate: {candidate_id}")
-        if candidate.status != CandidateStatus.PENDING:
-            raise ValueError(f"Candidate already resolved: {candidate_id}")
-        if confirmed:
-            # C4: promote first, then mark ACCEPTED only after the L1 write
-            # durably succeeds. If _accept raises, the candidate stays PENDING so
-            # the confirmation can be retried (the old order left it ACCEPTED
-            # with no memory record and blocked retry via the resolved guard).
-            self._accept(candidate, now=now)
-            resolved = self.repository.set_candidate_status(
-                candidate_id, status=CandidateStatus.ACCEPTED, when=now
-            )
-        else:
-            resolved = self.repository.set_candidate_status(
+        # The TTL is a safety boundary, not only a periodic housekeeping task:
+        # confirmation may arrive before the next consolidation run.  Keep the
+        # purge, promotion, and state transition in one transaction so an
+        # expired candidate cannot be promoted into durable L1 memory.
+        with self.repository.store.transaction():
+            self.repository.purge_expired_candidates(now=now)
+            pending = {
+                c.candidate_id: c
+                for c in self.repository.list_candidates(user_id)
+            }
+            candidate = pending.get(candidate_id)
+            if candidate is None:
+                raise KeyError(f"Unknown or expired candidate: {candidate_id}")
+            if candidate.status != CandidateStatus.PENDING:
+                raise ValueError(f"Candidate already resolved: {candidate_id}")
+            if confirmed:
+                # C4: promote first, then mark ACCEPTED only after the L1 write
+                # durably succeeds. If _accept raises, the candidate stays
+                # PENDING so the confirmation can be retried.
+                self._accept(candidate, now=now)
+                return self.repository.set_candidate_status(
+                    candidate_id, status=CandidateStatus.ACCEPTED, when=now
+                )
+            return self.repository.set_candidate_status(
                 candidate_id, status=CandidateStatus.REJECTED, when=now
             )
-        return resolved
 
     def correct(
         self,
@@ -171,7 +213,8 @@ class MemoryReviewService:
 
     def _correct_l3(self, user_id: str, correction: dict[str, Any], now: datetime) -> str | None:
         hyp_id = correction.get("hypothesis_id")
-        hyps = {h.hypothesis_id: h for h in self.repository.list_hypotheses(user_id)}
+        # M-08: active_only=False so archived hypotheses can also be corrected.
+        hyps = {h.hypothesis_id: h for h in self.repository.list_hypotheses(user_id, active_only=False)}
         hyp = hyps.get(hyp_id) if hyp_id else None
         if hyp is None:
             return None

@@ -1,9 +1,11 @@
 """F3-B2 / US2: clinical sign-off via ``kb.approve``.
 
 ``AuthoritativeRAGService.approve`` is the ONLY sanctioned KB write path. It sets
-``verified=true`` with ``reviewer`` + ``reviewed_at`` provenance, restricted to
-``tier=curated`` cards, and the KB validator continues to reject any verified
-card lacking provenance (contract C2 / SC-002 / SC-006).
+``verified=true`` with ``reviewer`` + ``reviewed_at`` provenance for a card of
+ANY tier (D059: fully-automated ingestion means every card starts auto/unverified
+and clinician sign-off is the single trust-promotion gate), and the KB validator
+continues to reject any verified card lacking provenance (contract C2 / SC-002 /
+SC-006).
 """
 
 from __future__ import annotations
@@ -87,10 +89,18 @@ class KbApproveTests(unittest.TestCase):
         self.assertEqual(second["verified"], True)
         self.assertEqual(second["reviewed_at"], first["reviewed_at"])
 
-    def test_approve_auto_card_is_rejected(self) -> None:
-        with self.assertRaises(ValueError) as ctx:
-            self.service.approve(card_id="a-draft", reviewer="Dr. Wang")
-        self.assertIn("curated", str(ctx.exception).lower())
+    def test_approve_auto_card_sets_verified_and_provenance(self) -> None:
+        # D059: auto-ingested cards are the norm; clinician sign-off promotes
+        # them to trusted regardless of tier. Provenance is still mandatory and
+        # the card's tier is preserved (tier=provenance, verified=sign-off).
+        result = self.service.approve(card_id="a-draft", reviewer="Dr. Wang")
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["reviewer"], "Dr. Wang")
+        self.assertTrue(result["reviewed_at"])
+        persisted = self._reload_card("a-draft")
+        self.assertTrue(persisted["verified"])
+        self.assertEqual(persisted["reviewer"], "Dr. Wang")
+        self.assertEqual(persisted["tier"], "auto")
 
     def test_approve_missing_card_errors(self) -> None:
         with self.assertRaises(ValueError):

@@ -54,9 +54,13 @@ class PushTickHandlerMixin(BaseToolHandler):
 
         # The scheduler owns policy/content/state; pass the audit service through
         # so silent-consent advances are recorded at the domain level.
+        # M-25: pass the actual session_id so service-level audit events are
+        # traceable to the originating Hermes session (no handler-level
+        # tool_call audit — the service already logs push_tick/silent_consent).
         service = PushSchedulerService(
             store=self.repository.store,
             audit_service=self.audit_service,
+            session_id=session_id,
         )
         result = service.push_tick(user_id=user_id, now=now_dt)
 
@@ -87,23 +91,13 @@ class PushTickHandlerMixin(BaseToolHandler):
                     }
                 )
 
-        audit_id = self.audit_service.log(
-            session_id=session_id,
-            event_type="tool_call",
-            payload={
-                "tool_name": spec.name,
-                "status": "ok",
-                "data_scope": {"user_id": user_id},
-                "risk_level": spec.risk_level,
-                "evidence_refs": [],
-                "pushed_tiers": [entry["tier"] for entry in result.pushed],
-                "silent_consent_count": len(result.silent_consent),
-            },
-        )
+        # M-25: the service-level push_tick/silent_consent audit events
+        # already cover this operation; no handler-level tool_call audit
+        # to avoid duplicate entries.
         return ToolExecutionResponse(
             status="ok",
             evidence_refs=[],
-            audit_id=audit_id,
+            audit_id=None,
             payload={
                 "user_id": result.user_id,
                 "now": result.now,

@@ -14,6 +14,7 @@ from hermes_cgm_agent.services.tools.handlers import (
     DeliveryHandlerMixin,
     DexcomHandlerMixin,
     EventHandlerMixin,
+    MealCorrelationHandlerMixin,
     MemoryHandlerMixin,
     PushTickHandlerMixin,
     RagHandlerMixin,
@@ -51,6 +52,7 @@ def _fill_default_user_id(arguments: dict[str, Any]) -> dict[str, Any]:
 class ToolExecutor(
     TimeseriesHandlerMixin,
     EventHandlerMixin,
+    MealCorrelationHandlerMixin,
     ContextHandlerMixin,
     ReportHandlerMixin,
     MemoryHandlerMixin,
@@ -75,6 +77,8 @@ class ToolExecutor(
         self.audit_service = audit_service
         self.registry = registry or build_default_tool_registry()
         self._rag_tool_service: AuthoritativeRAGToolService | None = None
+        # L-26: cached MemoryToolService (lazy init on first memory.* call).
+        self._memory_tool_service = None
         # Seam for tests: a factory that builds a DexcomSyncService from the
         # repository. Defaults to env-sourced wiring (build_dexcom_sync_service).
         self._dexcom_sync_factory = dexcom_sync_factory or build_dexcom_sync_service
@@ -85,6 +89,7 @@ class ToolExecutor(
         "timeseries.get_realtime_snapshot": "_get_realtime_snapshot",
         "events.create": "_create_event",
         "events.confirm": "_confirm_event",
+        "meals.find_similar": "_find_similar_meals",
         "context.get_l0": "_get_l0_context",
         "reports.generate": "_generate_report",
         "memory.list": "_memory_list",
@@ -107,6 +112,14 @@ class ToolExecutor(
         arguments: dict[str, Any],
         session_id: str,
     ) -> ToolExecutionResponse:
+        # M-18: Schema validation is intentionally NOT enforced here at the
+        # executor level. Per D054 (tolerant argument shape), real LLM callers
+        # attach free text under ad-hoc keys (note/description/...) that the
+        # strict JSON Schema would reject. Each handler validates its own
+        # security-critical fields (user_id, data_scope, enum values, etc.)
+        # inline, and unknown keys are folded into the documented freeform
+        # payload field rather than failing the whole call. Adding a blanket
+        # jsonschema.validate() here would break the tolerant-shape contract.
         try:
             spec = self.registry.get(tool_name)
         except KeyError as exc:

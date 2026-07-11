@@ -25,7 +25,9 @@ from typing import Any, Protocol, Sequence
 logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
-_CJK_RE = re.compile("[一-鿿]+")
+# L-01: cover CJK Unified Ideographs (basic U+4E00-U+9FFF),
+# Extension A (U+3400-U+4DBF), and Extension B (U+20000-U+2A6DF).
+_CJK_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\U00020000-\U0002a6df]+")
 RRF_K = 60
 
 DEFAULT_EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"

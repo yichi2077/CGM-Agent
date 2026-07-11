@@ -47,7 +47,27 @@ class DexcomAuthService:
     def authorization_url(self, *, state: str | None = None) -> str:
         return self.client.build_authorize_url(state=state)
 
-    def complete_authorization(self, user_id: str, code_or_url: str) -> StoredDexcomToken:
+    def complete_authorization(
+        self, user_id: str, code_or_url: str, *, expected_state: str | None = None
+    ) -> StoredDexcomToken:
+        """Exchange the authorization code for a token.
+
+        L-15: When ``expected_state`` is provided, the ``state`` parameter in
+        the redirect URL is verified against it to prevent CSRF attacks.
+        When ``expected_state`` is None (default), state validation is skipped
+        for backward compatibility with the CLI paste-flow.
+        """
+        # L-15: OAuth state validation (CSRF protection).
+        if expected_state is not None:
+            text = (code_or_url or "").strip()
+            if "://" in text or "?" in text:
+                parsed = urllib.parse.urlparse(text)
+                query = urllib.parse.parse_qs(parsed.query)
+                received_state = query.get("state", [None])[0]
+                if received_state != expected_state:
+                    raise DexcomAuthError(
+                        "OAuth state mismatch — possible CSRF attack",
+                    )
         code = extract_authorization_code(code_or_url)
         token = self.client.exchange_code(code)
         return self.token_store.save(user_id, token, environment=self.config.environment)
@@ -60,7 +80,7 @@ class DexcomAuthService:
         if stored is None:
             raise DexcomAuthError(
                 f"No Dexcom authorization found for user '{user_id}'. "
-                "Run `dexcom-auth --user-id {user_id}` to authorize."
+                f"Run `dexcom-auth --user-id {user_id}` to authorize."
             )
         if not force_refresh and not stored.is_expired():
             return stored.access_token

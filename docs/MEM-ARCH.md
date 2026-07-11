@@ -4,7 +4,20 @@
 
 This note supersedes older test-count and L0/Warm ambiguity in this document.
 
-- Current validation baseline: `476 tests, OK (skipped=1)`.
+## Current Implementation Note (2026-07-08)
+
+- Authoritative KB is now `kb-2026-07-v3` with 580 claim cards: 574
+  machine-extracted `auto` cards plus 6 legacy `curated` seed cards. All remain
+  `verified=false` until clinician sign-off.
+- `tier` is provenance and `verified` is sign-off state (D059). Clinician
+  approval is allowed for any tier through `kb.approve` / `kb-approve`, with
+  reviewer provenance still mandatory.
+- Candidate merge enriches cards with deterministic synonyms and cross-unit
+  spellings before writing. Report generation defaults authoritative retrieval
+  on and builds its authoritative query from aggregate metrics and detected
+  events rather than a generic review phrase.
+
+- Current validation baseline: `575 tests, OK (skipped=2)`.
 - L0 is only the recent working window. It must not be read as long-term memory or as proof that older Warm summaries are still fresh.
 - Warm summaries (`memory_summaries`) remain separate synthesized state. If Warm exists but the current L0 window has no recent glucose points, provider prefetch now emits an explicit stale/no-recent-data notice.
 - `GlucosePoint.timestamp` is measured-at time; `GlucosePoint.received_at` records collector/API receipt time for freshness and lag calculations.
@@ -15,7 +28,7 @@ This note supersedes older test-count and L0/Warm ambiguity in this document.
 - **取代**：`MEM-ARCH-20260601`（代码注释引用但从未入库的幽灵文档；其 §编号在本文件中保留以便既往引用解析）
 - **权威决策来源**：[ADR-0001](adr/ADR-0001-memory-and-knowledge-architecture.md)、[DECISION_LOG](DECISION_LOG.md)
 
-> **如实声明**：标记含义 ✅ 已实现 / ⏳ 待办（含依赖外部资源）。截至 2026-06-06，G0-G8 能力层已落地、Hermes venv 下 **222 测试全绿**；D036-D040 已进入实现：分轨检索、报告候选自动入队、L0 Builder、L2→USER.md 单向同步、PDF→候选卡半自动扩容。
+> **如实声明**：标记含义 ✅ 已实现 / ⏳ 待办（含依赖外部资源）。截至 2026-07-10，G0-G8 能力层已落地、Hermes venv 下 **579 测试全绿（skipped=2）**；D036-D040 已进入实现：分轨检索、报告候选自动入队、L0 Builder、L2→USER.md 单向同步、PDF→候选卡半自动扩容。
 
 ---
 
@@ -50,7 +63,7 @@ This note supersedes older test-count and L0/Warm ambiguity in this document.
 ### 4.1 离线解析管线（✅ P3b 工程化，D041）
 `knowledge/pdfs/*.pdf` → `pdf_loader` 分页文本、表格探测、页面 PNG 渲染 → `HermesClaimExtractor` 通过 `hermes chat -q ... -Q` 抽取文本页，通过 `--image page.png` 抽取表格/图/低文本量页 → `quality` 机器过滤与去重 → review queue → `kb-merge` 以 `verified:false` 合入生产 KB。安全关键卡（阈值/低血糖处置/滴定算法）仍需外部临床/人工核验后才可改为 `verified:true`。
 
-> ✅**已实现（机器）**：[authoritative_kb.json](../src/hermes_cgm_agent/knowledge/authoritative_kb.json) 现为 **6 张双语论断卡**（`schema: claim-cards-v1`），全部 `verified:false`（草稿）；旧的 naive `_extracted/` 与 3 条手写摘要**已删除**。
+> ✅**已实现（机器）**：[authoritative_kb.json](../src/hermes_cgm_agent/knowledge/authoritative_kb.json) 现为 **580 张双语论断卡**（574 张 `auto` + 6 张 `curated`，`schema: claim-cards-v1`），全部 `verified:false`（草稿）；旧的 naive `_extracted/` 与 3 条手写摘要**已删除**。
 > ✅**已实现（P3b / D041）**：Hermes 委托抽取流水线可由非医学开发者运行，支持文本页与页面截图多模态抽取；机器过滤通过结构校验、噪声模式、源页文本/表格数字交叉校验降低编造风险。自动合入生产 KB 的卡一律保留 `verified:false`。
 
 ### 4.2 论断卡 schema（✅ 已实现，`ClaimCard`）
@@ -68,7 +81,7 @@ This note supersedes older test-count and L0/Warm ambiguity in this document.
 }
 ```
 - **双语**（claim_zh/claim_en）+ CJK bigram 分词 → 跨语言召回（D030，已实测）。
-- **版本化**：`kb_version`（当前 `kb-2026-06-draft`）;换版用双时间取代（旧卡保留 + 生效日期）。
+- **版本化**：`kb_version`（当前 `kb-2026-07-v3`）;换版用双时间取代（旧卡保留 + 生效日期）。
 - **核验闸**：`verified:false` 的卡在检索结果中打 `[待核验/unverified]` 标，生成层不得以权威口径呈现。
 
 ### 4.3 安全闸（D031）— ✅ 已实现 [memory_guard.py](../src/hermes_cgm_agent/services/safety/memory_guard.py)

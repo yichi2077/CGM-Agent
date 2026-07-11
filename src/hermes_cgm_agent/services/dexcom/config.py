@@ -112,6 +112,19 @@ class DexcomConfig:
             max_rpm = int(max_rpm_raw)
         except ValueError:
             max_rpm = 20
+        # H-11: validate DEXCOM_BASE_URL uses HTTPS to prevent OAuth token
+        # leakage over plaintext HTTP.
+        base_url_override = (os.getenv("DEXCOM_BASE_URL") or "").strip() or None
+        if base_url_override:
+            from urllib.parse import urlparse
+            parsed = urlparse(base_url_override)
+            if parsed.scheme != "https":
+                raise ValueError(
+                    f"DEXCOM_BASE_URL must use HTTPS scheme, got: {parsed.scheme}"
+                )
+            # Cycle2: validate netloc is present (e.g. reject "https:///path").
+            if not parsed.netloc:
+                raise ValueError("DEXCOM_BASE_URL must include a host name")
         return cls(
             client_id=client_id,
             client_secret=client_secret,
@@ -120,5 +133,5 @@ class DexcomConfig:
             scope=(os.getenv("DEXCOM_SCOPE") or DEFAULT_SCOPE).strip(),
             region=normalize_region(os.getenv("DEXCOM_REGION")),
             max_requests_per_minute=max(1, max_rpm),
-            base_url_override=(os.getenv("DEXCOM_BASE_URL") or "").strip() or None,
+            base_url_override=base_url_override,
         )

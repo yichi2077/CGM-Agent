@@ -5,6 +5,13 @@ from typing import Any
 
 from hermes_cgm_agent.domain import Report
 from hermes_cgm_agent.domain.report import ReportInput
+from hermes_cgm_agent.services.analytics import (
+    AnalyticsConfig,
+    CGMAnalyticsService,
+    EventDetectionConfig,
+    GlucoseEventDetector,
+    median_interval_minutes,
+)
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import (
     MemoryContextAssembler,
@@ -12,7 +19,10 @@ from hermes_cgm_agent.services.memory import (
     SQLiteMemoryRepository,
 )
 from hermes_cgm_agent.services.reports.builder import ReportService
+from hermes_cgm_agent.services.reports.builder import resolve_report_scope
 from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
+from hermes_cgm_agent.services.reports.retrieval_query import build_authoritative_query
+from hermes_cgm_agent.services.reports.sections.helpers import _window_label  # L-11: deduplicate
 from hermes_cgm_agent.services.safety import assert_track_isolation
 from hermes_cgm_agent.services.arguments import optional_bool, require_bool
 
@@ -42,7 +52,7 @@ class ReportToolService:
         retrieve_context = optional_bool(
             args.pop("retrieve_context", None),
             "retrieve_context",
-            default=False,
+            default=True,
         )
         auto_ingest_memory = auto_ingest_memory_enabled(args)
         args.pop("auto_ingest_memory", None)
@@ -66,15 +76,18 @@ class ReportToolService:
             return args
         assembler = MemoryContextAssembler(repository=self.memory_repository)
         report_type = str(args.get("report_type", "daily"))
-        query = f"{report_type} review for {user_id}"
+        memory_query = f"{report_type} review for {user_id}"
         if "memory_context" not in args:
             args["memory_context"] = assembler.build_memory_context(
                 user_id=str(user_id),
-                query=query,
+                query=memory_query,
             ).model_dump(mode="json")
         if "authoritative_context" not in args:
+            authoritative_query, population = self._authoritative_query(args)
             args["authoritative_context"] = assembler.build_authoritative_context(
-                query=query,
+                query=authoritative_query,
+                top_k=3,
+                population=population,
             ).model_dump(mode="json")
         # D031: fail loudly if the two memory tracks ever cross-contaminate.
         assert_track_isolation(
@@ -85,6 +98,41 @@ class ReportToolService:
             ),
         )
         return args
+
+    def _authoritative_query(self, args: dict[str, Any]) -> tuple[str, str | None]:
+        report_input = ReportInput.model_validate(args)
+        report_type = str(report_input.report_type)
+        scope = report_input.data_scope or resolve_report_scope(
+            user_id=report_input.user_id or "",
+            report_type=report_input.report_type,
+            timezone_name=report_input.timezone,
+            anchor_time=report_input.report_anchor_time,
+            anchor_at=report_input.anchor_at,
+        )
+        points = self.cgm_repository.list_glucose_points(scope)
+        interval = median_interval_minutes([point.timestamp for point in points]) if points else 5
+        analytics = CGMAnalyticsService(
+            AnalyticsConfig(expected_interval_minutes=int(round(interval)) or 5)
+        )
+        detector = GlucoseEventDetector(
+            EventDetectionConfig(
+                expected_interval_minutes=int(round(interval)) or 5,
+                timezone=report_input.timezone,
+            )
+        )
+        aggregate = analytics.compute_aggregate(
+            points=points,
+            scope=scope,
+            window_label=_window_label(report_type),
+        )
+        detected_events = detector.detect(points=points, scope=scope)
+        population = str(args.get("population") or "").strip() or None
+        return build_authoritative_query(
+            aggregate=aggregate,
+            detected_events=detected_events,
+            population=population,
+            report_type=report_type,
+        )
 
 
 def auto_ingest_memory_enabled(arguments: dict[str, Any]) -> bool:

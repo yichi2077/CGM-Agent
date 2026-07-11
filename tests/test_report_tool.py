@@ -68,7 +68,7 @@ class ReportToolTests(unittest.TestCase):
         self.assertEqual(audit_payload["template_version"], "g7-report-template-v1")
         self.assertEqual(audit_payload["output_hash"], body["report"]["output_hash"])
         self.assertEqual(audit_payload["route"], "reports.generate")
-        self.assertEqual(audit_payload["safety_result"]["status"], "clear")
+        self.assertEqual(audit_payload["safety_result"]["status"], "yellow_zone")
         self.assertEqual(audit_payload["section_count"], len(body["sections"]))
         self.assertIn("memory_ingest", body)
         self.assertIn("memory_ingest", audit_payload)
@@ -143,6 +143,26 @@ class ReportToolTests(unittest.TestCase):
 
         self.assertEqual(response["status"], "error")
         self.assertIn("retrieve_context must be a boolean", response["error"])
+
+    def test_reports_generate_accepts_population_for_authoritative_retrieval(self) -> None:
+        self._create_points([90, 120, 150])
+
+        response = self.executor.execute(
+            tool_name="reports.generate",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "report_type": "daily",
+                "population": "pregnancy",
+                "data_scope": {
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            },
+        ).to_dict()
+
+        self.assertEqual(response["status"], "ok")
 
     def test_doctor_report_does_not_auto_ingest_by_default(self) -> None:
         self._create_points([190, 195, 200, 205])

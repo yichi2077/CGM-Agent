@@ -147,11 +147,12 @@ class DexcomConfigEnvTests(unittest.TestCase):
             "DEXCOM_CLIENT_SECRET": "xyz",
             "DEXCOM_REGION": "ous",
             "DEXCOM_USE_SANDBOX": "true",
-            "DEXCOM_BASE_URL": "http://127.0.0.1:8473/",  # trailing slash trimmed
+            # H-11: base URL must use HTTPS scheme.
+            "DEXCOM_BASE_URL": "https://127.0.0.1:8473/",  # trailing slash trimmed
         }
         with patch.dict(os.environ, env, clear=False):
             config = DexcomConfig.from_env()
-        self.assertEqual(config.base_url, "http://127.0.0.1:8473")
+        self.assertEqual(config.base_url, "https://127.0.0.1:8473")
 
     def test_missing_credentials_raises(self) -> None:
         with patch.dict(os.environ, {"DEXCOM_CLIENT_ID": "", "DEXCOM_CLIENT_SECRET": ""}, clear=False):

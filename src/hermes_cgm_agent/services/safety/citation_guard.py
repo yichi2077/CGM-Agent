@@ -48,10 +48,7 @@ def assert_authoritative_quotes(
 
     supported_numbers: set[str] = set()
     for doc in documents:
-        for field in ("claim_en", "claim_zh", "text"):
-            value = str(doc.get(field) or "")
-            if value:
-                supported_numbers.update(_significant_numbers(value))
+        supported_numbers.update(_extract_supporting_numbers(doc))
 
     for number in sorted(text_numbers):
         if number not in supported_numbers:
@@ -77,4 +74,78 @@ def query_number_coverage(documents: list[dict], query: str) -> CitationGuardRes
 
 def _significant_numbers(text: str) -> set[str]:
     numbers = set(NUMBER_PATTERN.findall(text))
-    return {n for n in numbers if n not in {"1", "2", "3", "7", "14", "15", "30"}}
+    # Exempt only small counting numbers and the product's own window sizes
+    # (1/2/3 counts, 7/14-day windows). 15 and 30 are deliberately NOT exempt:
+    # they are the core numbers of hypo-treatment advice ("15 g 碳水、等 15
+    # 分钟" rule) and carb guidance — exactly the numbers a hallucinated
+    # recommendation would carry, so they must be backed by a card.
+    return {n for n in numbers if n not in {"1", "2", "3", "7", "14"}}
+
+
+def _extract_supporting_numbers(doc: dict) -> set[str]:
+    """Collect significant numbers from every citation-bearing field of a card.
+
+    Covers the claim body (``claim_en``/``claim_zh``/``text``) plus the card
+    ``title`` and bibliographic ``source.citation`` (work package C1 / audit
+    item P4). A number that appears only in a card's heading or citation — a
+    guideline id like "1593", a volume digit like "42", or the "15-15"
+    hypoglycaemia rule in the title — must still count as having authoritative
+    backing; otherwise the guard falsely flags a narrative that legitimately
+    quotes those numbers as a hallucination.
+
+    The ``source`` field is polymorphic across call sites: the RAG search result
+    serializes the human-readable citation as a STRING under ``source`` (with the
+    raw dict mirrored under ``citation``), while ClaimCard-style dicts store
+    ``source`` as a nested dict whose ``citation``/``doc``/``page`` entries hold
+    the bibliographic strings. Both shapes are handled (see
+    ``_numbers_from_source_field``) so backing is never missed regardless of
+    caller. The same regex and exemption list (``_significant_numbers``) apply,
+    unchanged.
+
+    Design tradeoff (accepted by C1): a coincidental match between a hallucinated
+    number and a citation/page digit will no longer be blocked. This is judged
+    preferable to the prior false-positive storm where legitimately quoted
+    citation numbers were rejected, and remains bounded by the exemption list
+    and exact-token (not substring) matching.
+    """
+    numbers: set[str] = set()
+    # Claim body — existing behaviour, unchanged.
+    for field in ("claim_en", "claim_zh", "text"):
+        value = str(doc.get(field) or "")
+        if value:
+            numbers.update(_significant_numbers(value))
+    # Card heading (C1): guideline ids and rule labels often live in the title
+    # (e.g. "15-15 法则", "ADA Standards 1593").
+    title = str(doc.get("title") or "")
+    if title:
+        numbers.update(_significant_numbers(title))
+    # Bibliographic citation (C1): handle both the string and dict shapes.
+    numbers.update(_numbers_from_source_field(doc.get("source")))
+    # M-12: the top-level ``citation`` dict (AuthoritativeDocument.citation)
+    # was previously dropped when building the document dict in
+    # _apply_citation_gate.  Now that it is included, extract its numbers too
+    # so guideline ids / page numbers in the citation metadata count as
+    # backing evidence.
+    numbers.update(_numbers_from_source_field(doc.get("citation")))
+    return numbers
+
+
+def _numbers_from_source_field(source: object) -> set[str]:
+    """Extract significant numbers from a polymorphic ``source`` value.
+
+    A string is treated as a human-readable citation (e.g.
+    "Battelino 2019 Diabetes Care 42:1593-1603, p.16"); a dict is treated as a
+    ClaimCard ``source`` mapping whose ``citation``/``doc``/``page`` entries
+    hold the bibliographic strings — mirroring the ``ClaimCard.citation``
+    property that combines ``citation``/``doc`` with the ``page`` suffix.
+    """
+    numbers: set[str] = set()
+    if isinstance(source, str):
+        if source:
+            numbers.update(_significant_numbers(source))
+    elif isinstance(source, dict):
+        for key in ("citation", "doc", "page"):
+            value = str(source.get(key) or "")
+            if value:
+                numbers.update(_significant_numbers(value))
+    return numbers

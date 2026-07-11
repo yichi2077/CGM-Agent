@@ -22,12 +22,24 @@ import copy
 import hashlib
 import json
 import os
+import re
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-from hermes_cgm_agent.domain import EvidenceRef, MemoryCandidate, MemoryLayer
+from hermes_cgm_agent.domain import (
+    DataScope,
+    EvidenceRef,
+    GlucosePoint,
+    GlucoseTrend,
+    GlucoseUnit,
+    MemoryCandidate,
+    MemoryLayer,
+    convert_glucose_value,
+)
 from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.audit import AuditService
+from hermes_cgm_agent.services.analytics import RealtimeSignalConfig
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory.assembler import MemoryContextAssembler
 from hermes_cgm_agent.services.memory.consolidation import ConsolidationService
@@ -109,19 +121,29 @@ _DEFAULT_SOUL_PROMPT = (
     "life-oriented, state uncertainty, avoid judgment and commands, and invite "
     "confirmation when offering a hypothesis."
 )
-_SOUL_KEYWORDS = (
-    "知情陪伴者",
-    "先历史",
-    "先看历史",
-    "非指令",
-    "不替代医生",
-    "不下结论",
-    "不确定",
-    "协商",
-    "假设",
-    "生活",
-    "简短",
-)
+# D1: section-based priority for SOUL.md compaction truncation.
+# Lower number = higher priority (kept when truncating).
+# Order: 角色定义 > 交互原则 > 语言风格 > 安全边界 > 其他.
+_SOUL_SECTION_PRIORITY: list[tuple[str, int]] = [
+    ("我是谁", 0),       # 角色定义
+    ("交互原则", 1),     # 交互原则
+    ("语言风格", 2),     # 语言风格
+    ("用户保护规则", 3), # 情感/遗忘边界
+    ("安全边界", 3),     # 安全边界
+]
+
+# D1: hard character cap for the compacted SOUL.md persona summary.
+_SOUL_HARD_CAP = 2500
+
+# D4: GlucoseTrend → Chinese label for real-time status injection.
+_TREND_CN: dict[GlucoseTrend, str] = {
+    GlucoseTrend.RISING_FAST: "快速上升",
+    GlucoseTrend.RISING: "上升",
+    GlucoseTrend.STABLE: "平稳",
+    GlucoseTrend.FALLING: "下降",
+    GlucoseTrend.FALLING_FAST: "快速下降",
+    GlucoseTrend.UNKNOWN: "未知",
+}
 
 
 class CGMMemoryProvider:
@@ -172,21 +194,191 @@ class CGMMemoryProvider:
         self._session_turns.setdefault(session_id, [])
 
     def system_prompt_block(self) -> str:
+        # D2: instructions in Chinese for language consistency with SOUL.md.
+        # D3: default audience changed from CLINICIAN to SELF (SOUL.md §叙事版本).
         block = (
             f"{self._soul_prompt}\n"
-            "CGM memory is active. Personal episodes and hypotheses are recalled "
-            "as user_memory evidence and must be cited with uncertainty, never as "
-            "authoritative medical fact.\n"
-            "If the user inputs the '/report' command, you must invoke the "
-            "'cgm_reports_generate' tool with audience='CLINICIAN' and report_type='daily' "
-            "to serve the strictly isolated clinical report."
+            "CGM 记忆系统已激活。个人情景和假设作为 user_memory 证据召回，"
+            "必须带不确定性呈现，绝不能作为权威医学事实。\n"
+            "如果用户输入 '/report' 命令，调用 'cgm_reports_generate' 工具，"
+            "默认使用 audience='SELF' 和 report_type='daily' 生成用户版报告。"
         )
         if self._hermes_home:
             block += f" Runtime scope: {self._hermes_home}."
         return block
 
+    # ------------------------------------------------------------------
+    # D1: SOUL.md compaction
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compact_soul(text: str) -> str:
+        """Compact SOUL.md into a structured persona summary (D1).
+
+        Instead of keyword-based line filtering, this parses SOUL.md by
+        ``##`` section headers and preserves:
+        - All ``##`` / ``###`` section titles.
+        - All paragraphs in high-priority sections, compacted line-by-line.
+        - All ✅/❌ example pairs, compacted to single lines.
+
+        Target: ≤ 2000 characters.  Hard cap: ``_SOUL_HARD_CAP`` (2500).
+        If the cap is exceeded, low-priority sections are dropped first
+        (角色定义 > 交互原则 > 语言风格 / 用户保护 / 安全边界 > 其他).
+        """
+        lines = text.splitlines()
+
+        # Parse into sections keyed by ## headers.
+        sections: list[tuple[str, int, list[str]]] = []  # (header, priority, body_lines)
+        current_header = ""
+        current_priority = 99
+        current_body: list[str] = []
+
+        for raw in lines:
+            stripped = raw.strip()
+            if stripped.startswith("## "):
+                if current_header:
+                    sections.append((current_header, current_priority, current_body))
+                current_header = stripped
+                current_priority = _section_priority(stripped)
+                current_body = []
+            elif stripped.startswith("# ") and not stripped.startswith("## "):
+                # L-05: preserve h1 title as a standalone section so it is not
+                # silently dropped when no ## section has been seen yet.
+                if current_header:
+                    sections.append((current_header, current_priority, current_body))
+                current_header = stripped
+                current_priority = 0  # h1 is always high priority
+                current_body = []
+            elif current_header:
+                current_body.append(raw)
+        if current_header:
+            sections.append((current_header, current_priority, current_body))
+
+        # Compact each section's body.
+        compacted: list[tuple[int, str]] = []  # (priority, compacted_text)
+        for header, priority, body in sections:
+            # The full protection section is longer than the prompt budget, but
+            # its emotional-first and memory-boundary commitments are mandatory
+            # persona rules. Keep a deterministic compact form rather than
+            # dropping it based on arbitrary document order.
+            compacted_text = (
+                _compact_user_protection_section(header, body)
+                if "用户保护规则" in header or "安全边界" in header
+                else _compact_section_body(header, body)
+            )
+            if compacted_text.strip():
+                compacted.append((priority, compacted_text))
+
+        # Build output. If under hard cap, return as-is (original order).
+        result = "\n\n".join(text_part for _, text_part in compacted)
+        if len(result) <= _SOUL_HARD_CAP:
+            return result
+
+        # Over hard cap: drop lowest-priority sections first (highest priority
+        # number = lowest priority = drop first), preserving original order.
+        drop_order = sorted(range(len(compacted)), key=lambda i: -compacted[i][0])
+        kept = set(range(len(compacted)))
+        for idx in drop_order:
+            if len(kept) <= 1:
+                break  # Always keep at least one section.
+            kept.discard(idx)
+            result = "\n\n".join(
+                compacted[i][1] for i in range(len(compacted)) if i in kept
+            )
+            if len(result) <= _SOUL_HARD_CAP:
+                break
+
+        return result[:_SOUL_HARD_CAP]
+
+    # ------------------------------------------------------------------
+    # D4: Real-time CGM status
+    # ------------------------------------------------------------------
+
+    def _build_realtime_status(self) -> str:
+        """Build a structured real-time CGM status summary in Chinese (D4).
+
+        Queries the most recent glucose points (last 1 hour), computes the
+        current value, trend direction, and range status.  Returns an empty
+        string when the store is completely empty — the empty-store hint in
+        :meth:`prefetch` handles that case.
+        """
+        try:
+            cgm_repo = SQLiteCGMRepository(self._store)
+            now = utc_now()
+            window_start = now - timedelta(hours=1)
+            scope = DataScope(
+                user_id=self._user_id,
+                window_start=window_start,
+                window_end=now,
+            )
+            points = cgm_repo.list_glucose_points(scope)
+        except Exception:
+            return ""
+
+        # Match the canonical realtime service: only valid readings can be
+        # presented to the LLM as the user's current physiological state.
+        valid_points = sorted(
+            (point for point in points if str(point.quality_flag) == "valid"),
+            key=lambda point: point.timestamp,
+        )
+        if not valid_points:
+            if not self._has_glucose_points_for_user():
+                # Preserve the separate empty-store guidance in prefetch().
+                return ""
+            return "当前状态：最近 1 小时无新数据，可能传感器未连接。"
+
+        latest = valid_points[-1]
+        stale_after = timedelta(minutes=RealtimeSignalConfig().stale_after_minutes)
+        age = now - latest.timestamp
+        if age > stale_after:
+            age_minutes = max(1, round(age.total_seconds() / 60))
+            return f"当前状态：最近有效读数距今约 {age_minutes} 分钟，当前数据可能已过期。"
+        value_mg_dl = latest.value_mg_dl
+        value_mmol = round(
+            convert_glucose_value(value_mg_dl, GlucoseUnit.MG_DL, GlucoseUnit.MMOL_L), 1
+        )
+
+        # Determine trend: prefer the point's trend field, fall back to
+        # computing from the delta between the latest and an earlier point.
+        trend_text = _TREND_CN.get(latest.trend, "未知")
+        if latest.trend == GlucoseTrend.UNKNOWN:
+            trend_text = _compute_trend_from_points(valid_points)
+
+        # Determine range status (AGP 2019 consensus thresholds).
+        if value_mg_dl < 54:
+            range_text = "处于严重低血糖范围"
+        elif value_mg_dl < 70:
+            range_text = "偏低，低于目标范围"
+        elif value_mg_dl <= 180:
+            range_text = "处于目标范围内"
+        elif value_mg_dl <= 250:
+            range_text = "偏高，高于目标范围"
+        else:
+            range_text = "处于严重高血糖范围"
+
+        return (
+            f"当前状态：最近读数 {value_mmol:.1f} mmol/L"
+            f"（约 {value_mg_dl:.0f} mg/dL），"
+            f"趋势{trend_text}，{range_text}。"
+        )
+
+    def _has_glucose_points_for_user(self) -> bool:
+        """Return whether this provider's user has any CGM history at all."""
+        try:
+            with self._store.connect() as conn:
+                return conn.execute(
+                    "SELECT 1 FROM glucose_points WHERE user_id = ? LIMIT 1",
+                    (self._user_id,),
+                ).fetchone() is not None
+        except Exception:
+            return False
+
     def prefetch(self, query: str, *, session_id: str = "") -> str:
         lines: list[str] = []
+        # D4: real-time CGM status (current value, trend, range).
+        realtime = self._build_realtime_status()
+        if realtime:
+            lines.append(f"[CGM 实时状态] {realtime}")
         # Warm state summary ("dreaming", D034) injected first as background.
         latest = self._repository.latest_summary(self._user_id)
         if latest is not None:
@@ -231,7 +423,7 @@ class CGMMemoryProvider:
             # there is no data yet. The user-facing wording is the agent's, in the
             # informed-companion tone (SOUL / Principle IV) — never a command.
             try:
-                if SQLiteCGMRepository(self._store).status().glucose_point_count == 0:
+                if not self._has_glucose_points_for_user():
                     lines.append(
                         "[CGM empty store] No CGM data for this user yet. If the user "
                         "asks about their glucose, gently let them know there is no data "
@@ -294,22 +486,35 @@ class CGMMemoryProvider:
             )
         if candidate is None:
             return None
-        existing = {
-            item.candidate_id
-            for item in self._repository.list_candidates(self._user_id)
-        }
-        if candidate.candidate_id not in existing:
-            self._repository.enqueue_candidate(candidate)
+        # M-07: wrap check-then-insert in a transaction to eliminate the
+        # TOCTOU race where a concurrent turn could enqueue the same
+        # candidate_id between the list and the insert.
+        with self._store.transaction():
+            existing = {
+                item.candidate_id
+                for item in self._repository.list_candidates(self._user_id)
+            }
+            if candidate.candidate_id not in existing:
+                self._repository.enqueue_candidate(candidate)
 
     def on_session_end(self, messages: list[dict[str, Any]]) -> None:
         # End-of-session is a natural consolidation trigger (D026).
-        self._consolidation.consolidate(self._user_id, session_id=self._session_id)
-        if self._hermes_home:
-            UserMDSyncService(repository=self._repository).sync(
-                user_id=self._user_id,
-                hermes_home=self._hermes_home,
+        # H-06: wrap in try/finally so a consolidation or sync failure
+        # does not leak the session entry in _session_turns.
+        try:
+            self._consolidation.consolidate(self._user_id, session_id=self._session_id)
+            if self._hermes_home:
+                UserMDSyncService(repository=self._repository).sync(
+                    user_id=self._user_id,
+                    hermes_home=self._hermes_home,
+                )
+        except Exception:
+            import logging
+            logging.getLogger("hermes_cgm_agent.memory").exception(
+                "Consolidation failed on session end"
             )
-        self._session_turns.pop(self._session_id, None)
+        finally:
+            self._session_turns.pop(self._session_id, None)
 
     def on_session_switch(
         self,
@@ -415,7 +620,7 @@ class ConversationMemoryExtractor(Protocol):
 
 
 def _looks_memory_relevant(text: str) -> bool:
-    lowered = text.lower()
+    lowered = text.casefold()
     keywords = (
         "glucose",
         "blood sugar",
@@ -430,9 +635,44 @@ def _looks_memory_relevant(text: str) -> bool:
         "high",
         "hypo",
         "hyper",
+        "breakfast",
+        "lunch",
+        "dinner",
+        "snack",
+        "rice",
+        "noodle",
+        "bread",
+        "pizza",
+        "burger",
+        "sandwich",
+        "soup",
+        "salad",
+        "coffee",
+        "tea",
+        "juice",
+        "soda",
+        "beer",
+        "wine",
+        "chocolate",
+        "cookie",
+        "cake",
+        "ice cream",
+        "fruit",
+        "vegetable",
+        "meat",
+        "fish",
+        "chicken",
+        "beef",
+        "pork",
+        "tofu",
+        "dumpling",
+        "porridge",
+        "oatmeal",
+        "dessert",
         "早餐",
         "午餐",
         "晚餐",
+        "加餐",
         "血糖",
         "低血糖",
         "高血糖",
@@ -445,6 +685,7 @@ def _looks_memory_relevant(text: str) -> bool:
         "自责",
         "压力大",
         "心情不好",
+        # F3: expanded food vocabulary for broader memory-relevance detection.
         "蛋糕",
         "面条",
         "甜点",
@@ -455,6 +696,72 @@ def _looks_memory_relevant(text: str) -> bool:
         "零食",
         "米饭",
         "馒头",
+        "面包",
+        "饺子",
+        "包子",
+        "粥",
+        "米粉",
+        "汉堡",
+        "披萨",
+        "寿司",
+        "沙拉",
+        "汤",
+        "炒饭",
+        "炒面",
+        "油条",
+        "豆浆",
+        "牛奶",
+        "酸奶",
+        "鸡蛋",
+        "牛肉",
+        "猪肉",
+        "鸡肉",
+        "鱼",
+        "虾",
+        "豆腐",
+        "蔬菜",
+        "土豆",
+        "番薯",
+        "玉米",
+        "燕麦",
+        "饼干",
+        "巧克力",
+        "冰淇淋",
+        "可乐",
+        "果汁",
+        "啤酒",
+        "红酒",
+        "咖啡",
+        "茶",
+        "蜂蜜",
+        "花生",
+        "坚果",
+        "瓜子",
+        "汤圆",
+        "月饼",
+        "粽子",
+        "年糕",
+        "凉皮",
+        "肉夹馍",
+        "煎饼",
+        "麻辣烫",
+        "烧烤",
+        "串串",
+        "炸鸡",
+        "薯条",
+        "薯片",
+        "花卷",
+        "烧饼",
+        "吃饱",
+        "吃多",
+        "吃少",
+        "没吃",
+        "饿",
+        "馋",
+        "碳水",
+        "糖分",
+        "热量",
+        "饱了",
         "睡觉",
         "失眠",
         "睡得晚",
@@ -473,34 +780,192 @@ def _looks_memory_relevant(text: str) -> bool:
         "不舒服",
         "难受",
     )
-    return any(keyword in lowered for keyword in keywords)
+    return any(_contains_memory_term(lowered, keyword) for keyword in keywords)
+
+
+def _section_priority(header: str) -> int:
+    """Determine section priority for SOUL.md truncation (D1).
+
+    Lower number = higher priority (kept when truncating).
+    Order: 角色定义 > 交互原则 > 语言风格 > 安全边界 > 其他.
+    """
+    for keyword, priority in _SOUL_SECTION_PRIORITY:
+        if keyword in header:
+            return priority
+    return 4  # 其他
+
+
+def _is_table_separator(line: str) -> bool:
+    """Check if a line is a Markdown table separator (e.g., ``|---|---|---|``)."""
+    if not line.startswith("|"):
+        return False
+    content = line.replace("|", "").replace("-", "").replace(" ", "").replace(":", "")
+    return content == ""
+
+
+# D1: per-line character cap for compacted SOUL.md paragraphs. Keeps each
+# line concise so the total stays within _SOUL_HARD_CAP while preserving
+# key persona definitions ("我不是监督者", "我不是同谋者" …) that appear in
+# later paragraphs.
+_COMPACT_LINE_LIMIT = 100
+
+
+def _truncate_line(line: str, limit: int = _COMPACT_LINE_LIMIT) -> str:
+    """Truncate a line to ``limit`` characters, appending an ellipsis if cut."""
+    if len(line) <= limit:
+        return line
+    return line[: limit - 1].rstrip() + "…"
+
+
+def _compact_section_body(header: str, body_lines: list[str]) -> str:
+    """Compact a single SOUL.md section body (D1).
+
+    Keeps ``###`` headers, ALL paragraphs under each header (not just the
+    first), and all ✅/❌ example pairs (compacted to single lines). Each
+    regular content line is truncated to ``_COMPACT_LINE_LIMIT`` characters
+    to control total length while preserving key persona definitions (e.g.
+    "我不是监督者", "我不是同谋者") that appear in paragraphs after the first.
+    """
+    result: list[str] = [header]
+    pending_check: str | None = None
+
+    for raw in body_lines:
+        stripped = raw.strip()
+
+        if not stripped or stripped == "---":
+            # Blank line / separator: flush pending ✅.
+            if pending_check is not None:
+                result.append(pending_check)
+                pending_check = None
+            continue
+
+        if stripped.startswith("### "):
+            if pending_check is not None:
+                result.append(pending_check)
+                pending_check = None
+            result.append(stripped)
+            continue
+
+        # Skip table separator lines (e.g., |---|---|---|).
+        if _is_table_separator(stripped):
+            continue
+
+        if stripped.startswith("✅"):
+            if pending_check is not None:
+                # Previous ✅ had no matching ❌ — flush it.
+                result.append(pending_check)
+            pending_check = _truncate_line(stripped)
+            continue
+
+        if stripped.startswith("❌"):
+            if pending_check is not None:
+                result.append(f"{pending_check} | {_truncate_line(stripped)}")
+                pending_check = None
+            else:
+                result.append(_truncate_line(stripped))
+            continue
+
+        # Regular content line: keep ALL paragraphs (not just the first),
+        # truncating each to _COMPACT_LINE_LIMIT to control total length.
+        result.append(_truncate_line(stripped))
+        pending_check = None
+
+    # Flush any remaining pending ✅.
+    if pending_check is not None:
+        result.append(pending_check)
+
+    return "\n".join(result)
+
+
+def _compact_user_protection_section(header: str, body_lines: list[str]) -> str:
+    """Dynamically compact the SOUL user-protection / safety-boundary section.
+
+    Previously this function returned hardcoded content, which could drift
+    from the actual SOUL.md text.  Now it dynamically extracts ``###``
+    sub-headers and the first content line under each from the real SOUL.md
+    section body, keeping the output compact enough to survive the hard cap
+    while still being derived from the source document (M-05).
+    """
+    result: list[str] = [header]
+    in_subsection = False
+    got_first_line = False
+    for raw in body_lines:
+        stripped = raw.strip()
+        if not stripped or stripped == "---":
+            continue
+        if stripped.startswith("### "):
+            result.append(stripped)
+            in_subsection = True
+            got_first_line = False
+            continue
+        if stripped.startswith("## "):
+            # A new ## section inside the body — stop.
+            break
+        if in_subsection and not got_first_line:
+            # Skip ✅/❌ example pairs; keep only the first prose line.
+            if stripped.startswith(("✅", "❌", "|")):
+                continue
+            result.append(_truncate_line(stripped))
+            got_first_line = True
+    return "\n".join(result)
+
+
+def _compute_trend_from_points(points: list[GlucosePoint]) -> str:
+    """Compute trend direction from recent glucose points (D4).
+
+    Compares the latest reading with a reference point ~15 min earlier.
+    Uses rate of change (mg/dL/min) instead of absolute delta so the
+    threshold is time-normalized: a 20 mg/dL rise over 5 minutes is
+    "fast", but the same rise over 30 minutes is only "rising".
+    """
+    if len(points) < 2:
+        return "未知"
+
+    last = points[-1]
+    # Find a reference point ~15 min before the last reading.
+    ref = points[0]
+    for p in reversed(points[:-1]):
+        time_diff = (last.timestamp - p.timestamp).total_seconds()
+        if time_diff >= 900:  # 15 minutes
+            ref = p
+            break
+
+    delta = last.value_mg_dl - ref.value_mg_dl
+    minutes_between = (last.timestamp - ref.timestamp).total_seconds() / 60.0
+    if minutes_between <= 0:
+        return "未知"
+
+    # D4: rate-of-change thresholds (mg/dL per minute).
+    delta_per_min = delta / minutes_between
+
+    if delta_per_min > 2:
+        return "快速上升"
+    elif delta_per_min > 0.5:
+        return "上升"
+    elif delta_per_min < -2:
+        return "快速下降"
+    elif delta_per_min < -0.5:
+        return "下降"
+    else:
+        return "平稳"
 
 
 def _load_soul_prompt() -> str:
+    """Load and compact SOUL.md into a structured persona summary (D1).
+
+    Instead of keyword-based line filtering, this reads the full SOUL.md and
+    compacts it by section via :meth:`CGMMemoryProvider._compact_soul`.
+    """
     try:
         text = _SOUL_PATH.read_text(encoding="utf-8")
     except OSError:
         return _DEFAULT_SOUL_PROMPT
 
-    lines: list[str] = []
-    for raw_line in text.splitlines():
-        line = raw_line.strip().lstrip("-*#0123456789. ")
-        if not line or len(line) > 180:
-            continue
-        if any(keyword in line for keyword in _SOUL_KEYWORDS):
-            lines.append(line)
-        if len(lines) >= 10:
-            break
-
-    if not lines:
+    compact = CGMMemoryProvider._compact_soul(text)
+    if not compact.strip():
         return _DEFAULT_SOUL_PROMPT
 
-    compact = " ".join(lines)
-    return (
-        "CGM persona from SOUL.md: "
-        f"{compact} "
-        "Use this style in all CGM memory, report, and hypothesis replies."
-    )[:1800]
+    return f"SOUL.md 人设摘要：\n{compact}"
 
 
 def _turn_candidate_id(session_id: str, text: str) -> str:
@@ -512,11 +977,54 @@ def _normalized_text(text: str) -> str:
     return " ".join(text.lower().split())
 
 
+def _contains_memory_term(text: str, term: str) -> bool:
+    """Match ASCII terms as words while retaining natural CJK substring search."""
+    normalized_term = term.casefold()
+    if normalized_term.isascii() and any(char.isalnum() for char in normalized_term):
+        return re.search(
+            rf"(?<![a-z0-9]){re.escape(normalized_term)}(?![a-z0-9])",
+            text.casefold(),
+        ) is not None
+    return normalized_term in text.casefold()
+
+
+# F3: food-specific keywords for episode summary enrichment. When a long
+# conversation turn is truncated for the candidate summary, any food names
+# appearing after the truncation point are appended so BM25 can recall
+# episodes by food name even when the food mention is past the cut.
+_FOOD_NAMES_FOR_SUMMARY: tuple[str, ...] = (
+    "面条", "米饭", "馒头", "面包", "饺子", "包子", "粥", "米粉",
+    "汉堡", "披萨", "寿司", "沙拉", "汤", "炒饭", "炒面", "油条",
+    "豆浆", "牛奶", "酸奶", "鸡蛋", "牛肉", "猪肉", "鸡肉", "鱼",
+    "虾", "豆腐", "蔬菜", "土豆", "番薯", "玉米", "燕麦", "饼干",
+    "巧克力", "冰淇淋", "可乐", "果汁", "啤酒", "红酒", "咖啡",
+    "茶", "蜂蜜", "花生", "坚果", "瓜子", "汤圆", "月饼", "粽子",
+    "年糕", "凉皮", "肉夹馍", "煎饼", "麻辣烫", "烧烤", "串串",
+    "炸鸡", "薯条", "薯片", "蛋糕", "甜品", "甜点", "水果", "奶茶",
+    "火锅", "零食", "noodle", "rice", "bread", "pizza", "burger",
+    "cake", "dessert", "fruit", "snack", "chocolate", "cookie",
+    "ice cream", "coffee", "tea", "juice", "soda", "beer", "wine",
+)
+
+
 def _candidate_summary(text: str) -> str:
     normalized = " ".join(text.split())
     if len(normalized) <= 180:
         return normalized
-    return normalized[:177] + "..."
+    truncated = normalized[:177] + "..."
+    # F3: preserve food names that appear after the truncation point so
+    # BM25 can recall episodes by food name (e.g. a long turn mentioning
+    # "...然后下午又吃了饺子" should still be searchable by "饺子").
+    full_text = normalized.casefold()
+    visible_text = normalized[:177].casefold()
+    found = [
+        kw for kw in _FOOD_NAMES_FOR_SUMMARY
+        if _contains_memory_term(full_text, kw)
+        and not _contains_memory_term(visible_text, kw)
+    ]
+    if found:
+        truncated += " 食物:" + ",".join(found[:5])
+    return truncated
 
 
 def _stringify_memory_content(content: Any) -> str:

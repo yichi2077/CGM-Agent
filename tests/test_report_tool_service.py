@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -98,6 +100,58 @@ class ReportToolServiceTests(unittest.TestCase):
                     },
                 }
             )
+
+    def test_generate_retrieves_authoritative_context_by_default(self) -> None:
+        kb_path = Path(self.temp_dir.name) / "kb.json"
+        kb_path.write_text(
+            json.dumps(
+                {
+                    "kb_version": "kb-report-test",
+                    "cards": [
+                        {
+                            "card_id": "hypo-15-15",
+                            "title": "Hypoglycemia 15-15 rule",
+                            "claim_zh": "hypoglycemia 15 g carbohydrate 15 minutes 70",
+                            "claim_en": "For hypoglycemia, use 15 g carbohydrate and recheck after 15 minutes.",
+                            "population": "general",
+                            "tags": ["hypoglycemia"],
+                            "synonyms": ["low glucose", "15 g carbohydrate", "70"],
+                            "source": {"citation": "Test", "page": 1},
+                            "verified": False,
+                            "tier": "auto",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        previous = os.environ.get("CGM_AGENT_KB_PATH")
+        os.environ["CGM_AGENT_KB_PATH"] = str(kb_path)
+        try:
+            self._create_points([65, 64, 63, 100])
+            result = self.service.generate(
+                {
+                    "user_id": "user-1",
+                    "report_type": "daily",
+                    "data_scope": {
+                        "user_id": "user-1",
+                        "window_start": "2026-05-31T00:00:00+00:00",
+                        "window_end": "2026-06-01T00:00:00+00:00",
+                    },
+                }
+            )
+        finally:
+            if previous is None:
+                os.environ.pop("CGM_AGENT_KB_PATH", None)
+            else:
+                os.environ["CGM_AGENT_KB_PATH"] = previous
+
+        self.assertEqual(result.report.source_versions["authoritative_context"], "supplied")
+        observations = next(
+            section for section in result.report.sections if section.section_id == "observations"
+        )
+        self.assertIn("authoritative", observations.source_tracks)
+        self.assertTrue(any(w.code == "authoritative_unverified" for w in observations.warnings))
 
     def _create_points(self, values: list[int]) -> None:
         for index, value in enumerate(values):

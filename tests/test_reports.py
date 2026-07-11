@@ -3,17 +3,26 @@ from __future__ import annotations
 import tempfile
 import unittest
 from hashlib import sha256
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
-from hermes_cgm_agent.domain import GlucosePoint, UserEvent
-from hermes_cgm_agent.domain.report import ReportAudience, ReportInput
+from hermes_cgm_agent.domain import EvidenceRef, GlucoseEventType, GlucosePoint, UserEvent
+from hermes_cgm_agent.domain.report import (
+    AuthoritativeContext,
+    AuthoritativeDocument,
+    MemoryContext,
+    ReportAudience,
+    ReportInput,
+)
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.reports import (
     ReportService,
     SQLiteReportRepository,
     resolve_report_scope,
 )
+from hermes_cgm_agent.services.reports.renderer import MEDICAL_DISCLAIMER_FOOTER
+from hermes_cgm_agent.services.reports.sections.observations import RAG_MERGE_MARKER
 from hermes_cgm_agent.services.safety.router import RED_ZONE_TEMPLATE
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -44,6 +53,33 @@ class ReportServiceTests(unittest.TestCase):
 
         self.assertEqual(scope.window_start.isoformat(), "2026-05-30T23:00:00+00:00")
         self.assertEqual(scope.window_end.isoformat(), "2026-05-31T23:00:00+00:00")
+
+    def test_daily_window_preserves_local_anchor_across_dst(self) -> None:
+        cases = (
+            # Spring-forward: 07:00 exists on both local dates, but they are
+            # 23 UTC hours apart.
+            (
+                datetime(2026, 3, 8, 12, 0, tzinfo=timezone.utc),
+                "2026-03-07T12:00:00+00:00",
+                "2026-03-08T11:00:00+00:00",
+            ),
+            # Fall-back: the same two local anchor times are 25 UTC hours apart.
+            (
+                datetime(2026, 11, 1, 13, 0, tzinfo=timezone.utc),
+                "2026-10-31T11:00:00+00:00",
+                "2026-11-01T12:00:00+00:00",
+            ),
+        )
+        for anchor_at, expected_start, expected_end in cases:
+            with self.subTest(anchor_at=anchor_at):
+                scope = resolve_report_scope(
+                    user_id="user-1",
+                    report_type="daily",
+                    timezone_name="America/New_York",
+                    anchor_at=anchor_at,
+                )
+                self.assertEqual(scope.window_start.isoformat(), expected_start)
+                self.assertEqual(scope.window_end.isoformat(), expected_end)
 
     def test_doctor_window_defaults_to_fourteen_days(self) -> None:
         scope = resolve_report_scope(
@@ -99,12 +135,24 @@ class ReportServiceTests(unittest.TestCase):
         self.assertEqual(report.g8_memory_candidates[0].target_layer, "L1")
         self.assertEqual(report.template_version, "g7-report-template-v1")
         self.assertEqual(report.route, "reports.generate")
-        self.assertEqual(report.safety_result, {"status": "clear", "reason": "no_red_or_yellow_zone_points"})
+        self.assertEqual(report.safety_result["status"], "yellow_zone")
         self.assertEqual(report.output_hash, sha256(report.rendered_markdown.encode("utf-8")).hexdigest())
         self.assertEqual(loaded.output_hash, report.output_hash)
 
     def test_red_zone_report_is_routed_to_safety_template(self) -> None:
-        self._create_points(values=[92, 48, 110, 305])
+        # Create sustained red zone: 3 consecutive low-red points within 10 min
+        # (A2 time gating: single transient red points are downgraded to yellow)
+        for minute, value in enumerate([40, 42, 44]):
+            self.cgm_repository.create_glucose_point(
+                GlucosePoint(
+                    user_id="user-1",
+                    timestamp=datetime(2026, 5, 31, 0, minute * 5, tzinfo=timezone.utc),
+                    value=value,
+                    unit="mg/dL",
+                    source="sensor:test",
+                    quality_flag="valid",
+                )
+            )
 
         report = self.report_service.generate(
             ReportInput(
@@ -468,6 +516,154 @@ class ReportServiceTests(unittest.TestCase):
         self.assertIn("模式线索", clinician_report.rendered_markdown)
         self.assertIn("生活事件", clinician_report.rendered_markdown)
         self.assertIn("波动片段", clinician_report.rendered_markdown)
+
+    def test_rag_merge_marker_is_not_persisted_or_returned(self) -> None:
+        self._create_points()
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="weekly",
+                user_id="user-1",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-07T00:00:00+00:00",
+                },
+                memory_context=MemoryContext(
+                    items=[
+                        {
+                            "evidence_refs": [
+                                EvidenceRef(kind="memory", ref_id="m1").model_dump(mode="json")
+                            ]
+                        }
+                    ]
+                ),
+            )
+        )
+        loaded = self.report_repository.get_report(report.report_id)
+        self.assertNotIn(RAG_MERGE_MARKER, report.rendered_markdown)
+        self.assertTrue(all(RAG_MERGE_MARKER not in section.content for section in report.sections))
+        self.assertTrue(all(RAG_MERGE_MARKER not in section.content for section in loaded.sections))
+
+    def test_citation_paths_keep_disclaimer_as_final_footer(self) -> None:
+        self._create_points()
+        document = AuthoritativeDocument(
+            title="15-15 rule",
+            text="",
+            source="Diabetes Care",
+        )
+        common = {
+            "report_type": "daily",
+            "user_id": "user-1",
+            "data_scope": {
+                "user_id": "user-1",
+                "window_start": "2026-05-31T00:00:00+00:00",
+                "window_end": "2026-06-01T00:00:00+00:00",
+            },
+            "authoritative_context": AuthoritativeContext(documents=[document]),
+        }
+        supported = self.report_service.generate(
+            ReportInput(**common, medical_narrative="Use 15 g carbohydrate.")
+        )
+        self.assertTrue(supported.rendered_markdown.rstrip().endswith(MEDICAL_DISCLAIMER_FOOTER))
+        self.assertLess(
+            supported.rendered_markdown.index("## 医学参考"),
+            supported.rendered_markdown.index(MEDICAL_DISCLAIMER_FOOTER),
+        )
+        blocked = self.report_service.generate(
+            ReportInput(**common, medical_narrative="Use 99 g carbohydrate.")
+        )
+        self.assertEqual(blocked.route, "reports.generate.citation_blocked")
+        self.assertTrue(blocked.rendered_markdown.rstrip().endswith(MEDICAL_DISCLAIMER_FOOTER))
+
+    def test_report_timezone_drives_meal_narrative_and_default(self) -> None:
+        self._create_points()
+        self.cgm_repository.create_user_event(
+            UserEvent(
+                event_id="tz-meal",
+                user_id="user-1",
+                type="meal",
+                ts_start=datetime(2026, 5, 31, 13, 30, tzinfo=timezone.utc),
+                payload={"food_items": [{"name": "面条"}]},
+                created_by="user",
+                user_confirmed=True,
+            )
+        )
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                timezone="Australia/Sydney",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+        key_events = next(section for section in report.sections if section.section_id == "key_events")
+        self.assertIn("夜里吃了面条", key_events.content)
+        with mock.patch.dict("os.environ", {"CGM_AGENT_TIMEZONE": "Australia/Sydney"}):
+            defaulted = ReportInput(report_type="daily", user_id="user-1")
+        self.assertEqual(defaulted.timezone, "Australia/Sydney")
+
+    def test_report_detector_uses_the_report_timezone(self) -> None:
+        base = datetime(2026, 5, 31, 7, 0, tzinfo=timezone.utc)
+        points = [
+            GlucosePoint(
+                user_id="user-1",
+                timestamp=base + timedelta(minutes=index * 5),
+                value=value,
+                unit="mg/dL",
+                source="sensor:test",
+                quality_flag="valid",
+            )
+            for index, value in enumerate([80, 60, 58, 55, 80])
+        ]
+        for point in points:
+            self.cgm_repository.create_glucose_point(point)
+
+        report = self.report_service.generate(
+            ReportInput(
+                report_type="daily",
+                user_id="user-1",
+                timezone="America/Los_Angeles",
+                data_scope={
+                    "user_id": "user-1",
+                    "window_start": "2026-05-31T00:00:00+00:00",
+                    "window_end": "2026-06-01T00:00:00+00:00",
+                },
+            )
+        )
+
+        detected = self.report_service.event_detector.detect(
+            points=points,
+            scope=report.data_scope,
+        )
+        self.assertEqual(self.report_service.event_detector.config.timezone, "America/Los_Angeles")
+        self.assertIn(GlucoseEventType.OVERNIGHT_LOW, {event.event_type for event in detected})
+
+    def test_report_escalation_uses_the_report_timezone(self) -> None:
+        with mock.patch(
+            "hermes_cgm_agent.services.scheduling.scheduler.PushSchedulerService"
+        ) as scheduler_class:
+            scheduler_class.return_value.consecutive_anomaly_days.return_value = 0
+            self.report_service.generate(
+                ReportInput(
+                    report_type="daily",
+                    user_id="user-1",
+                    timezone="America/Los_Angeles",
+                    data_scope={
+                        "user_id": "user-1",
+                        "window_start": "2026-05-31T00:00:00+00:00",
+                        "window_end": "2026-06-01T00:00:00+00:00",
+                    },
+                )
+            )
+
+        self.assertEqual(
+            scheduler_class.call_args.kwargs["config"].timezone,
+            "America/Los_Angeles",
+        )
 
     def _create_points(self, values: list[int] | None = None) -> None:
         for index, value in enumerate(values or [90, 100, 150, 190]):

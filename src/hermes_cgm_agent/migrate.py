@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from hermes_cgm_agent.config import DEFAULT_DB_PATH, resolve_database_path
@@ -76,8 +77,17 @@ def migrate(
     shutil.copy2(legacy_key, target_key)
     for path in (target_db, target_key):
         try:
-            os.chmod(path, 0o600)
-        except OSError:
+            # L-20: os.chmod is a no-op on Windows; use icacls there.
+            if sys.platform == "win32":
+                import subprocess
+                subprocess.run(
+                    ["icacls", str(path), "/inheritance:r",
+                     "/grant:r", f"{os.getlogin()}:F"],
+                    check=True, capture_output=True, timeout=10,
+                )
+            else:
+                os.chmod(path, 0o600)
+        except (OSError, Exception):
             pass
 
     result = {"status": "migrated", "message": f"migrated database + key to {target_db.parent}"}
