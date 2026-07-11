@@ -46,8 +46,20 @@ class KBValidatorTests(unittest.TestCase):
         self.assertTrue(any("claim_en" in p for p in problems))
 
     def test_bad_page_type_fails(self) -> None:
-        problems = validate_card(_card(source={"citation": "x", "page": "sixteen"}))
+        # M-04: page accepts int, str (e.g. "12a"), or None. Only truly invalid
+        # types (list, dict, float) should fail.
+        problems = validate_card(_card(source={"citation": "x", "page": ["sixteen"]}))
         self.assertTrue(any("page" in p for p in problems))
+
+    def test_string_page_accepted(self) -> None:
+        # M-04: string page numbers like "12a" or "iv" are valid.
+        problems = validate_card(_card(source={"citation": "x", "page": "12a"}))
+        self.assertEqual(problems, [])
+
+    def test_bad_tags_type_fails(self) -> None:
+        # L-02: tags must be a list of strings.
+        problems = validate_card(_card(tags=["ok", 123]))
+        self.assertTrue(any("tags" in p for p in problems))
 
     def test_missing_citation_fails(self) -> None:
         problems = validate_card(_card(source={}))

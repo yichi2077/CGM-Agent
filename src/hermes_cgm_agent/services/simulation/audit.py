@@ -59,6 +59,16 @@ class SimulationAudit:
         }
 
     def write(self) -> tuple[Path, Path]:
+        # L-21: Simulation audit reports may contain PHI (glucose values,
+        # event descriptions). Store them in an encrypted/protected directory
+        # or encrypt manually before distribution. The JSON payload is the
+        # authoritative record; the MD is for human review only.
+        import logging
+        logging.getLogger("hermes_cgm_agent.simulation").warning(
+            "Writing simulation audit report to %s — ensure this directory "
+            "is on an encrypted/protected filesystem (may contain PHI).",
+            self.out_dir,
+        )
         self.out_dir.mkdir(parents=True, exist_ok=True)
         json_path = self.out_dir / "simulation_report.json"
         md_path = self.out_dir / "simulation_report.md"

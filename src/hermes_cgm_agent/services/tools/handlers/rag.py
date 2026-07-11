@@ -1,7 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import uuid
 from typing import Any
+
+from pydantic import ValidationError
 
 from hermes_cgm_agent.services.rag import AuthoritativeRAGToolService
 from hermes_cgm_agent.services.tools.handlers.base import (
@@ -26,7 +28,7 @@ class RagHandlerMixin(BaseToolHandler):
             if self._rag_tool_service is None:
                 self._rag_tool_service = AuthoritativeRAGToolService()
             result = self._rag_tool_service.search(arguments)
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
                 tool_name=spec.name,
@@ -65,7 +67,7 @@ class RagHandlerMixin(BaseToolHandler):
             if self._rag_tool_service is None:
                 self._rag_tool_service = AuthoritativeRAGToolService()
             result = self._rag_tool_service.approve(arguments)
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
                 tool_name=spec.name,
@@ -108,7 +110,7 @@ class RagHandlerMixin(BaseToolHandler):
             if self._rag_tool_service is None:
                 self._rag_tool_service = AuthoritativeRAGToolService()
             result = self._rag_tool_service.verify_quotes(arguments)
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
                 session_id=session_id,
                 tool_name=spec.name,

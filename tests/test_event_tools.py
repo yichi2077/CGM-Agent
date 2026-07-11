@@ -264,6 +264,35 @@ class EventToolTests(unittest.TestCase):
         self.assertIsNotNone(row)
         return self.store.unseal(row["payload_json"], legacy="json")
 
+    def test_reason_parameter_recorded_in_audit(self) -> None:
+        """L-17: the optional reason parameter is persisted in the audit trail."""
+        response = self.executor.execute(
+            tool_name="events.create",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "event": {"event_type": "exercise", "ts_start": "2026-05-31T18:00:00+00:00"},
+                "reason": "user reported post-dinner walk",
+            },
+        )
+        body = response.to_dict()
+        self.assertEqual(body["status"], "ok")
+        audit_payload = self._last_audit_payload()
+        self.assertEqual(audit_payload["reason"], "user reported post-dinner walk")
+
+    def test_reason_parameter_defaults_to_none(self) -> None:
+        """L-17: when reason is not provided, audit trail records None."""
+        self.executor.execute(
+            tool_name="events.create",
+            session_id=self.session_id,
+            arguments={
+                "user_id": "user-1",
+                "event": {"event_type": "exercise", "ts_start": "2026-05-31T18:00:00+00:00"},
+            },
+        )
+        audit_payload = self._last_audit_payload()
+        self.assertIsNone(audit_payload["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

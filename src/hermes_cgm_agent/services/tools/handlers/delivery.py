@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import smtplib
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -10,6 +11,8 @@ import uuid
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
+
+from pydantic import ValidationError  # L-14: catch pydantic validation errors
 
 from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.tools.handlers.base import (
@@ -95,7 +98,7 @@ class DeliveryHandlerMixin(BaseToolHandler):
                 raise ValueError(f"Unsupported delivery channel: {channel}")
             if not payload_ref.strip():
                 raise ValueError("payload_ref must be a non-empty reference")
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, ValidationError) as exc:  # L-14
             return self._error_response(
                 session_id=session_id,
                 tool_name=spec.name,
@@ -218,7 +221,9 @@ class DeliveryHandlerMixin(BaseToolHandler):
             port = int(port_raw)
         except ValueError:
             port = 587
-            error_type = "invalid_config"
+            # M-16: port fallback recovers the invalid config; clear error_type
+            # so the email sending path is not blocked by the recovered error.
+            error_type = None
 
         if not host or not to_address:
             delivery_status = "queued"
@@ -247,7 +252,10 @@ class DeliveryHandlerMixin(BaseToolHandler):
             try:
                 with smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT_SECONDS) as smtp:
                     if use_tls:
-                        smtp.starttls()
+                        # An explicit default context enforces certificate and
+                        # hostname verification; the stdlib fallback context does
+                        # not, which would let a MITM capture SMTP credentials.
+                        smtp.starttls(context=ssl.create_default_context())
                     if username and password:
                         smtp.login(username, password)
                     smtp.send_message(message)
@@ -340,7 +348,11 @@ class DeliveryHandlerMixin(BaseToolHandler):
                 if arguments.get("period_key") is not None:
                     manifest["period_key"] = arguments["period_key"]
                 if isinstance(arguments.get("metrics"), dict):
-                    manifest["metrics"] = arguments["metrics"]
+                    # L-16: validate metrics values are scalars (str/int/float/bool/None).
+                    manifest["metrics"] = {
+                        k: v for k, v in arguments["metrics"].items()
+                        if isinstance(v, (str, int, float, bool)) or v is None
+                    }
                 if isinstance(arguments.get("event_summaries"), list):
                     manifest["event_summaries"] = arguments["event_summaries"]
 

@@ -29,6 +29,7 @@ class CandidateCard:
     reviewer: str | None = None
     reviewed_at: str | None = None
     review_status: str = "candidate"
+    tier: str = "auto"  # L-29: machine-ingested cards default to "auto" tier
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_claim_card_dict(self) -> dict[str, Any]:
