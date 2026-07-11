@@ -24,11 +24,6 @@ dependencies = [
 semantic = [
     "sentence-transformers",
 ]
-ingest = [
-    "pdfplumber",
-    "pymupdf",
-    "pypdf",
-]
 
 [project.scripts]
 cgm-agent = "hermes_cgm_agent.cli:main"
@@ -37,5 +32,4 @@ cgm-agent = "hermes_cgm_agent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"hermes_cgm_agent.knowledge" = ["*.json", "pdfs/*.pdf"]
-"hermes_cgm_agent.knowledge.ingest.prompts" = ["*.txt"]
+"hermes_cgm_agent.knowledge" = ["*.json"]

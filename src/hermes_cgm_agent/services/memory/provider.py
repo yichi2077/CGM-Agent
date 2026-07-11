@@ -428,7 +428,7 @@ class CGMMemoryProvider:
                         "[CGM empty store] No CGM data for this user yet. If the user "
                         "asks about their glucose, gently let them know there is no data "
                         "yet and that they can import a CSV (`import-cgm`) or try sample "
-                        "data (`seed-demo`) — stay in the informed-companion tone, no "
+                        "data — stay in the informed-companion tone, no "
                         "pressure and no commands."
                     )
             except Exception:
