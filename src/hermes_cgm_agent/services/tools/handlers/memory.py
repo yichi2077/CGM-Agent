@@ -21,6 +21,17 @@ from hermes_cgm_agent.services.tools.handlers.helpers import parse_candidate_sta
 
 
 class MemoryHandlerMixin(BaseToolHandler):
+    # L-26: cache the MemoryToolService instance instead of creating a new
+    # one on every call (mirrors the _rag_tool_service pattern in rag.py).
+    _memory_tool_service: MemoryToolService | None
+
+    def _ensure_memory_tool_service(self) -> MemoryToolService:
+        if getattr(self, "_memory_tool_service", None) is None:
+            self._memory_tool_service = MemoryToolService(
+                SQLiteMemoryRepository(self.repository.store)
+            )
+        return self._memory_tool_service
+
     def _memory_confirm(
         self,
         *,
@@ -32,9 +43,7 @@ class MemoryHandlerMixin(BaseToolHandler):
             user_id = str(arguments["user_id"])
             candidate_id = str(arguments["candidate_id"])
             confirmed = require_bool(arguments.get("confirmed"), "confirmed")
-            status_value = MemoryToolService(
-                SQLiteMemoryRepository(self.repository.store)
-            ).confirm_candidate(
+            status_value = self._ensure_memory_tool_service().confirm_candidate(
                 user_id=user_id,
                 candidate_id=candidate_id,
                 confirmed=confirmed,
@@ -88,8 +97,7 @@ class MemoryHandlerMixin(BaseToolHandler):
                 default=False,
             )
             candidate_status = parse_candidate_status(arguments.get("candidate_status"))
-            repository = SQLiteMemoryRepository(self.repository.store)
-            result = MemoryToolService(repository).list_records(
+            result = self._ensure_memory_tool_service().list_records(
                 user_id=user_id,
                 layer=layer,
                 include_archived=include_archived,
@@ -144,8 +152,7 @@ class MemoryHandlerMixin(BaseToolHandler):
             user_id = str(arguments["user_id"])
             memory_id = str(arguments["memory_id"])
             layer = require_enum(arguments["layer"], "layer", ("L1", "L2", "L3"))
-            repository = SQLiteMemoryRepository(self.repository.store)
-            deleted = MemoryToolService(repository).delete_record(
+            deleted = self._ensure_memory_tool_service().delete_record(
                 user_id=user_id,
                 memory_id=memory_id,
                 layer=layer,
@@ -192,9 +199,7 @@ class MemoryHandlerMixin(BaseToolHandler):
             correction = arguments["correction"]
             if not isinstance(correction, dict):
                 raise ValueError("correction must be an object")
-            memory_id = MemoryToolService(
-                SQLiteMemoryRepository(self.repository.store)
-            ).correct_memory(
+            memory_id = self._ensure_memory_tool_service().correct_memory(
                 user_id=user_id,
                 target=target,
                 correction=correction,
@@ -238,9 +243,7 @@ class MemoryHandlerMixin(BaseToolHandler):
         try:
             user_id = str(arguments["user_id"])
             hypothesis_id = str(arguments["hypothesis_id"])
-            saved = MemoryToolService(
-                SQLiteMemoryRepository(self.repository.store)
-            ).update_hypothesis(
+            saved = self._ensure_memory_tool_service().update_hypothesis(
                 user_id=user_id,
                 hypothesis_id=hypothesis_id,
                 state=arguments["state"],

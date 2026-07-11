@@ -24,11 +24,17 @@ from hermes_cgm_agent.services.memory.retrieval import (
     MemoryDoc,
     build_personal_retriever,
 )
+from hermes_cgm_agent.services.safety.memory_guard import assert_track_isolation
 
 if TYPE_CHECKING:
     # Imported lazily at call time to avoid a rag <-> memory circular import
     # (rag.authoritative imports memory.retrieval, which pulls memory/__init__).
     from hermes_cgm_agent.services.rag.authoritative import AuthoritativeRAGService
+
+# B6: maximum number of hot (L2/L3) items injected into memory context.
+# Beyond this, items are truncated by ``updated_at`` descending so the most
+# recently verified beliefs survive.
+_MAX_HOT_ITEMS = 50
 
 
 @dataclass
@@ -55,15 +61,17 @@ class MemoryContextAssembler:
         # high-signal — inject them in full, directly from SQLite. Running a
         # retriever over a handful of structured rows is over-engineering and
         # can silently drop a relevant belief.
+        hot_items: list[dict] = []
         for profile in self.repository.list_profile_items(user_id):
             summary = _profile_summary(profile)
-            items.append(
+            hot_items.append(
                 {
                     "summary": summary,
                     "layer": "L2",
                     "score": 1.0,
                     "matched": True,
                     "hot": True,
+                    "updated_at": profile.updated_at.isoformat(),  # B6: truncation key
                     "evidence_refs": [
                         EvidenceRef(
                             kind="user_memory", ref_id=profile.item_id, summary=summary
@@ -79,13 +87,14 @@ class MemoryContextAssembler:
         from hermes_cgm_agent.services.reports.narrative_templates import render_hypothesis_narrative
         for hyp in active_hypotheses:
             summary = render_hypothesis_narrative(hyp.state, hyp.statement, hyp.evidence_count)
-            items.append(
+            hot_items.append(
                 {
                     "summary": summary,
                     "layer": "L3",
                     "score": 1.0,
                     "matched": True,
                     "hot": True,
+                    "updated_at": hyp.updated_at.isoformat(),  # B6: truncation key
                     "evidence_refs": [
                         EvidenceRef(
                             kind="user_memory", ref_id=hyp.hypothesis_id, summary=summary
@@ -93,6 +102,16 @@ class MemoryContextAssembler:
                     ],
                 }
             )
+
+        # B6: cap hot items to prevent unbounded context growth. When active
+        # L2/L3 entries exceed _MAX_HOT_ITEMS, keep the most recently updated.
+        if len(hot_items) > _MAX_HOT_ITEMS:
+            hot_items = sorted(
+                hot_items,
+                key=lambda x: x.get("updated_at", ""),
+                reverse=True,
+            )[:_MAX_HOT_ITEMS]
+        items.extend(hot_items)
 
         # ── Cold (D029): L1 episodes grow unboundedly over time — this is the
         # only personal store that warrants retrieval. Most-recent first so the
@@ -143,6 +162,9 @@ class MemoryContextAssembler:
 
         if not items:
             return MemoryContext(enabled=True, items=[], missing_reason="no_user_memory_yet")
+        # B6: auto-enforce dual-track isolation before returning so new call
+        # paths can never bypass the guard (M6).
+        assert_track_isolation(memory_items=items, authoritative_documents=None)
         return MemoryContext(enabled=True, items=items)
 
     def build_authoritative_context(
@@ -150,6 +172,7 @@ class MemoryContextAssembler:
         *,
         query: str,
         top_k: int = 3,
+        population: str | None = None,
     ) -> AuthoritativeContext:
         if self.rag_service is None:
             from hermes_cgm_agent.services.rag.authoritative import (
@@ -157,7 +180,7 @@ class MemoryContextAssembler:
             )
 
             self.rag_service = AuthoritativeRAGService()
-        results = self.rag_service.search(query, top_k=top_k)
+        results = self.rag_service.search(query, top_k=top_k, population=population)
         if not results:
             return AuthoritativeContext(
                 enabled=True, documents=[], missing_reason="no_authoritative_match"
@@ -176,6 +199,9 @@ class MemoryContextAssembler:
             }
             for r in results
         ]
+        # B6: auto-enforce dual-track isolation before returning so new call
+        # paths can never bypass the guard (M6).
+        assert_track_isolation(memory_items=None, authoritative_documents=documents)
         return AuthoritativeContext(enabled=True, documents=documents)
 
 

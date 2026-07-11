@@ -41,13 +41,19 @@ def validate_card(card: ClaimCard) -> list[str]:
         isinstance(item, str) for item in card.synonyms
     ):
         problems.append(f"{cid}: 'synonyms' must be a list of strings")
+    # L-02: validate tags field type (parallel to synonyms check).
+    if not isinstance(card.tags, list) or not all(
+        isinstance(item, str) for item in card.tags
+    ):
+        problems.append(f"{cid}: 'tags' must be a list of strings")
 
     source = card.source or {}
     if not str(source.get("citation") or source.get("doc") or "").strip():
         problems.append(f"{cid}: source must include a non-empty 'citation' or 'doc'")
     page = source.get("page")
-    if page is not None and not isinstance(page, int):
-        problems.append(f"{cid}: source.page must be an integer or null")
+    # M-04: allow int, str (e.g. "12a"), or None — the runtime uses str(page).
+    if page is not None and not isinstance(page, (int, str)):
+        problems.append(f"{cid}: source.page must be an integer, string, or null")
 
     # Safety gate: a verified card must record who/when signed off (P3b).
     if card.verified and not (

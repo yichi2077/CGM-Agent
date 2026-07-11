@@ -63,7 +63,7 @@ Transport = Callable[[urllib.request.Request, float], HTTPResult]
 
 def _default_transport(request: urllib.request.Request, timeout: float) -> HTTPResult:
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (fixed Dexcom hosts)
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (DEXCOM_BASE_URL can override; H-11 validates HTTPS scheme)
             return HTTPResult(
                 status=response.status,
                 body=response.read(),
@@ -135,7 +135,7 @@ class TokenResponse:
             refresh_token = str(payload["refresh_token"])
             expires_in = int(payload["expires_in"])
         except (KeyError, TypeError, ValueError) as exc:
-            raise DexcomAuthError(f"Malformed Dexcom token response: {payload}") from exc
+            raise DexcomAuthError("Malformed Dexcom token response") from exc
         return cls(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -276,8 +276,7 @@ class DexcomClient:
                 retry_after=_parse_retry_after(result.headers.get("retry-after")),
             )
         raise DexcomAPIError(
-            f"Dexcom request to {path} failed (HTTP {result.status}): "
-            f"{result.body.decode('utf-8', 'replace')[:300]}",
+            f"Dexcom request to {path} failed (HTTP {result.status})",
             status_code=result.status,
         )
 

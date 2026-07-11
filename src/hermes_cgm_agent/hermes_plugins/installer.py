@@ -73,6 +73,7 @@ def install_hermes_integration(
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=300,
             )
             actions.append(f"editable-install:{editable_python}")
 
@@ -81,9 +82,9 @@ def install_hermes_integration(
             actions.append("would-enable-plugin:cgm")
             actions.append("would-enable-memory-provider:cgm_memory")
         else:
-            subprocess.run([bin_path, "plugins", "enable", "cgm"], check=True, capture_output=True, text=True)
+            subprocess.run([bin_path, "plugins", "enable", "cgm"], check=True, capture_output=True, text=True, timeout=300)
             actions.append("enabled-plugin:cgm")
-            subprocess.run([bin_path, "memory", "setup", "cgm_memory"], check=True, capture_output=True, text=True)
+            subprocess.run([bin_path, "memory", "setup", "cgm_memory"], check=True, capture_output=True, text=True, timeout=300)
             actions.append("enabled-memory-provider:cgm_memory")
 
     return HermesInstallReport(

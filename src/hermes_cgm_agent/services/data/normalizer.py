@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from hermes_cgm_agent.config import default_timezone
 from hermes_cgm_agent.domain import (
     GlucosePoint,
     GlucoseUnit,
@@ -20,7 +21,9 @@ from hermes_cgm_agent.domain import (
 class NormalizationConfig:
     user_id: str
     source: str
-    default_timezone: str = "UTC"
+    # M-26: use default_timezone() factory so CGM_DEFAULT_TIMEZONE env var
+    # is respected instead of hardcoding "UTC".
+    default_timezone: str = field(default_factory=default_timezone)
     gap_threshold_minutes: int = 10
     expected_interval_minutes: int = 5
     warmup_until: datetime | None = None

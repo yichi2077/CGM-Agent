@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import Field, model_validator
 
+from hermes_cgm_agent.config import default_timezone
 from hermes_cgm_agent.domain.cgm import CGMBaseModel, DataScope, EvidenceRef, ensure_utc, utc_now
 
 
@@ -113,10 +114,13 @@ class ReportInput(CGMBaseModel):
     user_id: str | None = None
     audience: ReportAudience = ReportAudience.SELF
     data_scope: DataScope | None = None
-    timezone: str = "Asia/Shanghai"
+    timezone: str = Field(default_factory=default_timezone)
     report_anchor_time: time = time(7, 0)
     anchor_at: datetime = Field(default_factory=utc_now)
     language: str | None = None
+    # Optional retrieval filter for population-specific authoritative guidance
+    # (e.g. pregnancy, pediatric, older/high-risk, inpatient).
+    population: str | None = None
     memory_context: MemoryContext = Field(default_factory=MemoryContext)
     authoritative_context: AuthoritativeContext = Field(default_factory=AuthoritativeContext)
     # F3-B1 (US1): an externally-generated medical-claim/guidance narrative whose

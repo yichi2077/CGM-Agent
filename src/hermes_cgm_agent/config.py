@@ -46,6 +46,18 @@ DEFAULT_HERMES_EXE = default_hermes_exe()
 
 DEFAULT_USER_ID_ENV = "CGM_AGENT_USER_ID"
 DISPLAY_UNIT_ENV = "CGM_AGENT_DISPLAY_UNIT"
+DEFAULT_TIMEZONE_ENV = "CGM_AGENT_TIMEZONE"
+
+
+def default_timezone() -> str:
+    """User-facing timezone for local time-of-day rendering (E1).
+
+    Every call site that renders time-anchored narrative (meal summaries,
+    episode summaries, hypothesis narratives) should thread this through so
+    the time-of-day label reflects the user's actual timezone instead of a
+    hardcoded default. Defaults to ``Asia/Shanghai`` for back-compat.
+    """
+    return os.getenv(DEFAULT_TIMEZONE_ENV, "").strip() or "Asia/Shanghai"
 
 
 def display_glucose_unit() -> str:
@@ -97,6 +109,10 @@ def resolve_database_path(hermes_home: str | os.PathLike[str] | None = None) -> 
       2. ``<hermes_home>/cgm-agent/app.db``: explicit Hermes profile path.
       3. ``default_hermes_home()/cgm-agent/app.db``: platform Hermes profile.
     """
+    # L-22: CGM_AGENT_DB_PATH is an ops override — no path validation by
+    # design. Operators must ensure the path is on an encrypted/protected
+    # filesystem, since the database stores PHI encrypted at rest via Fernet
+    # but the file path itself is not access-controlled beyond OS defaults.
     env_db = os.getenv("CGM_AGENT_DB_PATH")
     if env_db:
         return Path(env_db).expanduser().resolve()

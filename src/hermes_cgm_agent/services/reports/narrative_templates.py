@@ -1,4 +1,4 @@
-"""F4 companion narrative templates, metric translation, and text validation.
+﻿"""F4 companion narrative templates, metric translation, and text validation.
 
 Includes:
 - Conversational Chinese templates for L3 Hypothesis states.
@@ -11,12 +11,23 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from hermes_cgm_agent.config import default_timezone
+
 # Clinical abbreviations forbidden in F4 companion output (CHK008 / FR-005).
-_BLACKLIST_ABBRS: tuple[str, ...] = ("TIR", "TAR", "TBR", "GMI", "CV", "LBGI", "HBGI")
+# L-08: expanded with HbA1c, A1C, SD, MAGE, AUC, eA1c.
+_BLACKLIST_ABBRS: tuple[str, ...] = (
+    "TIR", "TAR", "TBR", "GMI", "CV", "LBGI", "HBGI",
+    "HBA1C", "A1C", "SD", "MAGE", "AUC", "EA1C",
+)
 # Assertive/causal phrases forbidden by the Informed-Companion persona (Principle IV).
+# L-09: expanded with additional assertive/diagnostic phrases.
 _BLACKLIST_PHRASES: tuple[str, ...] = (
     "经分析发现", "研究表明", "数据证明", "可以确定", "证明了", "明显表明", "确实是", "绝对",
+    "意味着", "确诊", "建议你", "必须", "需要你",
 )
+# L-09: phrases that are common in non-assertive contexts (e.g. "说明书") —
+# only match at the start of a sentence/line to avoid false positives.
+_BLACKLIST_PHRASES_SENTENCE_START: tuple[str, ...] = ("说明", "导致")
 # Match an abbreviation only as a standalone ASCII token (not embedded in a larger
 # latin word like CGM/RECV), regardless of adjacent CJK characters. Fixes the
 # substring false-positive where bare ``"CV" in text`` flagged any latin "cv".
@@ -40,6 +51,14 @@ def check_companion_text(text: str, max_len: int = 80) -> list[str]:
     for phrase in _BLACKLIST_PHRASES:
         if phrase in text:
             violations.append(f"phrase:{phrase}")
+    # L-09: check sentence-start phrases (e.g. "说明", "导致") only at the
+    # beginning of a line/sentence to avoid false positives like "说明书".
+    for phrase in _BLACKLIST_PHRASES_SENTENCE_START:
+        for line in text.splitlines():
+            stripped_line = line.lstrip("•-123456789. ").strip()
+            if stripped_line.startswith(phrase):
+                violations.append(f"phrase:{phrase}")
+                break
     if len(text) > max_len:
         violations.append(f"length:{len(text)}>{max_len}")
     return violations
@@ -117,7 +136,7 @@ def describe_behavior(statement: str) -> str:
     return _BEHAVIOR_MAP.get(behavior.lower(), behavior)
 
 
-def render_episode_summary(event: Any) -> str:
+def render_episode_summary(event: Any, timezone_name: str | None = None) -> str:
     """Render a detected glucose event as Chinese life-language for memory (D058).
 
     The detector writes an English clinical summary ("Low glucose episode:
@@ -127,7 +146,13 @@ def render_episode_summary(event: Any) -> str:
     reads mmol/L) is the number→language failure at the most-used surface.
     This renders the same fact in the user's voice and display unit; the raw
     English summary stays on the event for clinician/audit paths.
+
+    ``timezone_name`` (E1) lets the time-of-day anchor reflect the user's
+    actual timezone instead of a hardcoded Asia/Shanghai; callers that know
+    the report/user timezone (e.g. ``ReportInput.timezone``) should pass it.
     """
+    if timezone_name is None:
+        timezone_name = default_timezone()
     from hermes_cgm_agent.config import display_glucose_unit
     from hermes_cgm_agent.domain import GlucoseUnit, convert_glucose_value
 
@@ -146,7 +171,7 @@ def render_episode_summary(event: Any) -> str:
     minutes = round(getattr(event, "duration_minutes", 0) or 0)
     # Time-of-day anchor gives the user useful "when" context AND keeps
     # otherwise-generic events (rapid rise/fall) distinct in recall.
-    when = _time_of_day_label(getattr(event, "ts_start", None))
+    when = _time_of_day_label(getattr(event, "ts_start", None), timezone_name=timezone_name)
 
     if etype == "overnight_low":
         tail = f"，最低到 {nadir}" if nadir else ""
@@ -165,14 +190,21 @@ def render_episode_summary(event: Any) -> str:
     return f"{when}记录到一段{describe_behavior(str(etype))}。"
 
 
-def _time_of_day_label(ts: Any) -> str:
-    """Life-language time-of-day for an event (local Asia/Shanghai)."""
+def _time_of_day_label(ts: Any, timezone_name: str | None = None) -> str:
+    """Life-language time-of-day for an event (local timezone, E1).
+
+    ``timezone_name`` defaults to Asia/Shanghai for back-compat; callers should
+    pass the user's timezone so the anchor ("早上"/"中午"/"夜里"...) reflects
+    local wall-clock time. Any invalid/unknown timezone falls back to "有一次".
+    """
+    if timezone_name is None:
+        timezone_name = default_timezone()
     if ts is None:
         return "有一次"
     try:
         from zoneinfo import ZoneInfo
 
-        hour = ts.astimezone(ZoneInfo("Asia/Shanghai")).hour
+        hour = ts.astimezone(ZoneInfo(timezone_name)).hour
     except Exception:
         return "有一次"
     if 5 <= hour < 9:
@@ -190,8 +222,67 @@ def _time_of_day_label(ts: Any) -> str:
     return "夜里"
 
 
+def render_meal_summary(event: Any, timezone_name: str | None = None) -> str:
+    """Render a meal UserEvent as Chinese life-language (E3 / work-package E).
+
+    Meal events are user-recorded life context (what was eaten, when). This
+    renders them in the companion's voice anchored to the local time-of-day,
+    so a meal can be referenced naturally ("中午吃了面条。") instead of as a
+    raw structured payload. Defensive about missing payload keys: a meal with
+    no recorded food name still yields a usable, time-anchored sentence, and
+    the output stays companion-tone compliant (no clinical abbreviations).
+    """
+    if timezone_name is None:
+        timezone_name = default_timezone()
+    payload = getattr(event, "payload", None)
+    when = _time_of_day_label(getattr(event, "ts_start", None), timezone_name=timezone_name)
+    food = ""
+    if isinstance(payload, dict):
+        # F1's canonical structured form.  Prefer item names so the companion
+        # sentence stays natural ("中午吃了面条、水果") rather than exposing a
+        # raw payload or losing the food names entirely.
+        food_items = payload.get("food_items")
+        if isinstance(food_items, (list, tuple)):
+            names = [
+                str(item.get("name") or "").strip()
+                for item in food_items
+                if isinstance(item, dict) and str(item.get("name") or "").strip()
+            ]
+            food = "、".join(names)
+        for key in ("food", "name", "description", "meal", "items"):
+            if food:
+                break
+            value = payload.get(key)
+            if not value:
+                continue
+            if isinstance(value, (list, tuple)):
+                food = "、".join(str(v).strip() for v in value if str(v).strip())
+            else:
+                food = str(value).strip()
+            if food:
+                break
+    if food:
+        # M-10: pre-check food names for companion-text violations so
+        # user-supplied food names can't leak clinical abbreviations or
+        # assertive phrases into the companion narrative.
+        violations = check_companion_text(food)
+        if any(v.startswith(("abbr:", "phrase:")) for v in violations):
+            food = "一些东西"
+        return f"{when}吃了{food}。"
+    if isinstance(payload, dict):
+        structured_summary = payload.get("structured_summary")
+        if isinstance(structured_summary, str) and structured_summary.strip():
+            return f"{when}记了{structured_summary.strip().rstrip('。')}。"
+    return f"{when}记了一餐。"
+
+
 def render_hypothesis_narrative(state: str, statement: str, evidence_count: int = 0) -> str:
-    """Format L3 Hypothesis narrative using协商式 style based on state."""
+    """Format L3 Hypothesis narrative using协商式 style based on state.
+
+    M-11: the ``timezone_name`` parameter was accepted but never used in the
+    function body.  It has been removed; callers that previously passed it
+    no longer need to.
+    """
     behavior_cn = describe_behavior(statement)
 
     state_str = getattr(state, "value", state).lower()

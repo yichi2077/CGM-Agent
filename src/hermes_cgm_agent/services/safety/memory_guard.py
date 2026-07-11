@@ -39,13 +39,30 @@ def assert_track_isolation(
     authoritative_documents: list[dict[str, Any]] | None,
 ) -> None:
     """Fail loudly if either track carries the other track's evidence (D031)."""
+    import warnings
     for item in memory_items or []:
-        if _kinds(item.get("evidence_refs")) & AUTHORITATIVE_KINDS:
+        refs = item.get("evidence_refs")
+        if not refs:
+            # M-03: items without evidence_refs bypass the track check.
+            # Warn so these don't silently accumulate.
+            warnings.warn(
+                "memory item lacks evidence_refs; track isolation cannot "
+                f"be verified for item: {item.get('id', item.get('doc_id', '?'))}",
+                stacklevel=2,
+            )
+        if _kinds(refs) & AUTHORITATIVE_KINDS:
             raise MemoryTrackViolation(
                 "authoritative_kb evidence leaked into the user_memory track"
             )
     for doc in authoritative_documents or []:
-        if _kinds(doc.get("evidence_refs")) & PERSONAL_KINDS:
+        refs = doc.get("evidence_refs")
+        if not refs:
+            warnings.warn(
+                "authoritative document lacks evidence_refs; track isolation "
+                f"cannot be verified for doc: {doc.get('id', doc.get('doc_id', '?'))}",
+                stacklevel=2,
+            )
+        if _kinds(refs) & PERSONAL_KINDS:
             raise MemoryTrackViolation(
                 "user_memory evidence leaked into the authoritative_kb track"
             )
@@ -56,7 +73,12 @@ def assert_track_isolation(
 # clinical sign-off path is caught by default and can only be exempted via an
 # explicit ``allow_methods`` allowlist — never silently bypass the guard.
 _KB_MUTATORS = frozenset(
-    {"add", "write", "insert", "upsert", "update", "delete", "save", "approve"}
+    {
+        "add", "write", "insert", "upsert", "update", "delete", "save", "approve",
+        # M-02: expanded blacklist to catch additional mutator patterns.
+        "set", "put", "patch", "remove", "replace", "create", "modify",
+        "append", "store", "edit", "clear", "reset",
+    }
 )
 
 

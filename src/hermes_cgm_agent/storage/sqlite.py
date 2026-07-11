@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import subprocess
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import local
 from typing import Any, Iterator, Literal
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -14,6 +16,54 @@ from cryptography.fernet import Fernet, InvalidToken
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _harden_windows_acl(path: Path) -> None:
+    """M-19: restrict file permissions on Windows using icacls.
+
+    Removes inherited ACL entries and grants full control only to the
+    current user, mirroring the ``0o600`` chmod on POSIX. Wrapped in
+    try/except so a failure never blocks database initialization.
+    """
+    user = os.environ.get("USERNAME", "")
+    if not user:
+        return
+    try:
+        subprocess.run(
+            ["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:F"],
+            check=False,
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+# M-20: whitelist of table names allowed in _ensure_column's f-string SQL.
+# This prevents SQL injection through the table_name parameter, which is
+# interpolated into PRAGMA/ALTER TABLE statements (SQLite does not accept
+# parameterized identifiers).
+_WHITELISTED_TABLES = frozenset({
+    "audit_logs",
+    "import_batches",
+    "raw_cgm_records",
+    "import_issues",
+    "glucose_points",
+    "detected_glucose_events",
+    "device_sessions",
+    "user_events",
+    "reports",
+    "l1_episodes",
+    "l2_profile_items",
+    "l3_hypotheses",
+    "memory_candidates",
+    "memory_summaries",
+    "dexcom_tokens",
+    "push_events",
+    "pending_interactions",
+    "unread_badges",
+    "safety_red_zone_events",
+})
 
 
 class _StorageCipher:
@@ -28,13 +78,28 @@ class _StorageCipher:
 
     def _load_or_create_key(self) -> bytes:
         if self.key_path.exists():
-            return self.key_path.read_bytes().strip()
+            key = self.key_path.read_bytes().strip()
+            # Validate eagerly: an empty or corrupted key file would otherwise
+            # surface as a bare "Fernet key must be 32 url-safe base64-encoded
+            # bytes" with no hint that it is THIS file that is broken.
+            try:
+                Fernet(key)
+            except (ValueError, TypeError) as exc:
+                raise RuntimeError(
+                    f"Storage key file {self.key_path} is empty or corrupted; "
+                    "it must contain a Fernet key (32 url-safe base64 bytes). "
+                    "If the original key is lost, previously encrypted data "
+                    "cannot be recovered — restore the key from backup before "
+                    "touching the database."
+                ) from exc
+            return key
         key = Fernet.generate_key()
         self.key_path.write_bytes(key + b"\n")
         return key
 
     def _harden_permissions(self) -> None:
         if os.name == "nt":
+            _harden_windows_acl(self.key_path)
             return
         try:
             os.chmod(self.key_path, 0o600)
@@ -75,15 +140,42 @@ class SQLiteStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         env_key_path = os.getenv("CGM_AGENT_STORAGE_KEY_PATH")
         env_key = os.getenv("CGM_AGENT_STORAGE_KEY")
+        # H-12: warn when the Fernet key is passed via environment variable,
+        # as it is visible in the process environment (e.g. /proc/PID/environ).
+        if env_key:
+            import logging
+            logging.getLogger("hermes_cgm_agent.storage").warning(
+                "CGM_AGENT_STORAGE_KEY is set; the Fernet key is visible in the "
+                "process environment. Prefer CGM_AGENT_STORAGE_KEY_PATH for "
+                "production deployments."
+            )
         key_path = Path(env_key_path).expanduser() if env_key_path else self.db_path.parent / "storage.key"
         self._cipher = _StorageCipher(key_path, env_key=env_key)
+        # B3: active transaction state is local to the calling thread.  A
+        # shared instance attribute would hand one thread's SQLite connection
+        # to another thread while a transaction is open, which SQLite rejects.
+        self._transaction_state = local()
         self._harden_permissions()
+
+    def _active_transaction_conn(self) -> sqlite3.Connection | None:
+        return getattr(self._transaction_state, "conn", None)
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        conn = sqlite3.connect(self.db_path)
+        # B3: if a transaction is active, reuse its connection so all writes
+        # participate in the same atomic commit/rollback. This lets existing
+        # repository methods join a transaction without signature changes.
+        active_conn = self._active_transaction_conn()
+        if active_conn is not None:
+            yield active_conn
+            return
+        # WAL + a generous busy timeout: the CLI (cron push-tick, source-poll)
+        # and the Hermes plugin process share this one database file, so
+        # writer/writer overlap is a normal operating condition, not an error.
+        conn = sqlite3.connect(self.db_path, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        # L-18: WAL mode is set once in initialize(); not needed per-connection.
         try:
             yield conn
             conn.commit()
@@ -91,8 +183,59 @@ class SQLiteStore:
             conn.close()
             self._harden_permissions()
 
+    @contextmanager
+    def transaction(self) -> Iterator[sqlite3.Connection]:
+        """B3: atomic transaction — all writes within the block share one
+        connection and commit/rollback together.
+
+        While active, :meth:`connect` yields this connection instead of
+        creating a new one, so existing repository methods participate in the
+        transaction without signature changes. Nested calls reuse the outer
+        transaction.
+        """
+        active_conn = self._active_transaction_conn()
+        if active_conn is not None:
+            # Nested transaction: isolate the inner unit with a savepoint.  If
+            # its exception is caught by the outer caller, its writes still
+            # roll back instead of being committed with the outer transaction.
+            depth = getattr(self._transaction_state, "depth", 0) + 1
+            savepoint = f"cgm_tx_{depth}"
+            active_conn.execute(f"SAVEPOINT {savepoint}")
+            self._transaction_state.depth = depth
+            try:
+                yield active_conn
+                active_conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+            except Exception:
+                active_conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                active_conn.execute(f"RELEASE SAVEPOINT {savepoint}")
+                raise
+            finally:
+                self._transaction_state.depth = depth - 1
+            return
+        conn = sqlite3.connect(self.db_path, timeout=30)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        # L-18: WAL mode is set once in initialize(); not needed per-connection.
+        self._transaction_state.conn = conn
+        self._transaction_state.depth = 0
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            del self._transaction_state.conn
+            del self._transaction_state.depth
+            conn.close()
+            self._harden_permissions()
+
     def initialize(self) -> None:
         with self.connect() as conn:
+            # L-18: set WAL mode once here; it is a database-level persistent
+            # setting that survives across connections, so per-connection
+            # PRAGMA calls in connect()/transaction() are redundant.
+            conn.execute("PRAGMA journal_mode = WAL")
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -102,6 +245,9 @@ class SQLiteStore:
                     payload_json TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                -- L-24: add indexes for common audit query patterns.
+                CREATE INDEX IF NOT EXISTS idx_audit_logs_session ON audit_logs(session_id);
+                CREATE INDEX IF NOT EXISTS idx_audit_logs_event_type ON audit_logs(event_type);
 
                 CREATE TABLE IF NOT EXISTS import_batches (
                     batch_id TEXT PRIMARY KEY,
@@ -294,7 +440,10 @@ class SQLiteStore:
                     valid_from TEXT,
                     valid_to TEXT,
                     source_episode_ids_json TEXT NOT NULL DEFAULT '[]',
+                    contra_episode_ids_json TEXT NOT NULL DEFAULT '[]',
+                    supersedes_hypothesis_id TEXT,
                     last_checked TEXT NOT NULL,
+                    last_evidence_added TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -384,7 +533,33 @@ class SQLiteStore:
                     user_id TEXT PRIMARY KEY,
                     badge_count INTEGER NOT NULL DEFAULT 0
                 );
+
+                -- TD2: red-zone recovery state persistence (F3-B3).
+                -- Survives process restart so the 2-hour recovery double-check
+                -- window is not lost.  One row per user (PRIMARY KEY).
+                CREATE TABLE IF NOT EXISTS safety_red_zone_events (
+                    user_id TEXT PRIMARY KEY,
+                    triggered_at TEXT NOT NULL,
+                    safety_result_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
                 """
+            )
+            # A3: track the ORIGINAL trigger time separately from the renewed
+            # triggered_at so the recovery double-check baseline is preserved
+            # across window renewals (long red-zone > 2 h).
+            self._ensure_column(
+                conn,
+                "safety_red_zone_events",
+                "original_triggered_at",
+                "TEXT",
+            )
+            # Pre-A3 rows have no separate original timestamp.  Their existing
+            # trigger is the only truthful baseline and must survive renewal.
+            conn.execute(
+                "UPDATE safety_red_zone_events "
+                "SET original_triggered_at = triggered_at "
+                "WHERE original_triggered_at IS NULL"
             )
             self._ensure_column(
                 conn,
@@ -435,17 +610,43 @@ class SQLiteStore:
                 self._ensure_column(
                     conn, table, "source_episode_ids_json", "TEXT NOT NULL DEFAULT '[]'"
                 )
+            self._ensure_column(
+                conn, "l3_hypotheses", "contra_episode_ids_json", "TEXT NOT NULL DEFAULT '[]'"
+            )
+            self._ensure_column(
+                conn, "l3_hypotheses", "supersedes_hypothesis_id", "TEXT"
+            )
+            # C-02: track last-evidence-added time for decay calculation.
+            self._ensure_column(
+                conn, "l3_hypotheses", "last_evidence_added", "TEXT"
+            )
+            # B4: candidate queue TTL — pending candidates expire after 30 days
+            # so unconfirmed entries don't accumulate indefinitely.
+            self._ensure_column(
+                conn,
+                "memory_candidates",
+                "expires_at",
+                "TEXT",
+            )
+            self._backfill_candidate_expiry(conn)
             self._migrate_legacy_session_tables(conn)
         self._harden_permissions()
 
     def _harden_permissions(self) -> None:
-        if os.name == "nt":
-            return
-        if self.db_path.exists():
-            try:
-                os.chmod(self.db_path, 0o600)
-            except OSError:
-                pass
+        # WAL mode adds -wal/-shm sidecar files that carry the same PHI as the
+        # main database; they must be locked down alongside it.
+        suffixes = ("", "-wal", "-shm")
+        for suffix in suffixes:
+            path = Path(f"{self.db_path}{suffix}")
+            if path.exists():
+                if os.name == "nt":
+                    # M-19: Windows ACL hardening using icacls.
+                    _harden_windows_acl(path)
+                else:
+                    try:
+                        os.chmod(path, 0o600)
+                    except OSError:
+                        pass
 
     def seal(self, value: Any) -> str | None:
         return self._cipher.seal(value)
@@ -470,6 +671,27 @@ class SQLiteStore:
                 (log_id, session_id, event_type, self.seal(payload), utc_now()),
             )
         return log_id
+
+    @staticmethod
+    def _backfill_candidate_expiry(conn: sqlite3.Connection) -> None:
+        """Give pre-B4 pending candidates the same 30-day TTL as new rows."""
+        rows = conn.execute(
+            "SELECT candidate_id, created_at FROM memory_candidates "
+            "WHERE status = 'pending' AND expires_at IS NULL"
+        ).fetchall()
+        for row in rows:
+            try:
+                created_at = datetime.fromisoformat(row["created_at"])
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                expires_at = (created_at + timedelta(days=30)).isoformat()
+            except (TypeError, ValueError):
+                # A malformed legacy timestamp cannot safely remain pending.
+                expires_at = utc_now()
+            conn.execute(
+                "UPDATE memory_candidates SET expires_at = ? WHERE candidate_id = ?",
+                (expires_at, row["candidate_id"]),
+            )
 
     @staticmethod
     def _migrate_legacy_session_tables(conn: sqlite3.Connection) -> None:
@@ -507,6 +729,10 @@ class SQLiteStore:
         column_name: str,
         column_definition: str,
     ) -> None:
+        # M-20: validate table_name against a whitelist before interpolating
+        # it into SQL (SQLite does not accept parameterized identifiers).
+        if table_name not in _WHITELISTED_TABLES:
+            raise ValueError(f"Unknown table name in _ensure_column: {table_name}")
         columns = {
             row["name"]
             for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()

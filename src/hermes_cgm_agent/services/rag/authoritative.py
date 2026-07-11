@@ -28,7 +28,9 @@ personal memory (D031).
 from __future__ import annotations
 
 import json
+import re
 import os
+import threading
 from dataclasses import dataclass, field, replace
 from importlib import resources
 from pathlib import Path
@@ -75,6 +77,122 @@ DEFAULT_MIN_UNTRUSTED_OVERLAP = 1
 # lower BM25 rank can still be promoted above auto cards by trusted-first.
 KB_POOL_FACTOR = 8
 KB_POOL_MIN = 25
+
+
+def expand_authoritative_query(query: str) -> str:
+    """Deterministically expand common patient phrasing into KB vocabulary.
+
+    L-03: CJK terms use bare substring matching (``term in compact``). This
+    differs from English terms which use ``_contains_english_term`` with word
+    boundaries. CJK has no whitespace delimiters, so word-boundary regex is
+    not applicable. The current controlled vocabulary is small and
+    high-precision, so false-positive expansion risk is negligible. If the
+    vocabulary grows, consider a CJK tokenizer (jieba etc.) for disambiguation.
+    """
+    raw = query.strip()
+    lowered = raw.casefold()
+    compact = lowered.replace(" ", "")
+    structured_metric_query = any(
+        term in compact
+        for term in (
+            "level1",
+            "level2",
+            "tbr",
+            "tar",
+            "pregnancy",
+            "figure",
+            "a1c",
+            "目标范围下时间",
+            "目标范围上时间",
+            "糖化血红蛋白",
+        )
+    )
+    additions: list[str] = []
+    if not structured_metric_query and any(
+        term in compact
+        for term in (
+            "血糖低",
+            "低血糖",
+            "手抖",
+            "冒汗",
+            "心慌",
+            "头晕",
+        )
+    ):
+        additions.extend(
+            [
+                "低血糖",
+                "hypoglycemia",
+                "15-15",
+                "15 克碳水",
+                "15 分钟",
+                "70 mg/dL",
+                "3.9 mmol/L",
+                "胰高血糖素",
+                "glucagon",
+            ]
+        )
+    if not structured_metric_query and any(
+        term in compact
+        for term in (
+            "血糖高",
+            "高血糖",
+            "酮",
+            "酸中毒",
+            "生病",
+            "病假日",
+            "ketone",
+            "dka",
+            "sickday",
+        )
+    ):
+        additions.extend(
+            [
+                "高血糖",
+                "hyperglycemia",
+                "酮体",
+                "ketone",
+                "DKA",
+                "酮症酸中毒",
+                "250 mg/dL",
+                "13.9 mmol/L",
+                "sick day",
+            ]
+        )
+    if any(term in compact for term in ("压迫", "睡觉压", "假低", "compressionlow")):
+        additions.extend(["压迫性低值", "compression low", "fingerstick", "BGM", "数据质量"])
+    if any(
+        term in compact
+        for term in ("没数据", "数据不全", "佩戴", "断连", "dataquality", "weartime")
+    ):
+        additions.extend(["CGM 数据质量", "data quality", "佩戴时间", "wear time", "14 天", "70%"])
+
+    has_alcohol_context = (
+        any(term in compact for term in ("喝酒", "饮酒", "酒精"))
+        or _contains_english_term(lowered, "alcohol")
+        or _contains_english_term(lowered, "drinking")
+    )
+    if has_alcohol_context:
+        additions.extend(["alcohol", "drinking alcohol", "hypoglycemia", "低血糖", "nighttime low", "CGM"])
+
+    if not additions:
+        return raw
+    seen = {part.casefold() for part in raw.split()}
+    suffix: list[str] = []
+    for term in additions:
+        key = term.casefold()
+        if key not in seen:
+            seen.add(key)
+            suffix.append(term)
+    return " ".join([raw, *suffix])
+
+
+def _contains_english_term(text: str, term: str) -> bool:
+    """Avoid substring expansion such as ``alcohol`` inside ``nonalcoholic``."""
+    return re.search(
+        rf"(?<![a-z0-9]){re.escape(term.casefold())}(?![a-z0-9])",
+        text.casefold(),
+    ) is not None
 
 # ── population taxonomy (A1, D043) ─────────────────────────────────────────
 # Auto-ingested cards carry ~150 distinct free-text ``population`` strings
@@ -314,6 +432,9 @@ class AuthoritativeRAGService:
             for c in self.knowledge_base.cards
         ]
         self._by_id = {c.card_id: c for c in self.knowledge_base.cards}
+        # H-02/H-03: serialise approve + _persist_card so concurrent calls
+        # don't lose updates (read-modify-write on KB JSON + in-memory dict).
+        self._write_lock = threading.Lock()
         # R2-3 (D031): enforce the read-only KB invariant the memory_guard
         # docstring promises. If a future change adds a mutator (add/write/
         # update/delete/...) to this service, construction fails loudly rather
@@ -335,11 +456,15 @@ class AuthoritativeRAGService:
     ) -> dict[str, Any]:
         """Clinical sign-off — the ONLY sanctioned KB write path (F3-B2, G1).
 
-        Sets ``verified=true`` with ``reviewer`` + ``reviewed_at`` provenance,
-        restricted to ``tier=curated`` cards, and persists the change to the KB
-        JSON. Re-approving an already-verified card with the same reviewer is an
-        idempotent no-op. Arguments are validated at the strict JSON boundary
-        (no truthiness/coercion) — see contract C2.
+        Sets ``verified=true`` with ``reviewer`` + ``reviewed_at`` provenance and
+        persists the change to the KB JSON. Sign-off is accepted for cards of ANY
+        tier (D059): the ingestion pipeline is fully automated, so every card
+        starts as ``tier=auto, verified=false`` and the clinician's approval is
+        the single trust-promotion gate. ``tier`` records provenance (auto vs the
+        legacy curated seeds); ``verified`` records sign-off state — the two are
+        orthogonal. Re-approving an already-verified card with the same reviewer
+        is an idempotent no-op. Arguments are validated at the strict JSON
+        boundary (no truthiness/coercion) — see contract C2.
         """
         if not isinstance(card_id, str) or not card_id.strip():
             raise ValueError("card_id is required")
@@ -353,29 +478,32 @@ class AuthoritativeRAGService:
         card = self._by_id.get(card_id)
         if card is None:
             raise ValueError(f"card not found: {card_id}")
-        if card.tier != TRUSTED_TIER:
-            raise ValueError(
-                f"Only curated cards can be approved. This card is tier={card.tier}."
-            )
-        # Idempotent: same card already signed off by the same reviewer.
-        if card.verified and (card.reviewer or "") == reviewer:
-            return self._approval_payload(card)
+        # H-02/H-03: hold the write lock for the entire read-modify-write
+        # sequence (in-memory dict + KB JSON) so concurrent approve calls
+        # don't lose updates.
+        with self._write_lock:
+            card = self._by_id.get(card_id)
+            if card is None:
+                raise ValueError(f"card not found: {card_id}")
+            # Idempotent: same card already signed off by the same reviewer.
+            if card.verified and (card.reviewer or "") == reviewer:
+                return self._approval_payload(card)
 
-        stamp = reviewed_at or utc_now().isoformat()
-        updated = replace(card, verified=True, reviewer=reviewer, reviewed_at=stamp)
-        self._by_id[card_id] = updated
-        self.knowledge_base = KnowledgeBase(
-            kb_version=self.knowledge_base.kb_version,
-            cards=[
-                updated if c.card_id == card_id else c
-                for c in self.knowledge_base.cards
-            ],
-        )
-        self._persist_card(
-            card_id,
-            {"verified": True, "reviewer": reviewer, "reviewed_at": stamp},
-        )
-        return self._approval_payload(updated)
+            stamp = reviewed_at or utc_now().isoformat()
+            updated = replace(card, verified=True, reviewer=reviewer, reviewed_at=stamp)
+            self._by_id[card_id] = updated
+            self.knowledge_base = KnowledgeBase(
+                kb_version=self.knowledge_base.kb_version,
+                cards=[
+                    updated if c.card_id == card_id else c
+                    for c in self.knowledge_base.cards
+                ],
+            )
+            self._persist_card(
+                card_id,
+                {"verified": True, "reviewer": reviewer, "reviewed_at": stamp},
+            )
+            return self._approval_payload(updated)
 
     @staticmethod
     def _approval_payload(card: "ClaimCard") -> dict[str, Any]:
@@ -416,12 +544,13 @@ class AuthoritativeRAGService:
         top_k: int = 3,
         population: str | None = None,
     ) -> list[dict]:
+        expanded_query = expand_authoritative_query(query)
         docs = self._filter_docs(population)
         # Pull a deeper pool so the trusted-first guard can promote a curated card
         # that BM25 ranked below noisier auto cards (D041 correction).
         pool_k = max(top_k * KB_POOL_FACTOR, KB_POOL_MIN)
-        results = self.retriever.retrieve(query, docs, top_k=pool_k)
-        ranked = self._guarded_rank(results, q_terms=set(tokenize(query)))[:top_k]
+        results = self.retriever.retrieve(expanded_query, docs, top_k=pool_k)
+        ranked = self._guarded_rank(results, q_terms=set(tokenize(expanded_query)))[:top_k]
         out: list[dict] = []
         for r in ranked:
             card = self._by_id[r.doc.doc_id]

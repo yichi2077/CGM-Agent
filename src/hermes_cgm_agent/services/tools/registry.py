@@ -261,6 +261,36 @@ def build_default_tool_registry() -> ToolRegistry:
                                 "minimum": 0,
                                 "maximum": 1,
                             },
+                            # F1: structured meal fields (optional, used when
+                            # event_type="meal"). The handler moves these into
+                            # payload and generates a structured_summary.
+                            "food_items": {
+                                "type": "array",
+                                "description": (
+                                    "Structured food items for meal events. "
+                                    'Each item: {"name": "面条", '
+                                    '"portion": "一碗", '
+                                    '"estimated_carbs_g": 60}.'
+                                ),
+                                "items": {
+                                    "type": "object",
+                                    "required": ["name"],
+                                    "additionalProperties": False,
+                                    "properties": {
+                                        "name": {"type": "string"},
+                                        "portion": {"type": "string"},
+                                        "estimated_carbs_g": {
+                                            "type": ["number", "null"],
+                                            "minimum": 0,
+                                        },
+                                    },
+                                },
+                            },
+                            "meal_time": {
+                                "type": "string",
+                                "enum": ["breakfast", "lunch", "dinner", "snack"],
+                                "description": "Meal time category for meal events.",
+                            },
                         },
                     },
                     "reason": {"type": ["string", "null"]},
@@ -288,6 +318,33 @@ def build_default_tool_registry() -> ToolRegistry:
             ),
             output_schema=_response_schema({"event_id": {"type": "string"}}),
             risk_level="write",
+            status="active",
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="meals.find_similar",
+            group="analytics",
+            owner_module="meal_correlation",
+            description=(
+                "Find confirmed historical meals matching a food name and return "
+                "their evidence-backed postprandial glucose responses."
+            ),
+            input_schema=_object_schema(
+                required=["user_id", "food_name"],
+                properties={
+                    "user_id": {"type": "string"},
+                    "food_name": {"type": "string", "minLength": 1},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+                    "window_hours": {"type": "number", "minimum": 0, "maximum": 24},
+                },
+            ),
+            output_schema=_response_schema(
+                {
+                    "matches": {"type": "array", "items": {"type": "object"}},
+                }
+            ),
+            risk_level="read",
             status="active",
         )
     )
@@ -324,6 +381,10 @@ def build_default_tool_registry() -> ToolRegistry:
                     "audience": {"type": "string", "enum": ["self", "clinician", "family"]},
                     "language": {"type": "string", "enum": ["zh-CN", "en-US"]},
                     "timezone": {"type": "string"},
+                    "population": {
+                        "type": ["string", "null"],
+                        "description": "Optional population filter for authoritative retrieval, such as pregnancy or pediatric.",
+                    },
                     "report_anchor_time": {"type": "string"},
                     "anchor_at": {"type": "string", "format": "date-time"},
                     "memory_context": {"type": "object"},
@@ -624,6 +685,12 @@ def build_default_tool_registry() -> ToolRegistry:
                     "user_id": {"type": "string"},
                     "channel": {"type": "string", "enum": ["local_file", "email", "webhook"]},
                     "payload_ref": {"type": "string"},
+                    # L-27: declare optional tier/period_key used by push_tick.
+                    "tier": {"type": ["string", "null"]},
+                    "period_key": {"type": ["string", "null"]},
+                    # Cycle2: declare metrics/event_summaries read by handler.
+                    "metrics": {"type": ["object", "null"]},
+                    "event_summaries": {"type": ["array", "null"]},
                 },
             ),
             output_schema=_response_schema(

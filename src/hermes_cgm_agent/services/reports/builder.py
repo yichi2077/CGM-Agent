@@ -1,31 +1,19 @@
 from __future__ import annotations
 
-import hashlib
+import re
 import uuid
-from dataclasses import dataclass
-from datetime import datetime, time, timedelta, timezone
 from typing import Any, Callable
-from zoneinfo import ZoneInfo
-
-from collections import Counter
 
 from hermes_cgm_agent.domain import (
     DataScope,
-    EvidenceRef,
+    EscalationState,
     GlucoseAggregate,
     GlucoseEvent,
     GlucosePoint,
     UserEvent,
-    EscalationState,
-    GlucoseEventType,
 )
 from hermes_cgm_agent.domain.report import (
-    AuthoritativeDocument,
-    AuthoritativeContext,
     DataQualityWarning,
-    DataQualitySeverity,
-    G8MemoryCandidate,
-    MemoryContext,
     Report,
     ReportAudience,
     ReportInput,
@@ -41,30 +29,69 @@ from hermes_cgm_agent.services.analytics import (
     median_interval_minutes,
 )
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
-from hermes_cgm_agent.services.reports.renderer import CITATION_BLOCK_TEMPLATE, render_markdown
-from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
-from hermes_cgm_agent.services.reports.narrative_templates import (
-    translate_metric,
-    render_hypothesis_narrative,
+from hermes_cgm_agent.services.reports.renderer import (
+    CITATION_BLOCK_TEMPLATE,
+    MEDICAL_DISCLAIMER_FOOTER,
+    render_markdown,
 )
+from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
+from hermes_cgm_agent.services.reports.sections import (
+    DailyCardMixin,
+    DoctorMixin,
+    EventsMixin,
+    MetricsMixin,
+    ObservationsMixin,
+    PatternsMixin,
+)
+from hermes_cgm_agent.services.reports.sections.helpers import (
+    _aggregate_evidence,
+    _context_version,
+    _output_hash,
+    _unique_evidence_refs,
+    _window_label,
+    resolve_report_scope,
+)
+# E2: shared sentinel for RAG context-merge sentences (produced in
+# sections/observations.py). Imported here so the renderer's stripping logic
+# and the producer share a single source of truth for the marker string.
+from hermes_cgm_agent.services.reports.sections.observations import RAG_MERGE_MARKER
 from hermes_cgm_agent.services.safety import SafetyRouter, assert_authoritative_quotes
 
+# Re-exported for back-compat: callers import resolve_report_scope from this
+# module (e.g. reports/__init__.py, reports/tools.py, simulation/runner.py).
+__all__ = ["ReportService", "resolve_report_scope"]
 
-REPORT_WINDOW_DAYS = {
-    ReportType.DAILY: 1,
-    ReportType.WEEKLY: 7,
-    ReportType.DOCTOR: 14,
-}
+# E2: matches a RAG context-merge marker plus the merge sentence that follows
+# it, up to the next marker or end-of-string. render_companion uses this to
+# strip these standard additions from companion tone/length validation by
+# MARKER instead of fragile exact-string matching, so the merge wording can
+# evolve without silently disabling the guard.
+# L-07: \Z anchor is intentional — RAG merge segments are always appended at
+# the end of the content, so stripping to end-of-string is correct behavior.
+_RAG_MERGE_SEGMENT_RE = re.compile(
+    rf"{re.escape(RAG_MERGE_MARKER)}.*?(?={re.escape(RAG_MERGE_MARKER)}|\Z)",
+    re.DOTALL,
+)
 
 
-@dataclass(frozen=True)
-class PatternSignal:
-    summaries: list[str]
-    evidence_refs: list[EvidenceRef]
-    emit_memory_candidates: bool
+def _with_disclaimer_footer(content: str) -> str:
+    return content.rstrip() + "\n\n" + MEDICAL_DISCLAIMER_FOOTER + "\n"
 
 
-class ReportService:
+def _append_before_disclaimer_footer(markdown: str, addition: str) -> str:
+    footer_suffix = "\n\n" + MEDICAL_DISCLAIMER_FOOTER + "\n"
+    body = markdown[:-len(footer_suffix)].rstrip() if markdown.endswith(footer_suffix) else markdown.rstrip()
+    return _with_disclaimer_footer(body + "\n\n" + addition.strip())
+
+
+class ReportService(
+    DailyCardMixin,
+    MetricsMixin,
+    EventsMixin,
+    ObservationsMixin,
+    PatternsMixin,
+    DoctorMixin,
+):
     def __init__(
         self,
         *,
@@ -82,7 +109,7 @@ class ReportService:
         self._services_injected = analytics_service is not None or event_detector is not None
         self.analytics_service = analytics_service or CGMAnalyticsService()
         self.event_detector = event_detector or GlucoseEventDetector()
-        self.safety_router = safety_router or SafetyRouter()
+        self.safety_router = safety_router or SafetyRouter(store=self.cgm_repository.store)
         # F3-B1: optional sink for citation-guard violations. The audit payload
         # carries counts only — never claim text, glucose values, or narrative.
         self.audit_logger = audit_logger
@@ -106,7 +133,10 @@ class ReportService:
                 AnalyticsConfig(expected_interval_minutes=interval)
             )
             self.event_detector = GlucoseEventDetector(
-                EventDetectionConfig(expected_interval_minutes=interval)
+                EventDetectionConfig(
+                    expected_interval_minutes=interval,
+                    timezone=report_input.timezone,
+                )
             )
         aggregate = self.analytics_service.compute_aggregate(
             points=points,
@@ -233,9 +263,11 @@ class ReportService:
             route=safety_decision.route,
             safety_result=safety_result_payload,
         )
-        
+
         if safety_decision.safety_result["status"] == "red_zone":
-            report.rendered_markdown = render_markdown(report)
+            # L-12: strip RAG_MERGE_MARKER defensively (red_zone path normally
+            # has no merge content, but guard against leakage).
+            report.rendered_markdown = render_markdown(report).replace(RAG_MERGE_MARKER, "")
         elif is_disclaimer_mode:
             report.rendered_markdown = disclaimer_content
             report.route = "reports.generate.disclaimer"
@@ -252,6 +284,15 @@ class ReportService:
             # (analyze I2/I3/U1).
             self._apply_citation_gate(report_input, report)
 
+        # RAG merge sentinels are renderer-internal only.  Strip them after
+        # companion validation (which needs the sentinel) but before the report
+        # is persisted or returned through a tool response.
+        report.sections = [
+            section.model_copy(
+                update={"content": section.content.replace(RAG_MERGE_MARKER, "")}
+            )
+            for section in report.sections
+        ]
         report.output_hash = _output_hash(report.rendered_markdown)
         return self.report_repository.create_report(report)
 
@@ -268,17 +309,40 @@ class ReportService:
         if not narrative:
             return
         documents = [
-            {"text": doc.text} for doc in report_input.authoritative_context.documents
+            {"text": doc.text, "title": doc.title, "source": doc.source, "citation": doc.citation}
+            for doc in report_input.authoritative_context.documents
         ]
         # Correct positional order: documents FIRST, then generated_text (analyze
         # C1 — the prior draft swapped them, silently no-op'ing the guard).
         result = assert_authoritative_quotes(documents, narrative, strict=True)
         if result.ok:
-            report.rendered_markdown = (
-                report.rendered_markdown.rstrip() + "\n\n## 医学参考\n\n" + narrative + "\n"
+            # H-09: for non-CLINICIAN audiences, also check companion text
+            # compliance so blacklisted abbreviations in the medical narrative
+            # don't bypass the companion guard.
+            if report_input.audience != ReportAudience.CLINICIAN:
+                from hermes_cgm_agent.services.reports.narrative_templates import (
+                    check_companion_text,
+                )
+                violations = check_companion_text(narrative)
+                if violations:
+                    report.rendered_markdown = _with_disclaimer_footer(CITATION_BLOCK_TEMPLATE)
+                    report.route = "reports.generate.companion_violation"
+                    report.safety_result = {
+                        "status": "companion_violation",
+                        "violation_count": len(violations),
+                    }
+                    if self.audit_logger is not None:
+                        self.audit_logger(
+                            "companion_guard_blocked",
+                            {"violations": violations},
+                        )
+                    return
+            report.rendered_markdown = _append_before_disclaimer_footer(
+                report.rendered_markdown,
+                "## 医学参考\n\n" + narrative,
             )
             return
-        report.rendered_markdown = CITATION_BLOCK_TEMPLATE
+        report.rendered_markdown = _with_disclaimer_footer(CITATION_BLOCK_TEMPLATE)
         report.route = "reports.generate.citation_blocked"
         report.safety_result = {
             "status": "citation_blocked",
@@ -296,7 +360,12 @@ class ReportService:
             )
 
     def render_clinical(self, report: Report) -> str:
-        return render_markdown(report)
+        # E2: a doctor report built for a non-clinician audience still emits the
+        # companion-style merge sentences, which carry the RAG_MERGE_MARKER
+        # sentinel. The marker is a rendering-only signal, never reader-facing
+        # content, so strip it from the clinical output too; the merge sentence
+        # itself stays as user-facing context.
+        return render_markdown(report).replace(RAG_MERGE_MARKER, "")
 
     def render_companion(self, report: Report) -> str:
         # F4 vs F3 tone isolation guard (F-8/N4): clinical abbreviations and
@@ -313,9 +382,12 @@ class ReportService:
                 if len(parts) > 1:
                     content_to_validate = parts[1]
 
-            # Strip RAG context merge messages which are standard additions
-            content_to_validate = content_to_validate.replace("这次也带上了过往记录，看看它和今天有没有能对得上的地方。", "")
-            content_to_validate = content_to_validate.replace("也放进了参考资料，但它更像背景，不会替代你自己的记录。", "")
+            # Strip RAG context merge messages which are standard additions.
+            # E2: strip by MARKER (robust to wording changes) instead of
+            # exact-string matching — observations.py prefixes each merge
+            # sentence with RAG_MERGE_MARKER; this removes the marker + its
+            # sentence so they don't count toward the tone/length guard.
+            content_to_validate = _RAG_MERGE_SEGMENT_RE.sub("", content_to_validate)
             content_to_validate = content_to_validate.strip()
 
             max_len = 80
@@ -330,7 +402,10 @@ class ReportService:
                     f"Companion section '{section.section_id}' violates Principle IV: {hard}"
                 )
             # length-only violations are tolerated here (rendering concern).
-        return render_markdown(report)
+        # E2: remove the RAG_MERGE_MARKER sentinels from the final markdown;
+        # the merge sentences themselves stay (user-facing context), only the
+        # rendering marker must never reach the reader.
+        return render_markdown(report).replace(RAG_MERGE_MARKER, "")
 
     def _sections(
         self,
@@ -346,6 +421,7 @@ class ReportService:
     ) -> list[ReportSection]:
         audience = ReportAudience(report_input.audience)
         report_type = ReportType(report_input.report_type)
+        timezone_name = report_input.timezone
         period_label = {
             ReportType.DAILY: "今天",
             ReportType.WEEKLY: "这一周",
@@ -356,10 +432,18 @@ class ReportService:
         if report_input.consecutive_anomaly_days is not None:
             consecutive_days = report_input.consecutive_anomaly_days
         else:
-            from hermes_cgm_agent.services.scheduling.scheduler import PushSchedulerService
-            scheduler = PushSchedulerService(store=self.cgm_repository.store)
+            from hermes_cgm_agent.services.scheduling.scheduler import (
+                PushSchedulerConfig,
+                PushSchedulerService,
+            )
+            from hermes_cgm_agent.services.audit import AuditService
+            scheduler = PushSchedulerService(
+                store=self.cgm_repository.store,
+                config=PushSchedulerConfig(timezone=timezone_name),
+                audit_service=AuditService(self.cgm_repository.store),  # L-25: inject for consistency
+            )
             consecutive_days = scheduler.consecutive_anomaly_days(scope.user_id, scope.window_end)
-            
+
         esc_state = EscalationState.derive(consecutive_days, is_vulnerable)
 
         if report_type == ReportType.DAILY and not self._daily_has_exception(
@@ -394,7 +478,13 @@ class ReportService:
             self._overview_section(scope, aggregate, warnings, audience, period_label=period_label),
             self._metrics_section(scope, aggregate, audience),
             self._data_quality_section(scope, warnings, audience),
-            self._key_events_section(report_id, scope, events, audience),
+            self._key_events_section(
+                report_id,
+                scope,
+                events,
+                audience,
+                timezone_name=timezone_name,
+            ),
             self._detected_events_section(scope, detected_events, audience),
             self._observations_section(
                 scope,
@@ -408,711 +498,30 @@ class ReportService:
         # US2/FR-004: state-aware L3 hypothesis narrative (companion audiences only;
         # clinician reports stay pure clinical, Principle IV / F3 isolation).
         if audience != ReportAudience.CLINICIAN:
-            hyp_section = self._hypothesis_narrative_section(scope, audience)
+            hyp_section = self._hypothesis_narrative_section(
+                scope,
+                audience,
+                timezone_name=timezone_name,
+            )
             if hyp_section is not None:
                 sections.append(hyp_section)
         if report_type == ReportType.WEEKLY:
             sections.append(
-                self._patterns_section(report_id, scope, aggregate, events, detected_events, audience)
+                self._patterns_section(
+                    report_id,
+                    scope,
+                    aggregate,
+                    events,
+                    detected_events,
+                    audience,
+                    timezone_name=timezone_name,
+                )
             )
         if report_type == ReportType.DOCTOR:
             sections.append(
                 self._doctor_appendix_section(scope, aggregate, events, detected_events, warnings, audience)
             )
         return sections
-
-    def _daily_card_section(
-        self,
-        *,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        audience: ReportAudience,
-        warnings: list[DataQualityWarning],
-        detected_events: list[GlucoseEvent] | None = None,
-        period_label: str = "今天",
-    ) -> ReportSection:
-        detected_events = detected_events or []
-        card = self._daily_card_text(
-            aggregate=aggregate,
-            audience=audience,
-            warnings=warnings,
-            detected_events=detected_events,
-        )
-        # D056: the daily-card text opens with "今天/今日"; in a weekly/period
-        # report that tense is wrong. Swap the leading temporal word once (both
-        # are 2 chars and only appear at the start of these strings). Also give
-        # the section a period-appropriate title.
-        if period_label != "今天":
-            if card.startswith(("今天", "今日")):
-                card = period_label + card[2:]
-        card_title = "日报卡片" if period_label == "今天" else "这段概况"
-        return ReportSection(
-            section_id="daily_card",
-            kind="daily_card",
-            title=card_title,
-            content=card,
-            data_scope=scope,
-            evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=_coverage_confidence(aggregate.data_coverage),
-            warnings=warnings,
-        )
-
-    def _overview_section(
-        self,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        warnings: list[DataQualityWarning],
-        audience: ReportAudience,
-        period_label: str = "这段时间",
-    ) -> ReportSection:
-        if audience == ReportAudience.CLINICIAN:
-            content = (
-                f"本次覆盖 {scope.window_start.isoformat()} 至 {scope.window_end.isoformat()}，"
-                f"纳入 {aggregate.point_count} 个有效 CGM 点，数据覆盖率 {aggregate.data_coverage}%。"
-            )
-            if warnings:
-                content += " 合并数据质量说明，解读时需结合覆盖率一并判断。"
-        else:
-            # Everyday / family: describe completeness in plain words (D056) —
-            # never "N 个有效点 / 覆盖 X%", which reads as engineering telemetry.
-            if aggregate.data_coverage >= 70:
-                content = f"{period_label}的记录挺完整的，下面的情况可以比较放心地看。"
-            else:
-                content = f"{period_label}有一部分时间没有记到数据，下面的情况先作个参考。"
-        return ReportSection(
-            section_id="overview",
-            kind="overview",
-            title="整体概览",
-            content=content,
-            data_scope=scope,
-            evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=_coverage_confidence(aggregate.data_coverage),
-            warnings=warnings,
-        )
-
-    def _metrics_section(
-        self,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        audience: ReportAudience,
-    ) -> ReportSection:
-        if aggregate.point_count == 0:
-            if audience == ReportAudience.CLINICIAN:
-                content = "本窗暂无可计算的关键指标；TIR/TAR/TBR、MBG、CV 与 GMI 均需有效 CGM 数据后再解读。"
-            elif audience == ReportAudience.FAMILY:
-                content = "这段时间暂无可计算的关键指标，先等数据补齐后再看平均值和偏高偏低比例。"
-            else:
-                content = "这段时间暂无可计算的关键指标，先不看平均值、偏高比例或偏低比例。"
-        elif audience == ReportAudience.CLINICIAN:
-            # AGP 2019-consensus 5-level split (D055): TBR/TAR are TOTALs; the
-            # very-low (<54) and very-high (>250) Level-2 bands are called out
-            # so severe-hypo/hyper burden is directly readable.
-            content = (
-                f"TIR {aggregate.tir}%，TAR {aggregate.tar}%（其中极高>250 {aggregate.tar_very_high}%），"
-                f"TBR {aggregate.tbr}%（其中极低<54 {aggregate.tbr_very_low}%）；"
-                f"MBG {aggregate.mbg} mg/dL，CV {aggregate.cv}%，GMI {aggregate.gmi}。"
-            )
-        elif audience == ReportAudience.FAMILY:
-            # Family: reassurance-first, minimal numbers, hypo before hyper (a
-            # low is what a caregiver most needs to know). D056: build the
-            # sentence conditionally — never concatenate translate_metric
-            # fragments (that produced "平均平均状态" / "没有偏高约占0%").
-            tir_str = translate_metric("TIR", aggregate.tir, audience)
-            high = aggregate.tar or 0
-            low = aggregate.tbr or 0
-            content = f"{tir_str}，平均血糖大约 {_display_glucose(aggregate.mbg)}。"
-            if low == 0 and high == 0:
-                content += "从整体看大方向挺平稳的。"
-            elif low > 0:
-                content += "偶尔有偏低的时候，平时可以多留意一下。"
-            else:
-                content += "偶尔有偏高的时候，整体问题不大。"
-        else:
-            tir_str = translate_metric("TIR", aggregate.tir, audience)
-            high = aggregate.tar or 0
-            low = aggregate.tbr or 0
-            content = f"{tir_str}，平均血糖大约 {_display_glucose(aggregate.mbg)}。"
-            if high == 0 and low == 0:
-                # Metric-level statement only (D056): TBR/TAR here are window
-                # totals; short individual events can still surface in
-                # 波动片段/我们在一起观察的, so avoid an absolute "完全没有" that
-                # reads as contradicting those sections.
-                content += "从整体比例看，偏高和偏低的时间都很少，大方向挺稳的。"
-            else:
-                bits: list[str] = []
-                if high > 0:
-                    bits.append(f"有大约 {aggregate.tar}% 的时间偏高")
-                if low > 0:
-                    bits.append(f"有大约 {aggregate.tbr}% 的时间偏低")
-                content += "，".join(bits) + "，可以多留意一下。"
-        return ReportSection(
-            section_id="metrics",
-            kind="metrics",
-            title="关键指标",
-            content=content,
-            data_scope=scope,
-            evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=_coverage_confidence(aggregate.data_coverage),
-        )
-
-    def _data_quality_section(
-        self,
-        scope: DataScope,
-        warnings: list[DataQualityWarning],
-        audience: ReportAudience,
-    ) -> ReportSection:
-        if not warnings:
-            if audience == ReportAudience.CLINICIAN:
-                content = "本窗未见额外数据质量问题，指标可按当前覆盖率常规解读。"
-            elif audience == ReportAudience.FAMILY:
-                content = "这段记录基本完整，先不用为数据本身担心。"
-            else:
-                content = "这段数据记得还算完整，先按现在看到的走势来理解就行。"
-        else:
-            prefix = "数据质量说明：" if audience == ReportAudience.CLINICIAN else "这段数据里有些地方还不够完整："
-            content = prefix + "；".join(warning.message for warning in warnings)
-        return ReportSection(
-            section_id="data_quality",
-            kind="data_quality",
-            title="数据质量说明",
-            content=content,
-            data_scope=scope,
-            evidence_refs=[ref for warning in warnings for ref in warning.evidence_refs],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=1.0,
-            warnings=warnings,
-        )
-
-    def _key_events_section(
-        self,
-        report_id: str,
-        scope: DataScope,
-        events: list[UserEvent],
-        audience: ReportAudience,
-    ) -> ReportSection:
-        confirmed = [event for event in events if event.user_confirmed]
-        candidates = [event for event in events if not event.user_confirmed]
-        evidence_refs = [_event_evidence(event) for event in events]
-        memory_candidates = [
-            G8MemoryCandidate(
-                target_layer="L1",
-                candidate_type="episode",
-                summary=f"已确认一次{event.event_type}事件，时间在 {event.ts_start.isoformat()}。",
-                source_report_id=report_id,
-                source_section_id="key_events",
-                evidence_refs=[_event_evidence(event)],
-                confidence=event.confidence if event.confidence is not None else 0.7,
-                requires_user_confirmation=False,
-            )
-            for event in confirmed
-        ]
-        if not events:
-            if audience == ReportAudience.CLINICIAN:
-                content = "本窗未记录用户事件，缺少餐食、运动、睡眠等外部时间锚点。"
-            elif audience == ReportAudience.FAMILY:
-                content = "今天没有额外备注事件，先按血糖走势本身理解。"
-            else:
-                content = "这段时间里还没有记下特别的生活事件，所以先只能结合曲线本身来看。"
-        else:
-            if audience == ReportAudience.CLINICIAN:
-                content = f"用户事件共 {len(events)} 条，其中已确认 {len(confirmed)} 条，待核实 {len(candidates)} 条。"
-            elif audience == ReportAudience.FAMILY:
-                content = f"今天记了 {len(confirmed)} 件已确认的小事，先有个生活背景可以对照。"
-            else:
-                content = f"这段时间记下了 {len(confirmed)} 件已确认的小事，另外还有 {len(candidates)} 条待回想，拿来对照会更贴近当天情境。"
-        return ReportSection(
-            section_id="key_events",
-            kind="key_events",
-            title="生活事件",
-            content=content,
-            data_scope=scope,
-            evidence_refs=evidence_refs,
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=1.0 if not candidates else 0.8,
-            g8_memory_candidates=memory_candidates,
-            omit_for_companion=not events,
-        )
-
-    def _detected_events_section(
-        self,
-        scope: DataScope,
-        detected_events: list[GlucoseEvent],
-        audience: ReportAudience,
-    ) -> ReportSection:
-        if not detected_events:
-            if audience == ReportAudience.CLINICIAN:
-                content = "本窗未检出系统定义的葡萄糖异常事件。"
-            elif audience == ReportAudience.FAMILY:
-                content = "系统这次没有抓到特别突出的波动片段。"
-            else:
-                content = "系统这次没抓到特别突出的波动片段，整体看起来还算顺着走。"
-        else:
-            counts = Counter(str(event.event_type) for event in detected_events)
-            parts = "，".join(
-                f"{_event_type_label(label, audience)} {count} 次"
-                for label, count in sorted(counts.items())
-            )
-            if audience == ReportAudience.CLINICIAN:
-                content = f"系统共检出 {len(detected_events)} 段葡萄糖事件：{parts}。"
-            elif audience == ReportAudience.FAMILY:
-                content = f"系统抓到 {len(detected_events)} 段波动，主要是{parts}，已经整理在这里。"
-            else:
-                content = f"系统抓到 {len(detected_events)} 段波动，主要是{parts}，看起来像今天起伏比较集中的那几段。"
-        return ReportSection(
-            section_id="detected_events",
-            kind="detected_events",
-            title="波动片段",
-            content=content,
-            data_scope=scope,
-            evidence_refs=[
-                ref for event in detected_events for ref in event.evidence_refs
-            ],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=1.0,
-            # Everyday reader (D056): DATA_GAP-only is not a "波动片段" — gaps are
-            # already covered by 数据质量说明. Show this section to companions
-            # only when there is a real (non-gap) glucose event.
-            omit_for_companion=not any(
-                e.event_type != GlucoseEventType.DATA_GAP for e in detected_events
-            ),
-        )
-
-    def _observations_section(
-        self,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        memory_context: MemoryContext,
-        authoritative_context: AuthoritativeContext,
-        audience: ReportAudience,
-    ) -> ReportSection:
-        observations = []
-        section_warnings: list[DataQualityWarning] = []
-        if aggregate.point_count == 0:
-            if audience == ReportAudience.CLINICIAN:
-                observations.append("本窗无有效 CGM 数据，暂不具备趋势判断基础。")
-            elif audience == ReportAudience.FAMILY:
-                observations.append("这段时间暂时没有可用数据，先不往结论上靠。")
-            else:
-                observations.append("这段时间没有留下可用数据，所以先不急着往规律上靠。")
-        elif (aggregate.tar or 0) > (aggregate.tbr or 0) and (aggregate.tar or 0) > 0:
-            if audience == ReportAudience.CLINICIAN:
-                observations.append("本窗以高于目标范围时间为主，偏高负担高于偏低负担。")
-            elif audience == ReportAudience.FAMILY:
-                observations.append("这段时间主要是偏高多一点，不过还在可回看的范围里。")
-            else:
-                observations.append("这段更像是偏高的时候多一点，可能和吃饭节奏或活动安排有些关系。")
-        elif (aggregate.tbr or 0) > 0:
-            if audience == ReportAudience.CLINICIAN:
-                observations.append("本窗出现低于目标范围时间，需结合具体时段解释。")
-            elif audience == ReportAudience.FAMILY:
-                observations.append("这段时间有一小段偏低，把当时前后发生的事一起放进来看会更清楚。")
-            else:
-                observations.append("这段里有一小段偏低，看起来可能和当时的进食或活动前后有关。")
-        else:
-            if audience == ReportAudience.CLINICIAN:
-                observations.append("有效数据大多位于目标范围内，整体波动负担较轻。")
-            elif audience == ReportAudience.FAMILY:
-                observations.append("这段时间大多数时间都挺平稳，可以先放心。")
-            else:
-                observations.append("这段大多数时候都在范围里，整体看起来比较平顺。")
-
-        source_tracks = [ReportSourceTrack.FACT]
-        evidence_refs = [_aggregate_evidence(scope, aggregate.window_label)]
-        memory_refs = _context_evidence_refs(memory_context.items)
-        authoritative_refs = _context_evidence_refs(authoritative_context.documents)
-        if memory_refs:
-            source_tracks.append(ReportSourceTrack.USER_MEMORY)
-            evidence_refs.extend(memory_refs)
-            observations.append(
-                "这次也带上了过往记录，看看它和今天有没有能对得上的地方。"
-                if audience != ReportAudience.CLINICIAN
-                else "已合并既往记忆线索，用于辅助解释当前模式。"
-            )
-        if authoritative_refs:
-            source_tracks.append(ReportSourceTrack.AUTHORITATIVE)
-            evidence_refs.extend(authoritative_refs)
-            observations.append(
-                "也放进了参考资料，但它更像背景，不会替代你自己的记录。"
-                if audience != ReportAudience.CLINICIAN
-                else "已合并参考资料线索，用于补充背景解释。"
-            )
-            section_warnings.extend(_authoritative_context_warnings(authoritative_context.documents))
-        if len(source_tracks) > 1:
-            source_tracks.append(ReportSourceTrack.MIXED)
-
-        return ReportSection(
-            section_id="observations",
-            kind="observations",
-            title="观察",
-            content=" ".join(observations),
-            data_scope=scope,
-            evidence_refs=evidence_refs,
-            source_tracks=_unique_source_tracks(source_tracks),
-            confidence=_coverage_confidence(aggregate.data_coverage),
-            warnings=section_warnings,
-        )
-
-    def _follow_up_section(
-        self,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        events: list[UserEvent],
-        audience: ReportAudience,
-        esc_state: EscalationState = EscalationState.NORMAL,
-        consecutive_days: int = 0,
-        detected_events: list[GlucoseEvent] | None = None,
-    ) -> ReportSection:
-        detected_events = detected_events or []
-        if audience == ReportAudience.CLINICIAN:
-            return self._follow_up_section_clinical(scope, aggregate, events)
-
-        # Everyday / family (D057): lead with the RIGHT adherence hook, not a
-        # chore list. Positive reinforcement when things go well is the single
-        # strongest adherence driver — the user needs to feel seen and
-        # successful. Escalation concern comes first (safety), then
-        # reinforcement or gentle continuity; data-entry asks are secondary and
-        # framed as benefiting the user, never as work for the system.
-        tir = aggregate.tir if aggregate.tir is not None else 0.0
-        has_anomaly = any(
-            e.event_type != GlucoseEventType.DATA_GAP for e in detected_events
-        )
-        prompts: list[str] = []
-        if esc_state == EscalationState.CONCERN:
-            prompts.append("最近几天都有点波动，你还好吗？我一直在这儿。")
-        elif esc_state == EscalationState.EXTERNAL_SUPPORT:
-            prompts.append("这几天的情况，要不要下次复诊时也跟医生聊聊？我可以帮你把记录整理好。")
-
-        if not prompts:  # not in an escalation state
-            if tir >= 70 and not has_anomaly:
-                prompts.append("这段时间整体保持得挺好，继续现在的节奏就好。")
-            elif tir >= 70:
-                prompts.append("大方向保持得不错，个别小波动我们慢慢看，不用急。")
-            else:
-                prompts.append("这段时间有点起伏，我们一步一步来，不用一次看太多。")
-
-        if aggregate.point_count == 0 or aggregate.data_coverage < 70:
-            prompts.append("这段里有些记录空白，可能是传感器间隙或暖机期，先不用在意。")
-        elif not events:
-            # gentle, user-benefit framing — offered once, never nagging
-            prompts.append("要是哪天想起当时吃了什么、动了多少，随手记一笔，之后更容易看出属于你的规律。")
-
-        content = " ".join(prompts)
-        return ReportSection(
-            section_id="follow_up_prompts",
-            kind="follow_up_prompts",
-            title="接下来",
-            content=content,
-            data_scope=scope,
-            evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)] + [_event_evidence(event) for event in events],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=0.8,
-        )
-
-    def _follow_up_section_clinical(
-        self,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        events: list[UserEvent],
-    ) -> ReportSection:
-        # Clinician follow-up stays clinical/attribution-oriented (D057): flag
-        # unconfirmed events and data gaps that affect interpretation. No
-        # companion-style encouragement — that belongs to the everyday report.
-        prompts: list[str] = []
-        if any(not event.user_confirmed for event in events):
-            prompts.append("存在待核实事件，后续若补全确认状态，归因解释会更完整。")
-        if aggregate.point_count == 0 or aggregate.data_coverage < 70:
-            prompts.append("记录存在缺口，需结合传感器暖机、脱落或遗漏记录解释。")
-        if not events:
-            prompts.append("若能补充餐食、运动、睡眠事件，可提升归因解释度。")
-        return ReportSection(
-            section_id="follow_up_prompts",
-            kind="follow_up_prompts",
-            title="后续线索",
-            content=" ".join(prompts) if prompts else "当前无额外待补充线索。",
-            data_scope=scope,
-            evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)] + [_event_evidence(event) for event in events],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=0.8,
-        )
-
-    def _patterns_section(
-        self,
-        report_id: str,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        events: list[UserEvent],
-        detected_events: list[GlucoseEvent],
-        audience: ReportAudience,
-    ) -> ReportSection:
-        evidence_refs = [_aggregate_evidence(scope, aggregate.window_label)] + [
-            _event_evidence(event) for event in events if event.user_confirmed
-        ]
-        repeated = self._repeated_event_patterns(detected_events)
-        signal = self._pattern_signal(
-            aggregate=aggregate,
-            repeated=repeated,
-            detected_events=detected_events,
-            audience=audience,
-        )
-        evidence_refs.extend(signal.evidence_refs)
-
-        candidates = [
-            G8MemoryCandidate(
-                target_layer="L3",
-                candidate_type="hypothesis",
-                summary=summary,
-                source_report_id=report_id,
-                source_section_id="patterns",
-                evidence_refs=_unique_evidence_refs(evidence_refs),
-                confidence=_coverage_confidence(aggregate.data_coverage),
-                requires_user_confirmation=True,
-            )
-            for summary in signal.summaries
-            if signal.emit_memory_candidates
-        ]
-        return ReportSection(
-            section_id="patterns",
-            kind="patterns",
-            title="模式线索",
-            content=" ".join(signal.summaries),
-            data_scope=scope,
-            evidence_refs=_unique_evidence_refs(evidence_refs),
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=_coverage_confidence(aggregate.data_coverage),
-            g8_memory_candidates=candidates,
-            # D056: hide the empty "还没看到稳定模式" filler from everyday readers
-            # (it contradicts "我们在一起观察的"); show it only when there is a
-            # real cross-day recurring pattern in THIS window. Keyed on
-            # `repeated` (not candidate emission, which can fire on a single
-            # window's events) so the render decision matches what the text says.
-            omit_for_companion=not repeated,
-        )
-
-    def _hypothesis_narrative_section(
-        self,
-        scope: DataScope,
-        audience: ReportAudience,
-    ) -> ReportSection | None:
-        """US2/FR-004: render active L3 hypotheses in state-appropriate companion
-        language (candidate/observing/stable/archived).
-
-        Personal-track only — hypotheses are individualized inferences from the
-        user's own data and MUST NOT be merged with the authoritative KB track
-        (Principle II). Suppressed in red zone by construction (only built on the
-        normal `_sections` path, never in the red-zone/disclaimer branches).
-        """
-        hypotheses = self.memory_repository.list_hypotheses(scope.user_id)
-        rendered: list[str] = []
-        evidence_refs: list[EvidenceRef] = []
-        for hyp in hypotheses:
-            if hyp.valid_to is not None:
-                continue  # superseded / closed bi-temporal window
-            rendered.append(
-                render_hypothesis_narrative(hyp.state, hyp.statement, hyp.evidence_count)
-            )
-            evidence_refs.extend(hyp.evidence_refs)
-        if not rendered:
-            return None
-        return ReportSection(
-            section_id="hypothesis_narrative",
-            kind="hypothesis_narrative",
-            title="我们在一起观察的",
-            content=" ".join(rendered[:3]),
-            data_scope=scope,
-            evidence_refs=_unique_evidence_refs(evidence_refs),
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=0.6,
-        )
-
-    def _pattern_signal(
-        self,
-        *,
-        aggregate: GlucoseAggregate,
-        repeated: list[tuple[str, int]],
-        detected_events: list[GlucoseEvent],
-        audience: ReportAudience,
-    ) -> PatternSignal:
-        if aggregate.point_count == 0:
-            return PatternSignal(
-                summaries=[
-                    "尚无足够数据形成模式线索，先不沉淀为长期记忆。"
-                    if audience != ReportAudience.CLINICIAN
-                    else "本窗无有效 CGM 数据，尚无足够证据形成模式线索。"
-                ],
-                evidence_refs=[],
-                emit_memory_candidates=False,
-            )
-
-        summaries: list[str] = []
-        evidence_refs: list[EvidenceRef] = []
-        # Repetition analysis over detected glucose events: a pattern needs the
-        # same event type recurring on multiple distinct local days, not just a
-        # single window-level aggregate threshold (audit P1-3 fix).
-        for event_type, day_count in repeated:
-            label = _event_type_label(event_type, audience)
-            summaries.append(
-                (
-                    f"这周有 {day_count} 天出现类似的{label}，看起来可能有关，但还不够确定。"
-                    if audience != ReportAudience.CLINICIAN
-                    else f"本周有 {day_count} 个不同日期出现重复的{label}事件。"
-                )
-            )
-            evidence_refs.extend(
-                ref
-                for event in detected_events
-                if str(event.event_type) == event_type
-                for ref in event.evidence_refs
-            )
-
-        if summaries:
-            return PatternSignal(
-                summaries=summaries,
-                evidence_refs=evidence_refs,
-                emit_memory_candidates=True,
-            )
-        if (aggregate.tar or 0) >= 20:
-            summary = (
-                "这周偏高的时间有点集中，看起来可能跟固定时段有关，但还不够确定。"
-                if audience != ReportAudience.CLINICIAN
-                else "本周高于目标范围时间占比升高，结合时段分层后会更容易解释。"
-            )
-        elif (aggregate.tbr or 0) >= 5:
-            summary = (
-                "这周有几段偏低反复出现，看起来像个线索，但还想再多看几次。"
-                if audience != ReportAudience.CLINICIAN
-                else "本周出现低于目标范围时间，结合具体时段与诱因复核会更稳妥。"
-            )
-        else:
-            summary = (
-                "这周暂时还没看到特别稳定的重复模式，先继续观察就好。"
-                if audience != ReportAudience.CLINICIAN
-                else "当前周窗尚未形成稳定重复模式，证据仍不足。"
-            )
-        return PatternSignal(summaries=[summary], evidence_refs=[], emit_memory_candidates=True)
-
-    def _repeated_event_patterns(
-        self,
-        detected_events: list[GlucoseEvent],
-        *,
-        min_days: int = 2,
-        timezone_name: str = "Asia/Shanghai",
-    ) -> list[tuple[str, int]]:
-        local_zone = ZoneInfo(timezone_name)
-        days_by_type: dict[str, set] = {}
-        for event in detected_events:
-            local_day = event.ts_start.astimezone(local_zone).date()
-            days_by_type.setdefault(str(event.event_type), set()).add(local_day)
-        repeated = [
-            (event_type, len(days))
-            for event_type, days in days_by_type.items()
-            if len(days) >= min_days
-        ]
-        return sorted(repeated, key=lambda item: (-item[1], item[0]))
-
-    def _doctor_appendix_section(
-        self,
-        scope: DataScope,
-        aggregate: GlucoseAggregate,
-        events: list[UserEvent],
-        detected_events: list[GlucoseEvent],
-        warnings: list[DataQualityWarning],
-        audience: ReportAudience,
-    ) -> ReportSection:
-        if audience == ReportAudience.FAMILY:
-            content = "这份医生版附录主要是给门诊快速查看的数字摘要，家里先知道整体已整理好就可以。"
-        elif audience == ReportAudience.SELF:
-            content = (
-                f"给医生快速扫读的数字版：TIR {aggregate.tir}%，TAR {aggregate.tar}%，TBR {aggregate.tbr}%，"
-                f"平均 {aggregate.mbg} mg/dL，波动系数 {aggregate.cv}%。"
-            )
-        else:
-            content = (
-                f"结构化摘要：TIR={aggregate.tir}%，TAR={aggregate.tar}%（极高>250 {aggregate.tar_very_high}%），"
-                f"TBR={aggregate.tbr}%（极低<54 {aggregate.tbr_very_low}%），"
-                f"MBG={aggregate.mbg} mg/dL，CV={aggregate.cv}%，GMI={aggregate.gmi}，"
-                f"LBGI={aggregate.lbgi}，HBGI={aggregate.hbgi}，覆盖率={aggregate.data_coverage}%，"
-                f"已确认事件={len([event for event in events if event.user_confirmed])}，"
-                f"系统检出事件={len(detected_events)}，数据质量说明={len(warnings)}。"
-            )
-        return ReportSection(
-            section_id="doctor_appendix",
-            kind="doctor_appendix",
-            title="医生附录",
-            content=content,
-            data_scope=scope,
-            evidence_refs=[_aggregate_evidence(scope, aggregate.window_label)] + [_event_evidence(event) for event in events],
-            source_tracks=[ReportSourceTrack.FACT],
-            confidence=_coverage_confidence(aggregate.data_coverage),
-            warnings=warnings,
-        )
-
-    def _daily_has_exception(
-        self,
-        *,
-        aggregate: GlucoseAggregate,
-        detected_events: list[GlucoseEvent],
-        warnings: list[DataQualityWarning],
-    ) -> bool:
-        return bool(
-            warnings
-            or detected_events
-            or aggregate.point_count == 0
-            or (aggregate.tar or 0) > 0
-            or (aggregate.tbr or 0) > 0
-        )
-
-    def _daily_card_text(
-        self,
-        *,
-        aggregate: GlucoseAggregate,
-        audience: ReportAudience,
-        warnings: list[DataQualityWarning],
-        detected_events: list[GlucoseEvent],
-    ) -> str:
-        if not self._daily_has_exception(
-            aggregate=aggregate,
-            detected_events=detected_events,
-            warnings=warnings,
-        ):
-            if audience == ReportAudience.CLINICIAN:
-                return f"今日整体平稳，TIR {aggregate.tir}%，数据覆盖率 {aggregate.data_coverage}%。"
-            if audience == ReportAudience.FAMILY:
-                return "今天整体平稳，没有看到需要特别担心的波动。"
-            return "今天整体平稳，曲线大多顺着走，暂时没有看到特别突出的波动。"
-
-        if aggregate.point_count == 0:
-            if audience == ReportAudience.CLINICIAN:
-                return "今日缺少有效 CGM 数据，本次日报仅能提示记录不足。"
-            if audience == ReportAudience.FAMILY:
-                return "今天主要是记录不够完整，先别急着往异常上想。"
-            return "今天更像是数据没记全，先不急着下判断，等后面补上再一起看。"
-
-        if (aggregate.tbr or 0) > 0:
-            if audience == ReportAudience.CLINICIAN:
-                return f"今日存在低于目标范围时间，TBR {aggregate.tbr}%，结合具体时段会更容易解释。"
-            if audience == ReportAudience.FAMILY:
-                return "今天有一小段偏低，不过已经被记录下来，可以安心回看。"
-            return "今天有一小段偏低，看起来像某个时段短暂滑下去，可能和当时节奏有关。"
-
-        if detected_events:
-            dominant_type, dominant_count = Counter(
-                str(event.event_type) for event in detected_events
-            ).most_common(1)[0]
-            label = _event_type_label(dominant_type, audience)
-            if audience == ReportAudience.CLINICIAN:
-                return f"今日以{label}为主，共检出 {dominant_count} 次，需结合餐后与活动时段判断。"
-            if audience == ReportAudience.FAMILY:
-                return f"今天有几段{label}，已经整理出来，先知道有这个变化就够了。"
-            return f"今天有几段{label}，看起来像某个时段起伏更明显，可能和当时吃饭或活动有关。"
-
-        if audience == ReportAudience.CLINICIAN:
-            return f"今日偏高时间占比 {aggregate.tar}%，整体以高于目标范围暴露为主。"
-        if audience == ReportAudience.FAMILY:
-            return "今天有一点偏高的小起伏，不过整体脉络还是看得清。"
-        return "今天有一点往高处走的小高峰，看起来可能跟当天吃饭节奏有关。"
 
     def _data_quality_warnings(
         self,
@@ -1158,172 +567,3 @@ class ReportService:
                 )
             )
         return warnings
-
-
-def resolve_report_scope(
-    *,
-    user_id: str,
-    report_type: ReportType | str,
-    timezone_name: str = "Asia/Shanghai",
-    anchor_time: time = time(7, 0),
-    anchor_at: datetime | None = None,
-) -> DataScope:
-    parsed_type = ReportType(report_type)
-    local_zone = ZoneInfo(timezone_name)
-    now = anchor_at or datetime.now(timezone.utc)
-    local_now = now.astimezone(local_zone)
-    local_anchor = local_now.replace(
-        hour=anchor_time.hour,
-        minute=anchor_time.minute,
-        second=anchor_time.second,
-        microsecond=0,
-    )
-    if local_now < local_anchor:
-        local_anchor = local_anchor - timedelta(days=1)
-    window_end = local_anchor.astimezone(timezone.utc)
-    window_start = window_end - timedelta(days=REPORT_WINDOW_DAYS[parsed_type])
-    return DataScope(
-        user_id=user_id,
-        window_start=window_start,
-        window_end=window_end,
-    )
-
-
-def _display_glucose(value_mgdl: float | None) -> str:
-    """Render a glucose value in the operator's display unit (D052/D053).
-
-    SELF/FAMILY narrative only — clinician sections keep clinical mg/dL.
-    Storage and analytics are unaffected.
-    """
-    from hermes_cgm_agent.config import display_glucose_unit
-    from hermes_cgm_agent.domain import GlucoseUnit, convert_glucose_value
-
-    if value_mgdl is None:
-        return ""
-    if display_glucose_unit() == "mmol/L":
-        mmol = convert_glucose_value(float(value_mgdl), GlucoseUnit.MG_DL, GlucoseUnit.MMOL_L)
-        return f"{round(mmol, 1)} mmol/L"
-    return f"{value_mgdl} mg/dL"
-
-
-def _window_label(report_type: ReportType | str) -> str:
-    report_type = ReportType(report_type)
-    if report_type == ReportType.DAILY:
-        return "day"
-    if report_type == ReportType.WEEKLY:
-        return "week"
-    if report_type == ReportType.DOCTOR:
-        return "14d"
-    return report_type.value
-
-
-def _aggregate_evidence(scope: DataScope, window_label: object | None) -> EvidenceRef:
-    label = str(window_label or "window")
-    return EvidenceRef(
-        kind="aggregate",
-        ref_id=f"{scope.user_id}:{scope.window_start.isoformat()}:{scope.window_end.isoformat()}:{label}",
-        summary=f"{label} aggregate for {scope.window_start.isoformat()} to {scope.window_end.isoformat()}",
-    )
-
-
-def _event_evidence(event: UserEvent) -> EvidenceRef:
-    state = "confirmed" if event.user_confirmed else "candidate"
-    return EvidenceRef(
-        kind="event",
-        ref_id=event.event_id,
-        summary=f"{state}: {event.event_type} at {event.ts_start.isoformat()}",
-    )
-
-
-def _coverage_confidence(data_coverage: float) -> float:
-    if data_coverage >= 70:
-        return 0.9
-    if data_coverage > 0:
-        return 0.55
-    return 0.25
-
-
-def _context_version(context: MemoryContext | AuthoritativeContext) -> str:
-    if not context.enabled:
-        return "disabled"
-    if getattr(context, "missing_reason", None):
-        return str(context.missing_reason)
-    return "supplied" if (context.items if isinstance(context, MemoryContext) else context.documents) else "empty"
-
-
-def _context_evidence_refs(items: list[dict[str, object] | AuthoritativeDocument]) -> list[EvidenceRef]:
-    refs: list[EvidenceRef] = []
-    for item in items:
-        if isinstance(item, dict):
-            raw_refs = item.get("evidence_refs", [])
-        else:
-            raw_refs = item.evidence_refs
-        for ref in raw_refs:
-            refs.append(EvidenceRef.model_validate(ref))
-    return refs
-
-
-def _authoritative_context_warnings(
-    documents: list[AuthoritativeDocument],
-) -> list[DataQualityWarning]:
-    unverified = [doc for doc in documents if doc.verified is False]
-    if not unverified:
-        return []
-    details = "；".join(_authoritative_doc_label(doc) for doc in unverified)
-    return [
-        DataQualityWarning(
-            code="authoritative_unverified",
-            severity=DataQualitySeverity.WARNING,
-            message=(
-                "以下为指南摘录草稿，非医疗建议；以下医学参考仍待人工核验，"
-                "仅可作为背景线索，不能作为最终医学依据："
-                f"{details}"
-            ),
-            evidence_refs=_context_evidence_refs(unverified),
-        )
-    ]
-
-
-def _authoritative_doc_label(doc: AuthoritativeDocument) -> str:
-    label = doc.title
-    if doc.population:
-        label += f" [{doc.population}]"
-    if doc.source:
-        label += f" ({doc.source})"
-    return label
-
-
-def _unique_evidence_refs(refs: object) -> list[EvidenceRef]:
-    unique: dict[tuple[str, str], EvidenceRef] = {}
-    for ref in refs:
-        parsed = EvidenceRef.model_validate(ref)
-        unique[(str(parsed.kind), parsed.ref_id)] = parsed
-    return list(unique.values())
-
-
-def _unique_source_tracks(tracks: list[ReportSourceTrack]) -> list[ReportSourceTrack]:
-    return list(dict.fromkeys(tracks))
-
-
-def _output_hash(markdown: str) -> str:
-    return hashlib.sha256(markdown.encode("utf-8")).hexdigest()
-
-
-def _event_type_label(event_type: str, audience: ReportAudience) -> str:
-    labels = {
-        "hypo": ("偏低片段", "低血糖事件", "偏低片段"),
-        "hyper": ("偏高片段", "高血糖事件", "偏高片段"),
-        "rapid_rise": ("上冲片段", "快速上升事件", "上冲片段"),
-        "rapid_fall": ("回落片段", "快速下降事件", "回落片段"),
-        "overnight_low": ("夜间偏低片段", "夜间低血糖事件", "夜间偏低片段"),
-        "data_gap": ("记录空白片段", "数据缺口事件", "记录空白片段"),
-    }
-    self_label, clinician_label, family_label = labels.get(
-        event_type,
-        (event_type.replace("_", " "), event_type.replace("_", " "), event_type.replace("_", " ")),
-    )
-    if audience == ReportAudience.CLINICIAN:
-        return clinician_label
-    if audience == ReportAudience.FAMILY:
-        return family_label
-    return self_label

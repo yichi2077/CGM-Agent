@@ -12,7 +12,7 @@ from hermes_cgm_agent.services.analytics import (
     RealtimeSignalConfig,
     RealtimeSignalService,
 )
-from hermes_cgm_agent.services.arguments import parse_limit
+from hermes_cgm_agent.services.arguments import parse_limit, require_enum
 from hermes_cgm_agent.services.tools.handlers.base import (
     BaseToolHandler,
     ToolExecutionResponse,
@@ -82,7 +82,16 @@ class TimeseriesHandlerMixin(BaseToolHandler):
         spec = self.registry.get("timeseries.get_aggregate")
         try:
             scope = DataScope.model_validate(arguments.get("data_scope"))
-            window_label = arguments.get("window_label")
+            # M-14: validate window_label against the schema enum when provided.
+            # window_label is optional (defaults to None downstream).
+            _raw_window = arguments.get("window_label")
+            if _raw_window is not None:
+                require_enum(
+                    _raw_window,
+                    "window_label",
+                    ("day", "week", "14d", "month"),
+                )
+            window_label = _raw_window
             expected_interval = _parse_expected_interval(arguments.get("expected_interval_minutes"))
         except (TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
@@ -139,7 +148,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
         try:
             scope = DataScope.model_validate(arguments.get("data_scope"))
             expected_interval = _parse_expected_interval(arguments.get("expected_interval_minutes"))
-            stale_after = _parse_positive_int(arguments.get("stale_after_minutes"), default=10)
+            stale_after = _parse_positive_int(arguments.get("stale_after_minutes"), default=10, max_value=240)
             now = _parse_optional_datetime(arguments.get("now"))
         except (TypeError, ValueError, ValidationError) as exc:
             return self._error_response(
@@ -185,16 +194,18 @@ class TimeseriesHandlerMixin(BaseToolHandler):
 
 
 def _parse_expected_interval(value: Any) -> int:
-    return _parse_positive_int(value, default=5)
+    return _parse_positive_int(value, default=5, max_value=60)
 
 
-def _parse_positive_int(value: Any, *, default: int) -> int:
+def _parse_positive_int(value: Any, *, default: int, max_value: int) -> int:
     if value is None:
         return default
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError("expected interval settings must be integers")
     if value < 1:
         raise ValueError("expected interval settings must be positive")
+    if value > max_value:
+        raise ValueError(f"value must not exceed {max_value}")
     return value
 
 
