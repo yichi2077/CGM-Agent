@@ -344,5 +344,87 @@ def translate_metric(name: str, value: float | None, audience: str) -> str:
         
     elif name_upper == "GMI":
         return "大体水平" if audience_str == "FAMILY" else "估算糖化血红蛋白"
-        
+
     return str(value)
+
+
+# ── G6: monthly report templates ────────────────────────────────────────────
+# The monthly narrative differs from weekly in two ways: it speaks in
+# month-over-month TREND (this month vs last month), and it stays at the
+# monthly altitude — no single-day drilldown. Companion audiences get
+# life-language; the clinician branch keeps clinical metric names.
+
+# A month-over-month percentage-point change below this reads as noise, not a
+# trend — narrate it as "和上个月差不多" instead of a direction.
+_MONTHLY_TREND_MIN_DELTA_PP = 3.0
+
+
+def render_monthly_summary(aggregate: Any, prev_aggregate: Any, audience: str) -> str:
+    """Month-level overview: this month's in-range time and its MoM direction."""
+    audience_str = getattr(audience, "value", audience).upper()
+    tir = getattr(aggregate, "tir", None)
+    prev_tir = getattr(prev_aggregate, "tir", None) if prev_aggregate is not None else None
+
+    if getattr(aggregate, "point_count", 0) == 0:
+        if audience_str == "CLINICIAN":
+            return "本月窗无有效 CGM 数据，暂不具备月度趋势判断基础。"
+        return "这个月暂时没有留下可用数据，先不急着看月度趋势。"
+
+    if audience_str == "CLINICIAN":
+        parts = [f"本月 TIR {tir}%，TAR {getattr(aggregate, 'tar', None)}%，TBR {getattr(aggregate, 'tbr', None)}%。"]
+        if prev_tir is not None and tir is not None:
+            delta = round(tir - prev_tir, 1)
+            parts.append(f"较上月 TIR 变化 {delta:+}个百分点。")
+        return "".join(parts)
+
+    tir_str = translate_metric("TIR", tir, audience)
+    summary = f"这个月{tir_str}。" if tir_str else "这个月的记录我们一起看看。"
+    if prev_tir is not None and tir is not None:
+        delta = tir - prev_tir
+        if abs(delta) < _MONTHLY_TREND_MIN_DELTA_PP:
+            summary += "和上个月比起来大体差不多，节奏保持得挺稳。"
+        elif delta > 0:
+            summary += "和上个月比，稳定的时间多了一些，这个方向挺好的。"
+        else:
+            summary += "和上个月比，波动稍微多了一点，我们慢慢看，不用急。"
+    return summary
+
+
+def render_monthly_comparison(aggregate: Any, prev_aggregate: Any, audience: str) -> str:
+    """Month-over-month comparison of in-range / above / below burden."""
+    audience_str = getattr(audience, "value", audience).upper()
+    if prev_aggregate is None or getattr(prev_aggregate, "point_count", 0) == 0:
+        if audience_str == "CLINICIAN":
+            return "上月窗无有效数据，暂无法进行环比对比。"
+        return "上个月还没有足够的记录，这次先看这个月的情况，下个月我们就能对比着看了。"
+
+    def _delta(name: str) -> float | None:
+        cur = getattr(aggregate, name, None)
+        prev = getattr(prev_aggregate, name, None)
+        if cur is None or prev is None:
+            return None
+        return round(cur - prev, 1)
+
+    d_tir, d_tar, d_tbr = _delta("tir"), _delta("tar"), _delta("tbr")
+    if audience_str == "CLINICIAN":
+        bits = []
+        if d_tir is not None:
+            bits.append(f"TIR {d_tir:+}pp")
+        if d_tar is not None:
+            bits.append(f"TAR {d_tar:+}pp")
+        if d_tbr is not None:
+            bits.append(f"TBR {d_tbr:+}pp")
+        return "环比上月：" + "，".join(bits) + "。" if bits else "环比数据不足。"
+
+    sentences: list[str] = []
+    if d_tbr is not None and d_tbr > _MONTHLY_TREND_MIN_DELTA_PP:
+        sentences.append("偏低的时间比上个月多了一点，平时可以多留意一下。")
+    elif d_tbr is not None and d_tbr < -_MONTHLY_TREND_MIN_DELTA_PP:
+        sentences.append("偏低的时间比上个月少了，这一点挺让人安心的。")
+    if d_tar is not None and d_tar > _MONTHLY_TREND_MIN_DELTA_PP:
+        sentences.append("偏高的时间比上个月多了一些，可能和这段时间的节奏有关。")
+    elif d_tar is not None and d_tar < -_MONTHLY_TREND_MIN_DELTA_PP:
+        sentences.append("偏高的时间比上个月少了一些。")
+    if not sentences:
+        sentences.append("和上个月相比整体差不多，保持现在的节奏就好。")
+    return "".join(sentences)

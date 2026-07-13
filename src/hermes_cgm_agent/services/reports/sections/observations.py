@@ -99,6 +99,15 @@ class ObservationsMixin(BaseSectionMixin):
                 else "已合并参考资料线索，用于补充背景解释。"
             )
             section_warnings.extend(_authoritative_context_warnings(authoritative_context.documents))
+        # D031: surface conflict arbitration gently — authoritative wins, but
+        # the user's own record is acknowledged, never denied.
+        if memory_context.conflict_resolutions:
+            observations.append(
+                f"{RAG_MERGE_MARKER}你记录里的血糖范围和参考资料的目标范围有些出入，"
+                "这里以参考资料为准，不过你的记录同样值得留着慢慢对照。"
+                if audience != ReportAudience.CLINICIAN
+                else "既往个人记录与权威参考范围存在数值出入，本报告以权威范围为准（D031）。"
+            )
         if len(source_tracks) > 1:
             source_tracks.append(ReportSourceTrack.MIXED)
 

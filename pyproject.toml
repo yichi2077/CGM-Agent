@@ -13,6 +13,8 @@ authors = [{ name = "Personal implementation" }]
 dependencies = [
     "cryptography>=45,<47",
     "pydantic>=2,<3",
+    "python-dotenv>=1,<2",
+    "pyyaml>=6,<7",
     # zoneinfo has no OS tz database to fall back on under Windows — the Hermes
     # runtime target. Without tzdata every ZoneInfo("Asia/Shanghai") lookup
     # (scheduler, reports, simulation, consolidation) raises
@@ -24,6 +26,16 @@ dependencies = [
 semantic = [
     "sentence-transformers",
 ]
+ingest = [
+    "pdfplumber",
+    "pymupdf",
+    "pypdf",
+]
+dev = [
+    "pytest>=8",
+    "pytest-timeout>=2.3",
+    "ruff>=0.4",
+]
 
 [project.scripts]
 cgm-agent = "hermes_cgm_agent.cli:main"
@@ -32,4 +44,25 @@ cgm-agent = "hermes_cgm_agent.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"hermes_cgm_agent.knowledge" = ["*.json"]
+"hermes_cgm_agent.knowledge" = ["*.json", "pdfs/*.pdf"]
+"hermes_cgm_agent.knowledge.ingest.prompts" = ["*.txt"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+# Default (F/E4/E7/E9) rules. F841 (unused local) and E402 (deferred import)
+# appear in pre-existing intentional patterns (test scaffolding, circular-
+# import avoidance in scheduler.py) — excluded so the gate stays actionable.
+ignore = ["F841", "E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+# The offline deterministic suite must import from src/ without an editable
+# install (matches the README's PYTHONPATH=src convention).
+pythonpath = ["src"]

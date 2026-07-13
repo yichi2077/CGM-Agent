@@ -16,6 +16,7 @@ from hermes_cgm_agent.services.arguments import parse_limit, require_enum
 from hermes_cgm_agent.services.tools.handlers.base import (
     BaseToolHandler,
     ToolExecutionResponse,
+    ToolStatus,
     describe_argument_error,
 )
 from hermes_cgm_agent.services.tools.handlers.helpers import aggregate_ref, point_ref
@@ -52,12 +53,15 @@ class TimeseriesHandlerMixin(BaseToolHandler):
             ).model_dump(mode="json")
             for point in points
         ]
+        # Semantic status: an empty window is a successful query with no data,
+        # not a silent "ok" the model must re-derive from point_count.
+        status = (ToolStatus.NO_DATA if not points else ToolStatus.OK).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": scope.model_dump(mode="json"),
                 "risk_level": spec.risk_level,
                 "evidence_refs": evidence_refs,
@@ -65,7 +69,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=evidence_refs,
             audit_id=audit_id,
             payload={
@@ -117,12 +121,13 @@ class TimeseriesHandlerMixin(BaseToolHandler):
                 summary=f"{aggregate.point_count} valid points, coverage={aggregate.data_coverage}%",
             ).model_dump(mode="json")
         ]
+        status = (ToolStatus.NO_DATA if aggregate.point_count == 0 else ToolStatus.OK).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": scope.model_dump(mode="json"),
                 "risk_level": spec.risk_level,
                 "evidence_refs": evidence_refs,
@@ -130,7 +135,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=evidence_refs,
             audit_id=audit_id,
             payload={
@@ -173,12 +178,13 @@ class TimeseriesHandlerMixin(BaseToolHandler):
                 summary=f"latest={snapshot.latest_glucose_mg_dl}, missing_rate_1h={snapshot.missing_rate_1h}%",
             ).model_dump(mode="json")
         ]
+        status = (ToolStatus.NO_DATA if not points else ToolStatus.OK).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": scope.model_dump(mode="json"),
                 "risk_level": spec.risk_level,
                 "evidence_refs": evidence_refs,
@@ -186,7 +192,7 @@ class TimeseriesHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=evidence_refs,
             audit_id=audit_id,
             payload={"snapshot": snapshot.to_dict()},

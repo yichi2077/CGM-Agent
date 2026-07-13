@@ -18,6 +18,7 @@ from hermes_cgm_agent.services.memory import (
     MemoryToolService,
     SQLiteMemoryRepository,
 )
+from hermes_cgm_agent.services.memory.assembler import detect_numeric_conflicts
 from hermes_cgm_agent.services.reports.builder import ReportService
 from hermes_cgm_agent.services.reports.builder import resolve_report_scope
 from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
@@ -90,13 +91,24 @@ class ReportToolService:
                 population=population,
             ).model_dump(mode="json")
         # D031: fail loudly if the two memory tracks ever cross-contaminate.
-        assert_track_isolation(
-            memory_items=(args.get("memory_context") or {}).get("items", []),
-            authoritative_documents=(args.get("authoritative_context") or {}).get(
-                "documents",
-                [],
-            ),
+        memory_items = (args.get("memory_context") or {}).get("items", [])
+        authoritative_documents = (args.get("authoritative_context") or {}).get(
+            "documents",
+            [],
         )
+        assert_track_isolation(
+            memory_items=memory_items,
+            authoritative_documents=authoritative_documents,
+        )
+        # D031: where the two tracks meet is the one place a personal numeric
+        # belief can be checked against the authoritative range — arbitrate via
+        # resolve_conflict and carry the result into the report input.
+        if memory_items and authoritative_documents:
+            resolutions = detect_numeric_conflicts(memory_items, authoritative_documents)
+            if resolutions:
+                context = dict(args.get("memory_context") or {})
+                context["conflict_resolutions"] = resolutions
+                args["memory_context"] = context
         return args
 
     def _authoritative_query(self, args: dict[str, Any]) -> tuple[str, str | None]:

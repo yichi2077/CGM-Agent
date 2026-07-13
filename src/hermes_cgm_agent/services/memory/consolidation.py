@@ -225,6 +225,17 @@ class ConsolidationService:
         storage.
         """
         now = now or _now()
+        # A repeated scheduler tick or a Hermes restart may replay the same
+        # deterministic window. Keep the first materialization as the stable
+        # warm state and return it instead of creating a duplicate row.
+        existing = self.repository.find_summary_window(
+            user_id,
+            period=period,
+            window_start=window_start,
+            window_end=window_end,
+        )
+        if existing is not None:
+            return existing
         label = {"daily": "日", "weekly": "周", "monthly": "月"}.get(period, period)
         metrics = dict(metrics_summary or {})
         if metrics.get("tir_pct") is not None and metrics.get("delta_tir_pct") is None:

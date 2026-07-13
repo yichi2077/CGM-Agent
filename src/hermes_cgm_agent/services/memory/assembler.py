@@ -13,6 +13,7 @@ kind ``user_memory``. Authoritative track -> AuthoritativeContext, evidence kind
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -24,7 +25,10 @@ from hermes_cgm_agent.services.memory.retrieval import (
     MemoryDoc,
     build_personal_retriever,
 )
-from hermes_cgm_agent.services.safety.memory_guard import assert_track_isolation
+from hermes_cgm_agent.services.safety.memory_guard import (
+    assert_track_isolation,
+    resolve_conflict,
+)
 
 if TYPE_CHECKING:
     # Imported lazily at call time to avoid a rag <-> memory circular import
@@ -203,6 +207,126 @@ class MemoryContextAssembler:
         # paths can never bypass the guard (M6).
         assert_track_isolation(memory_items=None, authoritative_documents=documents)
         return AuthoritativeContext(enabled=True, documents=documents)
+
+
+# ── D031 numeric-conflict detection ─────────────────────────────────────────
+# When a personal belief carries an explicit glucose range that does not even
+# overlap the authoritative KB range, the two are in semantic contradiction and
+# resolve_conflict must arbitrate (authoritative wins, gentle presentation).
+# Detection is deliberately lexical/numeric only — no embeddings — to keep the
+# false-positive rate near zero; textual contradictions stay out of scope.
+
+_RANGE_PATTERN = re.compile(
+    r"(\d+(?:\.\d+)?)\s*[-–~至到]\s*(\d+(?:\.\d+)?)\s*(mg/dl|mmol/l)?",
+    re.IGNORECASE,
+)
+_GLUCOSE_KEYWORDS = ("血糖", "glucose", "tir", "目标范围", "target range")
+_TARGET_RANGE_KEYWORDS = ("目标范围", "目标区间", "target range", "target glucose")
+_MMOL_TO_MGDL = 18.016
+# Plausible glucose bounds in mg/dL — ranges outside are ignored as noise
+# (e.g. "3-5 次运动" would otherwise parse as a range).
+_GLUCOSE_MIN_MGDL = 30.0
+_GLUCOSE_MAX_MGDL = 600.0
+
+
+def _range_clause(text: str, start: int, end: int) -> str:
+    """Return the punctuation-delimited clause surrounding one range."""
+    left = max(text.rfind(mark, 0, start) for mark in ("。", ".", ";", "；", "\n"))
+    right_candidates = [
+        pos
+        for mark in ("。", ".", ";", "；", "\n")
+        if (pos := text.find(mark, end)) >= 0
+    ]
+    right = min(right_candidates) if right_candidates else len(text)
+    return text[left + 1 : right].lower()
+
+
+def _extract_glucose_ranges(
+    text: str,
+    *,
+    require_target_context: bool = False,
+) -> list[tuple[float, float]]:
+    """Extract glucose ranges from text, normalized to mg/dL.
+
+    A range is accepted only when a unit is attached or the text mentions
+    glucose; unitless values <= 35 are assumed mmol/L (glucose in mg/dL is
+    never that low while mmol/L never exceeds ~33).
+    """
+    if not text:
+        return []
+    ranges: list[tuple[float, float]] = []
+    for match in _RANGE_PATTERN.finditer(text):
+        low, high = float(match.group(1)), float(match.group(2))
+        unit = (match.group(3) or "").lower()
+        clause = _range_clause(text, match.start(), match.end())
+        if require_target_context and not any(
+            keyword in clause for keyword in _TARGET_RANGE_KEYWORDS
+        ):
+            continue
+        if not unit and not any(keyword in clause for keyword in _GLUCOSE_KEYWORDS):
+            continue
+        if low > high:
+            continue
+        if unit == "mmol/l" or (not unit and high <= 35):
+            low, high = low * _MMOL_TO_MGDL, high * _MMOL_TO_MGDL
+        if low < _GLUCOSE_MIN_MGDL or high > _GLUCOSE_MAX_MGDL:
+            continue
+        ranges.append((low, high))
+    return ranges
+
+
+def detect_numeric_conflicts(
+    memory_items: list[dict],
+    authoritative_documents: list[dict],
+) -> list[dict]:
+    """Cross-check personal glucose ranges against authoritative KB ranges.
+
+    Returns serialized ConflictResolution dicts (D031: authoritative always
+    wins) for every personal/KB range pair with an empty intersection.
+    """
+    resolutions: list[dict] = []
+    for doc in authoritative_documents or []:
+        doc_text = f"{doc.get('title') or ''} {doc.get('text') or ''}"
+        # A KB card can mention target, hypo, and hyper ranges together. Only
+        # explicitly target-labelled ranges are comparable with a personal
+        # "usual range"; threshold bands have different semantics and must not
+        # create a spurious conflict resolution.
+        doc_ranges = _extract_glucose_ranges(doc_text, require_target_context=True)
+        if not doc_ranges:
+            continue
+        for item in memory_items or []:
+            summary = str(item.get("summary") or "")
+            for p_low, p_high in _extract_glucose_ranges(summary):
+                overlaps = any(
+                    p_low <= a_high and a_low <= p_high
+                    for a_low, a_high in doc_ranges
+                )
+                if overlaps:
+                    continue
+                resolution = resolve_conflict(
+                    authoritative={
+                        "title": doc.get("title"),
+                        "text": doc.get("text"),
+                        "ranges_mgdl": [list(r) for r in doc_ranges],
+                        "evidence_refs": doc.get("evidence_refs") or [],
+                    },
+                    personal={
+                        "summary": summary,
+                        "range_mgdl": [p_low, p_high],
+                        "layer": item.get("layer"),
+                        "evidence_refs": item.get("evidence_refs") or [],
+                    },
+                )
+                resolutions.append(
+                    {
+                        "winner": resolution.winner,
+                        "authoritative": resolution.authoritative,
+                        "personal": resolution.personal,
+                        "note": resolution.note,
+                    }
+                )
+                break  # one resolution per (item, doc) pair is enough
+    return resolutions
 
 
 def _profile_summary(item: L2ProfileItem) -> str:

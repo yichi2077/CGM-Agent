@@ -13,6 +13,7 @@ from hermes_cgm_agent.domain.cgm import CGMBaseModel, DataScope, EvidenceRef, en
 class ReportType(str, Enum):
     DAILY = "daily"
     WEEKLY = "weekly"
+    MONTHLY = "monthly"
     DOCTOR = "doctor"
 
 
@@ -89,6 +90,10 @@ class MemoryContext(CGMBaseModel):
     enabled: bool = True
     items: list[dict[str, Any]] = Field(default_factory=list)
     missing_reason: str | None = None
+    # D031: serialized ConflictResolution entries produced when a personal
+    # numeric belief contradicts an authoritative KB range. Authoritative wins;
+    # downstream sections must present the note gently, never as a denial.
+    conflict_resolutions: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class AuthoritativeDocument(CGMBaseModel):

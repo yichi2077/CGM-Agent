@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 from hermes_cgm_agent.services.tools.handlers.helpers import json_safe
@@ -11,16 +12,45 @@ if TYPE_CHECKING:
     from hermes_cgm_agent.services.tools.registry import ToolRegistry
 
 
+class ToolStatus(str, Enum):
+    """Semantic tool-execution outcomes.
+
+    ``ok``/``error`` alone masked meaningfully different situations (empty
+    query results, partial delivery, missing resources, throttling) behind
+    ``status="ok"`` — the model then had to re-derive the real outcome from
+    payload fields. Values are lowercase strings for wire back-compat.
+    """
+
+    OK = "ok"
+    NO_DATA = "no_data"          # query succeeded but returned nothing
+    PARTIAL = "partial"          # partially succeeded (e.g. delivery queued/failed locally)
+    NOT_FOUND = "not_found"      # the requested resource does not exist
+    RATE_LIMITED = "rate_limited"  # upstream throttled the request
+    ERROR = "error"
+
+
+# Statuses a CLI wrapper should surface as a non-zero exit code. no_data and
+# partial are successful executions whose payload tells the caller what
+# happened; the request itself did not fail.
+FAILURE_STATUSES = frozenset({"error", "not_found", "rate_limited"})
+
+
 @dataclass(frozen=True)
 class ToolExecutionResponse:
-    status: str
+    status: ToolStatus
     evidence_refs: list[dict[str, Any]]
     audit_id: str | None
     payload: dict[str, Any]
 
+    def __post_init__(self) -> None:
+        """Validate and normalize legacy string callers at the response boundary."""
+        object.__setattr__(self, "status", ToolStatus(self.status))
+
     def to_dict(self) -> dict[str, Any]:
         return {
-            "status": self.status,
+            # Normalize ToolStatus members to their wire value so audit/JSON
+            # consumers always see the plain lowercase string.
+            "status": self.status.value,
             "evidence_refs": self.evidence_refs,
             "audit_id": self.audit_id,
             **self.payload,

@@ -9,6 +9,7 @@ from hermes_cgm_agent.services.rag import AuthoritativeRAGToolService
 from hermes_cgm_agent.services.tools.handlers.base import (
     BaseToolHandler,
     ToolExecutionResponse,
+    ToolStatus,
     describe_argument_error,
 )
 
@@ -36,12 +37,15 @@ class RagHandlerMixin(BaseToolHandler):
                 data_scope=None,
                 message=describe_argument_error(exc),
             )
+        # Semantic status: an empty KB match is a successful search with no
+        # data, not a bare "ok" the model must infer from result_count.
+        status = (ToolStatus.NO_DATA if not result.documents else ToolStatus.OK).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": None,
                 "risk_level": spec.risk_level,
                 "evidence_refs": result.evidence_refs,
@@ -50,7 +54,7 @@ class RagHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=result.evidence_refs,
             audit_id=audit_id,
             payload=result.payload,

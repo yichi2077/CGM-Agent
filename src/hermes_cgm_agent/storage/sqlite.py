@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import local
+from threading import Lock
 from typing import Any, Iterator, Literal
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -18,6 +19,11 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+_ACL_HARDENED: set[str] = set()
+_ACL_LOCK = Lock()
+_WINDOWS_IDENTITY: str | None = None
+
+
 def _harden_windows_acl(path: Path) -> None:
     """M-19: restrict file permissions on Windows using icacls.
 
@@ -25,9 +31,37 @@ def _harden_windows_acl(path: Path) -> None:
     current user, mirroring the ``0o600`` chmod on POSIX. Wrapped in
     try/except so a failure never blocks database initialization.
     """
-    user = os.environ.get("USERNAME", "")
+    global _WINDOWS_IDENTITY
+    user = _WINDOWS_IDENTITY
+    if not user:
+        # ``USERNAME`` can be inherited from a desktop session while the
+        # process actually runs under a service/sandbox identity.  Grant the
+        # SID returned by ``whoami`` first so the process that opened SQLite
+        # keeps access to the file it just hardened.
+        try:
+            identity = subprocess.run(
+                ["whoami"],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            identity = ""
+        user = identity or os.environ.get("USERNAME", "")
+        _WINDOWS_IDENTITY = user
     if not user:
         return
+    key = str(path.resolve()).casefold()
+    with _ACL_LOCK:
+        if key in _ACL_HARDENED:
+            return
+        # Mark before spawning the child so concurrent SQLite connections do
+        # not all launch an identical icacls process. A later failure removes
+        # the marker and may retry once on the next connection.
+        _ACL_HARDENED.add(key)
     try:
         subprocess.run(
             ["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:F"],
@@ -36,7 +70,8 @@ def _harden_windows_acl(path: Path) -> None:
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
-        pass
+        with _ACL_LOCK:
+            _ACL_HARDENED.discard(key)
 
 
 # M-20: whitelist of table names allowed in _ensure_column's f-string SQL.
@@ -59,6 +94,7 @@ _WHITELISTED_TABLES = frozenset({
     "memory_candidates",
     "memory_summaries",
     "dexcom_tokens",
+    "aidex_tokens",
     "push_events",
     "pending_interactions",
     "unread_badges",
@@ -490,6 +526,16 @@ class SQLiteStore:
                     refresh_token TEXT NOT NULL,
                     token_type TEXT NOT NULL DEFAULT 'Bearer',
                     scope TEXT,
+                    expires_at TEXT NOT NULL,
+                    environment TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS aidex_tokens (
+                    user_id TEXT PRIMARY KEY,
+                    access_token TEXT NOT NULL,
+                    refresh_token TEXT NOT NULL,
                     expires_at TEXT NOT NULL,
                     environment TEXT NOT NULL,
                     created_at TEXT NOT NULL,
