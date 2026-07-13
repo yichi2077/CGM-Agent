@@ -4,7 +4,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from hermes_cgm_agent.domain import DataScope, GlucoseEventSeverity, GlucoseEventType, GlucosePoint
-from hermes_cgm_agent.services.analytics import EventDetectionConfig, GlucoseEventDetector
+from hermes_cgm_agent.services.analytics import GlucoseEventDetector
 
 
 class GlucoseEventDetectionTests(unittest.TestCase):

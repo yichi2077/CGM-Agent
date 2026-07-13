@@ -18,6 +18,7 @@ from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.tools.handlers.base import (
     BaseToolHandler,
     ToolExecutionResponse,
+    ToolStatus,
     describe_argument_error,
 )
 
@@ -276,12 +277,16 @@ class DeliveryHandlerMixin(BaseToolHandler):
                 error_type=error_type,
             )
 
+        # Semantic status: queued/failed email still persisted a local manifest
+        # (at-most-once contract held) but the remote leg did not complete —
+        # that is partial success, not a bare "ok".
+        status = (ToolStatus.OK if delivery_status == "sent" else ToolStatus.PARTIAL).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": {"user_id": user_id},
                 "risk_level": spec.risk_level,
                 "evidence_refs": [],
@@ -296,7 +301,7 @@ class DeliveryHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=[],
             audit_id=audit_id,
             payload={
@@ -386,12 +391,16 @@ class DeliveryHandlerMixin(BaseToolHandler):
 
         # Audit (C4 / FR-010): domain only (never full URL), status code on
         # success, error type on failure. No PHI, no payload body, no credentials.
+        # Semantic status: a webhook that never left (not configured, invalid
+        # URL, HTTP/connection failure) is partial success — the tick completed
+        # and was audited, but the remote leg did not deliver.
+        status = (ToolStatus.OK if delivery_status == "sent" else ToolStatus.PARTIAL).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": {"user_id": user_id},
                 "risk_level": spec.risk_level,
                 "evidence_refs": [],
@@ -404,7 +413,7 @@ class DeliveryHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=[],
             audit_id=audit_id,
             payload={

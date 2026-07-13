@@ -131,6 +131,21 @@ class AuthoritativeRAGTests(unittest.TestCase):
             any(r["doc_id"] == "cdc-2024-dka-ketone-testing-250-sick-day" for r in results)
         )
 
+    def test_exercise_query_recalls_exercise_guidance_cards(self) -> None:
+        svc = AuthoritativeRAGService()
+        results = svc.search("运动前后血糖安全注意事项", top_k=3)
+        self.assertTrue(
+            any(
+                result["doc_id"]
+                in {
+                    "auto-cds-2024-guideline-p7-cds2024-p7-004",
+                    "auto-cds-2024-guideline-p7-cds2024-p7-005",
+                    "auto-cds-2024-guideline-p7-cds2024-p7-008",
+                }
+                for result in results
+            )
+        )
+
     def test_alcohol_query_recalls_hypoglycemia_safety_card(self) -> None:
         svc = AuthoritativeRAGService()
         results = svc.search("喝酒低血糖 夜间 CGM", top_k=5)

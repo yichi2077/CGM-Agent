@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from hermes_cgm_agent.config import default_user_id, display_glucose_unit
 from hermes_cgm_agent.domain import DataScope, GlucoseEvent, GlucosePoint, GlucoseUnit, QualityFlag
-from hermes_cgm_agent.services.analytics import EventDetectionConfig, GlucoseEventDetector
+from hermes_cgm_agent.services.analytics import GlucoseEventDetector
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import ConsolidationService, SQLiteMemoryRepository

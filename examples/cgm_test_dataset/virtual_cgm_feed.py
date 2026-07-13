@@ -6,7 +6,7 @@ import argparse
 import csv
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -44,21 +44,36 @@ class VirtualCGMFeedState:
         timezone_name: str,
         emit_interval_minutes: int,
         start_index: int = 0,
+        time_base: str = "original",
+        snapshot: bool = False,
+        now: datetime | None = None,
     ) -> None:
         if emit_interval_minutes < 1:
             raise ValueError("emit_interval_minutes must be positive")
         self.timezone = ZoneInfo(timezone_name)
         self.points = _select_emit_points(points, emit_interval_minutes)
         self.cursor = max(0, start_index)
+        self.snapshot = snapshot
+        if time_base not in {"original", "shift-to-now"}:
+            raise ValueError("time_base must be original or shift-to-now")
+        self.time_shift = timedelta(0)
+        if time_base == "shift-to-now" and self.points:
+            anchor = self.points[-1].local_time.replace(tzinfo=self.timezone).astimezone(timezone.utc)
+            moment = now or datetime.now(timezone.utc)
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=timezone.utc)
+            self.time_shift = moment.astimezone(timezone.utc) - anchor
 
     def next_payload(self, count: int) -> list[dict[str, Any]]:
         count = max(1, count)
-        selected = self.points[self.cursor:self.cursor + count]
+        if self.snapshot:
+            return [self._to_source_row(point) for point in self.points[-count:]]
+        selected = self.points[self.cursor : self.cursor + count]
         self.cursor += len(selected)
         return [self._to_source_row(point) for point in selected]
 
     def _to_source_row(self, point: FeedPoint) -> dict[str, Any]:
-        aware = point.local_time.replace(tzinfo=self.timezone).astimezone(timezone.utc)
+        aware = point.local_time.replace(tzinfo=self.timezone).astimezone(timezone.utc) + self.time_shift
         return {
             "_id": point.record_id,
             "sgv": point.value,
@@ -145,6 +160,17 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=17580)
     parser.add_argument("--start-index", type=int, default=0)
+    parser.add_argument(
+        "--time-base",
+        choices=["original", "shift-to-now"],
+        default="original",
+        help="Keep fixture timestamps or shift the final point to current UTC",
+    )
+    parser.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="Serve a repeatable latest-value window instead of advancing the replay cursor",
+    )
     args = parser.parse_args()
 
     state = VirtualCGMFeedState(
@@ -152,12 +178,11 @@ def main() -> None:
         timezone_name=args.timezone,
         emit_interval_minutes=args.emit_interval_min,
         start_index=args.start_index,
+        time_base=args.time_base,
+        snapshot=args.snapshot,
     )
     server = ThreadingHTTPServer((args.host, args.port), build_handler(state))
-    print(
-        f"Serving {len(state.points)} virtual CGM points from {args.csv} "
-        f"at http://{args.host}:{args.port}/sgv.json"
-    )
+    print(f"Serving {len(state.points)} virtual CGM points from {args.csv} at http://{args.host}:{args.port}/sgv.json")
     server.serve_forever()
 
 

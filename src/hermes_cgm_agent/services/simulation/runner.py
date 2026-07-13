@@ -20,6 +20,7 @@ from hermes_cgm_agent.services.analytics import (
 )
 from hermes_cgm_agent.services.memory import ConsolidationService, SQLiteMemoryRepository
 from hermes_cgm_agent.services.memory.derive import episodes_from_detected_events
+from hermes_cgm_agent.services.memory.l0_builder import L0ContextBuilder, L0BuildConfig
 from hermes_cgm_agent.services.reports.builder import ReportService
 from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
 from hermes_cgm_agent.services.scheduling import PushSchedulerConfig, PushSchedulerService
@@ -110,6 +111,19 @@ class SimulationRunner:
             json_path, md_path = audit.write()
             return self._result("failed", 1, run_id, audit, 0, json_path, md_path)
 
+        replay_scope = DataScope(
+            user_id=self.user_id,
+            window_start=records[0].sim_ts,
+            window_end=records[-1].sim_ts + timedelta(minutes=5),
+            source=self.source_label,
+        )
+        preexisting_count = len(cgm_repository.list_glucose_points(replay_scope))
+        pipeline_counts_before = _pipeline_counts(
+            memory_repository,
+            SQLiteReportRepository(store),
+            self.user_id,
+        )
+
         clock = SimClock(
             start=records[0].sim_ts,
             acceleration=self.acceleration,
@@ -137,17 +151,32 @@ class SimulationRunner:
         seen_daily_memory: set[str] = set()
         stage_counts: dict[str, int] = {}
         push_idempotency_checked = False
+        inserted_this_run = 0
 
         for item in records:
             try:
                 sim_now = clock.advance_to(item.sim_ts)
-                ingest.ingest_record(item.record, batch_id=source.batch.batch_id)
+                ingest_result = ingest.ingest_record(
+                    item.record,
+                    batch_id=source.batch.batch_id,
+                )
                 audit.record(
                     "ingest",
                     sim_now=sim_now.isoformat(),
                     reading_index=item.reading_index,
+                    inserted=ingest_result.inserted,
+                    duplicate=ingest_result.duplicate,
+                    issues=ingest_result.issues,
                 )
                 stage_counts["ingest"] = stage_counts.get("ingest", 0) + 1
+                inserted_this_run += ingest_result.inserted
+
+                # A process restart may replay an already-accounted prefix (or
+                # the whole file). Those facts are still audited as duplicates,
+                # but must not re-trigger downstream reports, memory summaries,
+                # or scheduled pushes.
+                if ingest_result.inserted == 0:
+                    continue
 
                 while sim_now >= next_hour:
                     self._hourly(cgm_repository, analytics, detector, audit, next_hour)
@@ -158,6 +187,21 @@ class SimulationRunner:
                 day_key = local_now.strftime("%Y-%m-%d")
                 if local_now.hour >= 9 and day_key not in seen_daily_push:
                     first_push = scheduler.push_tick(user_id=self.user_id, now=sim_now)
+                    push_correlation = f"push:{day_key}"
+                    audit.record(
+                        "push",
+                        correlation_id=push_correlation,
+                        sim_now=sim_now.isoformat(),
+                        day=day_key,
+                        pushed_count=len(first_push.pushed),
+                    )
+                    audit.link(
+                        from_stage="ingest_day",
+                        from_id=day_key,
+                        to_stage="push",
+                        to_id=push_correlation,
+                        relation="scheduled_from",
+                    )
                     # Idempotency probe (once): re-tick at the same sim time and
                     # assert the scheduler does not re-emit an already-pushed
                     # period. Only meaningful when the first tick actually pushed.
@@ -178,6 +222,10 @@ class SimulationRunner:
                     stage_counts["push"] = stage_counts.get("push", 0) + 1
 
                 if local_now.time() >= time(23, 55) and day_key not in seen_daily_memory:
+                    memory_correlation = f"memory:{day_key}"
+                    counts_before = _pipeline_counts(
+                        memory_repository, SQLiteReportRepository(store), self.user_id
+                    )
                     self._daily_memory(
                         cgm_repository,
                         memory_repository,
@@ -186,10 +234,34 @@ class SimulationRunner:
                         detector,
                         sim_now,
                     )
+                    counts_after = _pipeline_counts(
+                        memory_repository, SQLiteReportRepository(store), self.user_id
+                    )
+                    audit.record(
+                        "memory",
+                        correlation_id=memory_correlation,
+                        sim_now=sim_now.isoformat(),
+                        window_start=(sim_now - timedelta(days=1)).isoformat(),
+                        window_end=sim_now.isoformat(),
+                        counts_before=counts_before,
+                        counts_after=counts_after,
+                    )
+                    audit.link(
+                        from_stage="ingest_day",
+                        from_id=day_key,
+                        to_stage="memory",
+                        to_id=memory_correlation,
+                        relation="derived_from",
+                    )
                     seen_daily_memory.add(day_key)
                     stage_counts["memory"] = stage_counts.get("memory", 0) + 1
 
-                    reporter.generate(
+                    self._build_l0(
+                        cgm_repository, analytics, detector,
+                        sim_now, audit, day_key, stage_counts,
+                    )
+
+                    generated_report = reporter.generate(
                         ReportInput(
                             report_type="daily",
                             user_id=self.user_id,
@@ -197,6 +269,21 @@ class SimulationRunner:
                             anchor_at=sim_now,
                             timezone=self.timezone_name,
                         )
+                    )
+                    audit.record(
+                        "report",
+                        correlation_id=f"report:{generated_report.report_id}",
+                        parent_correlation_id=memory_correlation,
+                        sim_now=sim_now.isoformat(),
+                        report_id=generated_report.report_id,
+                        report_type="daily",
+                    )
+                    audit.link(
+                        from_stage="memory",
+                        from_id=memory_correlation,
+                        to_stage="report",
+                        to_id=generated_report.report_id,
+                        relation="informed",
                     )
                     stage_counts["report"] = stage_counts.get("report", 0) + 1
             except Exception as exc:
@@ -215,45 +302,75 @@ class SimulationRunner:
         # previously escaped run() entirely, so no simulation_report.json/.md was
         # written and the CLI died with a raw traceback after replaying the full
         # dataset. Record the failure and still emit the audit artifacts.
-        try:
-            self._daily_memory(
-                cgm_repository,
-                memory_repository,
-                consolidation,
-                analytics,
-                detector,
-                end_now,
-            )
-            reporter.generate(
-                ReportInput(
-                    report_type="weekly",
-                    user_id=self.user_id,
-                    audience="self",
-                    anchor_at=end_now,
-                    timezone=self.timezone_name,
+        if inserted_this_run > 0:
+            try:
+                memory_correlation = f"memory:wrapup:{end_now.isoformat()}"
+                counts_before = _pipeline_counts(
+                    memory_repository, SQLiteReportRepository(store), self.user_id
                 )
-            )
-            stage_counts["report"] = stage_counts.get("report", 0) + 1
-        except Exception as exc:
-            audit.issue(
-                stage="wrapup",
-                sim_now=end_now,
-                reading_index=None,
-                message=str(exc),
-                traceback=traceback.format_exc(),
-            )
+                self._daily_memory(
+                    cgm_repository,
+                    memory_repository,
+                    consolidation,
+                    analytics,
+                    detector,
+                    end_now,
+                )
+                counts_after = _pipeline_counts(
+                    memory_repository, SQLiteReportRepository(store), self.user_id
+                )
+                audit.record(
+                    "memory",
+                    correlation_id=memory_correlation,
+                    sim_now=end_now.isoformat(),
+                    window_start=(end_now - timedelta(days=1)).isoformat(),
+                    window_end=end_now.isoformat(),
+                    counts_before=counts_before,
+                    counts_after=counts_after,
+                )
+                stage_counts["memory"] = stage_counts.get("memory", 0) + 1
+                self._build_l0(
+                    cgm_repository, analytics, detector,
+                    end_now, audit, f"wrapup:{end_now.isoformat()}",
+                    stage_counts,
+                )
+                generated_report = reporter.generate(
+                    ReportInput(
+                        report_type="weekly",
+                        user_id=self.user_id,
+                        audience="self",
+                        anchor_at=end_now,
+                        timezone=self.timezone_name,
+                    )
+                )
+                audit.record(
+                    "report",
+                    correlation_id=f"report:{generated_report.report_id}",
+                    parent_correlation_id=memory_correlation,
+                    sim_now=end_now.isoformat(),
+                    report_id=generated_report.report_id,
+                    report_type="weekly",
+                )
+                audit.link(
+                    from_stage="memory",
+                    from_id=memory_correlation,
+                    to_stage="report",
+                    to_id=generated_report.report_id,
+                    relation="informed",
+                )
+                stage_counts["report"] = stage_counts.get("report", 0) + 1
+            except Exception as exc:
+                audit.issue(
+                    stage="wrapup",
+                    sim_now=end_now,
+                    reading_index=None,
+                    message=str(exc),
+                    traceback=traceback.format_exc(),
+                )
 
         totals = ingest.totals()
-        db_count = len(
-            cgm_repository.list_glucose_points(
-                DataScope(
-                    user_id=self.user_id,
-                    window_start=records[0].sim_ts,
-                    window_end=records[-1].sim_ts + timedelta(minutes=5),
-                    source=self.source_label,
-                )
-            )
-        )
+        db_count = len(cgm_repository.list_glucose_points(replay_scope))
+        db_delta = db_count - preexisting_count
         # Analytics determinism (Constitution Principle I): recomputing the same
         # window must yield byte-identical metrics. A mismatch means the
         # deterministic-metrics guarantee is broken — exactly the class of bug
@@ -286,17 +403,121 @@ class SimulationRunner:
                 traceback=traceback.format_exc(),
             )
         audit.set_invariant("analytics_deterministic", deterministic)
-        audit.set_invariant("emitted_equals_accounted", len(records) == totals.inserted + totals.duplicate + totals.issues)
-        audit.set_invariant("db_count_matches_inserted", db_count == totals.inserted)
+        emitted_equals_accounted = (
+            len(records) == totals.inserted + totals.duplicate + totals.issues
+        )
+        db_delta_matches_inserted = db_delta == totals.inserted
+        audit.set_invariant("emitted_equals_accounted", emitted_equals_accounted)
+        # Backward-compatible key; its semantics are now correct for both a
+        # clean run and a restart against a partially/fully populated DB.
+        audit.set_invariant("db_count_matches_inserted", db_delta_matches_inserted)
+        audit.set_invariant("db_delta_matches_inserted", db_delta_matches_inserted)
+        audit.set_invariant("preexisting_db_count", preexisting_count)
+        audit.set_invariant("db_delta", db_delta)
         audit.set_invariant("db_count", db_count)
         audit.set_invariant("emitted", len(records))
         audit.set_invariant("inserted", totals.inserted)
         audit.set_invariant("duplicate", totals.duplicate)
         audit.set_invariant("issues", totals.issues)
-        if not audit.invariants["emitted_equals_accounted"]:
-            audit.issue(stage="invariant", sim_now=end_now, reading_index=None, message="emitted count does not equal inserted + duplicate + issues")
-        if not audit.invariants["db_count_matches_inserted"]:
-            audit.issue(stage="invariant", sim_now=end_now, reading_index=None, message="DB count does not match inserted count")
+        audit.set_invariant("stage_counts", dict(sorted(stage_counts.items())))
+
+        memory_counts = _pipeline_counts(
+            memory_repository,
+            SQLiteReportRepository(store),
+            self.user_id,
+        )
+        audit.set_invariant("pipeline_counts_before", pipeline_counts_before)
+        audit.set_invariant("pipeline_counts", memory_counts)
+
+        audit.require(
+            "all_emitted_records_accounted",
+            emitted_equals_accounted,
+            message="emitted count does not equal inserted + duplicate + import issues",
+            expected=len(records),
+            actual=totals.inserted + totals.duplicate + totals.issues,
+        )
+        audit.require(
+            "database_delta_matches_inserted",
+            db_delta_matches_inserted,
+            message="database row-count delta does not match inserted count",
+            expected=totals.inserted,
+            actual=db_delta,
+        )
+        audit.require(
+            "ingest_stage_complete",
+            stage_counts.get("ingest", 0) == len(records),
+            message="ingest audit stage count does not match emitted records",
+            expected=len(records),
+            actual=stage_counts.get("ingest", 0),
+        )
+        audit.require(
+            "analytics_deterministic",
+            deterministic,
+            message="analytics are not deterministic for an identical window",
+            expected=True,
+            actual=deterministic,
+        )
+
+        duration = records[-1].sim_ts - records[0].sim_ts
+        if totals.inserted == 0:
+            audit.require(
+                "duplicate_replay_downstream_idempotent",
+                memory_counts == pipeline_counts_before,
+                message="duplicate-only replay changed downstream memory/report counts",
+                expected=pipeline_counts_before,
+                actual=memory_counts,
+            )
+        elif duration >= timedelta(hours=24):
+            audit.require(
+                "long_run_hourly_stage_present",
+                stage_counts.get("hourly", 0) > 0,
+                message="24h+ replay produced no hourly analytics stage",
+            )
+            audit.require(
+                "long_run_memory_stage_present",
+                stage_counts.get("memory", 0) > 0 and memory_counts["warm_summaries"] > 0,
+                message="24h+ replay produced no durable memory summary",
+            )
+            audit.require(
+                "long_run_report_stage_present",
+                stage_counts.get("report", 0) > 0 and memory_counts["reports"] > 0,
+                message="24h+ replay produced no durable report",
+            )
+            audit.require(
+                "long_run_push_stage_present",
+                stage_counts.get("push", 0) > 0,
+                message="24h+ replay exercised no push scheduling stage",
+            )
+        # L0 acceptance: 24h+ runs must build L0 context at least once
+        if duration >= timedelta(hours=24) and totals.inserted > 0:
+            audit.require(
+                "l0_context_built",
+                stage_counts.get("l0", 0) > 0,
+                message="24h+ replay did not build L0 context",
+                expected=True,
+                actual=stage_counts.get("l0", 0) > 0,
+            )
+        # L2/L3 acceptance: 72h+ runs with L1 episodes must generate beliefs
+        # and hypotheses (l2_min_episodes=3, l3_min_pattern=3 distinct days)
+        if (
+            duration >= timedelta(hours=72)
+            and totals.inserted > 0
+            and memory_counts["l1"] > 0
+        ):
+            audit.require(
+                "l2_belief_generated",
+                memory_counts["l2"] > 0,
+                message="72h+ replay with L1 episodes did not generate L2 beliefs",
+                expected=True,
+                actual=memory_counts["l2"] > 0,
+            )
+            audit.require(
+                "l3_hypothesis_generated",
+                memory_counts["l3"] > 0,
+                message="72h+ replay with L1 episodes did not generate L3 hypotheses",
+                expected=True,
+                actual=memory_counts["l3"] > 0,
+            )
         json_path, md_path = audit.write()
         status = "ok" if not audit.issues else "failed"
         return SimulationRunResult(
@@ -308,7 +529,7 @@ class SimulationRunner:
             emitted=len(records),
             inserted=totals.inserted,
             duplicate=totals.duplicate,
-            issues=totals.issues,
+            issues=len(audit.issues),
             report_json=json_path,
             report_md=md_path,
             stage_counts=stage_counts,
@@ -332,19 +553,33 @@ class SimulationRunner:
         aggregate = analytics.compute_aggregate(points=points, scope=scope)
         events = detector.detect(points=points, scope=scope)
         inserted_events = 0
+        inserted_event_ids: list[str] = []
         for event in events:
             try:
                 repository.create_glucose_event(event)
                 inserted_events += 1
+                inserted_event_ids.append(event.event_id)
             except sqlite3.IntegrityError:
                 pass
         audit.record(
             "hourly",
+            correlation_id=f"hourly:{boundary.isoformat()}",
             sim_now=boundary.isoformat(),
+            window_start=scope.window_start.isoformat(),
+            window_end=scope.window_end.isoformat(),
             point_count=aggregate.point_count,
             detected_events=len(events),
             inserted_events=inserted_events,
+            inserted_event_ids=inserted_event_ids,
         )
+        for event_id in inserted_event_ids:
+            audit.link(
+                from_stage="hourly",
+                from_id=f"hourly:{boundary.isoformat()}",
+                to_stage="event",
+                to_id=event_id,
+                relation="detected",
+            )
 
     def _daily_memory(
         self,
@@ -378,6 +613,46 @@ class SimulationRunner:
             metrics_summary={"tir_pct": aggregate.tir, "mean_mgdl": aggregate.mbg},
             now=now,
         )
+
+    def _build_l0(
+        self,
+        cgm_repository: SQLiteCGMRepository,
+        analytics: CGMAnalyticsService,
+        detector: GlucoseEventDetector,
+        now: datetime,
+        audit: SimulationAudit,
+        day_key: str,
+        stage_counts: dict[str, int],
+    ) -> bool:
+        """Build L0 real-time context (D038), record to audit and stage_counts."""
+        try:
+            builder = L0ContextBuilder(
+                repository=cgm_repository,
+                analytics_service=analytics,
+                event_detector=detector,
+                config=L0BuildConfig(timezone=self.timezone_name),
+            )
+            context = builder.build(
+                user_id=self.user_id,
+                anchor_at=now,
+                source=self.source_label,
+            )
+            ok = context.window_summary.point_count > 0
+            if ok:
+                stage_counts["l0"] = stage_counts.get("l0", 0) + 1
+                audit.record(
+                    "l0",
+                    correlation_id=f"l0:{day_key}",
+                    sim_now=now.isoformat(),
+                    point_count=context.window_summary.point_count,
+                    daily_aggregates=len(context.daily_aggregates),
+                    key_events=len(context.key_glucose_events),
+                    data_quality_warnings=len(context.data_quality),
+                )
+            return ok
+        except Exception as exc:
+            audit.issue(stage="l0", sim_now=now, message=str(exc))
+            return False
 
     def _result(
         self,
@@ -418,3 +693,18 @@ def _ceil_hour(value: datetime) -> datetime:
     if floored == value:
         return value
     return floored + timedelta(hours=1)
+
+
+def _pipeline_counts(
+    memory_repository: SQLiteMemoryRepository,
+    report_repository: SQLiteReportRepository,
+    user_id: str,
+) -> dict[str, int]:
+    """Durable stage evidence used by restart/idempotency acceptance checks."""
+    return {
+        "l1": len(memory_repository.list_episodes(user_id, include_archived=True)),
+        "l2": len(memory_repository.list_profile_items(user_id, active_only=False)),
+        "l3": len(memory_repository.list_hypotheses(user_id, active_only=False)),
+        "warm_summaries": len(memory_repository.list_summaries(user_id)),
+        "reports": len(report_repository.list_reports(user_id=user_id, limit=10000)),
+    }

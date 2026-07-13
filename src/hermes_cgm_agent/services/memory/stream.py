@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from hermes_cgm_agent.domain import DataScope, GlucoseEvent, L1Episode
-from hermes_cgm_agent.domain.cgm import GlucoseEventType
 from hermes_cgm_agent.services.analytics import AnalyticsConfig, CGMAnalyticsService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory.consolidation import ConsolidationReport, ConsolidationService

@@ -221,10 +221,10 @@ class SQLiteCGMRepository:
                        trend, device_id, session_id, raw_record_id, received_at
                 FROM glucose_points
                 WHERE user_id = ?
-                  AND timestamp >= ?
-                  AND timestamp < ?
+                  AND replace(timestamp, ' ', 'T') >= ?
+                  AND replace(timestamp, ' ', 'T') < ?
                   {source_filter}
-                ORDER BY timestamp ASC, id ASC
+                ORDER BY replace(timestamp, ' ', 'T') ASC, id ASC
                 """,
                 values,
             ).fetchall()
@@ -273,9 +273,9 @@ class SQLiteCGMRepository:
                        point_count, summary, detector_version, evidence_refs_json
                 FROM detected_glucose_events
                 WHERE user_id = ?
-                  AND ts_start >= ?
-                  AND ts_start < ?
-                ORDER BY ts_start ASC, event_id ASC
+                  AND replace(ts_start, ' ', 'T') >= ?
+                  AND replace(ts_start, ' ', 'T') < ?
+                ORDER BY replace(ts_start, ' ', 'T') ASC, event_id ASC
                 """,
                 (scope.user_id, _dt(scope.window_start), _dt(scope.window_end)),
             ).fetchall()
@@ -440,11 +440,11 @@ class SQLiteCGMRepository:
                        is_sensitive, is_rejected
                 FROM user_events
                 WHERE user_id = ?
-                  AND ts_start >= ?
-                  AND ts_start < ?
+                  AND replace(ts_start, ' ', 'T') >= ?
+                  AND replace(ts_start, ' ', 'T') < ?
                   {confirmed_filter}
                   {rejected_filter}
-                ORDER BY ts_start ASC, event_id ASC
+                ORDER BY replace(ts_start, ' ', 'T') ASC, event_id ASC
                 """,
                 values,
             ).fetchall()
@@ -587,7 +587,15 @@ def _dt(value: datetime | str | None) -> str | None:
     if value is None:
         return None
     if isinstance(value, str):
-        return value
+        # SQLite fixtures may contain the equivalent space-separated form
+        # (``YYYY-MM-DD HH:MM:SS+00:00``) while newly written rows use
+        # ``datetime.isoformat()`` with ``T``. Lexical TEXT comparisons are
+        # not equivalent across those separators, so canonicalize readable
+        # strings before building a range query.
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return value
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     else:

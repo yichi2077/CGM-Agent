@@ -12,6 +12,7 @@ from hermes_cgm_agent.config import default_hermes_exe, default_hermes_home
 
 ROOT_MARKER_NAME = "cgm-agent-project-root.txt"
 PLUGIN_NAMES = ("cgm", "cgm_memory")
+CRON_SCRIPT_NAMES = ("cgm_aidex_sync.py", "cgm_bridge_poll.py")
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,17 @@ def install_hermes_integration(
         else:
             _install_plugin_dir(source=source, target=target)
             actions.append(f"installed:{plugin_name}")
+
+    scripts_dir = home / "scripts"
+    for script_name in CRON_SCRIPT_NAMES:
+        source = root / "scripts" / "hermes_cron" / script_name
+        target = scripts_dir / script_name
+        if dry_run:
+            actions.append(f"would-install-script:{script_name}:{target}")
+        else:
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+            _install_script(source=source, target=target)
+            actions.append(f"installed-script:{script_name}")
 
     marker_path = home / ROOT_MARKER_NAME
     if dry_run:
@@ -158,3 +170,24 @@ def _install_plugin_dir(*, source: Path, target: Path) -> None:
         target.symlink_to(source, target_is_directory=True)
     except OSError:
         shutil.copytree(source, target, symlinks=True)
+
+
+def _install_script(*, source: Path, target: Path) -> None:
+    if not source.is_file():
+        raise FileNotFoundError(f"Hermes cron script source not found: {source}")
+
+    if target.exists() or target.is_symlink():
+        try:
+            if target.resolve() == source.resolve():
+                return
+        except OSError:
+            pass
+        if target.is_dir() and not target.is_symlink():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+
+    try:
+        target.symlink_to(source)
+    except OSError:
+        shutil.copy2(source, target)

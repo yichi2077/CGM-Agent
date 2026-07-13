@@ -4,9 +4,8 @@ import json
 import logging
 import re
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from importlib import resources
-from pathlib import Path
 from typing import Any, Callable
 
 from hermes_cgm_agent.knowledge.ingest.pdf_loader import PageChunk, PdfManifestEntry

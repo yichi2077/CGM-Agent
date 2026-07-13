@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import subprocess
 import unittest
-from unittest.mock import MagicMock
 
 from hermes_cgm_agent.knowledge.ingest.hermes_extractor import (
     HermesClaimExtractor,

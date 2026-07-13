@@ -2,9 +2,9 @@
 
 ## Current Implementation Snapshot (2026-07-01)
 
-- Hermes-facing tool count is 18 active tools, including realtime CGM snapshot reads.
-- F2 data source strategy is accepted in [ADR-0002](docs/adr/ADR-0002-cgm-data-source-strategy.md): default hardware is MicroTech/AiDEX; xDrip/Juggluco/Nightscout HTTP feeds are a compatibility bridge, not the default iPhone-only path.
-- New CLI: `source-poll --user-id ... --kind xdrip|juggluco|nightscout --url ... --count ... --expected-interval-min 5`.
+- Hermes-facing tool count is 19 active tools, including realtime CGM snapshot reads.
+- F2 production path is [ADR-0002](docs/adr/ADR-0002-cgm-data-source-strategy.md): MicroTech LinX/AiDEX-X → Android Juggluco → authenticated LAN HTTP bridge → canonical Hermes DB. Nightscout is the optional remote relay; vendor API is non-default because this deployment has no API entitlement.
+- Production CLI: `bridge-status` and `bridge-poll`; deterministic continuous collection runs through the installed Hermes no-agent script `cgm_bridge_poll.py`.
 - Default engineering fixture: `examples/cgm_test_dataset/cgm_14d_1min.csv` is a 14-day, single-user, native 1-minute prediabetes-style synthetic CGM dataset with behavior events and CGM artifacts.
 - Storage now distinguishes `timestamp` as measured-at time from `received_at` collector receipt time.
 - Deterministic detected glucose events persist in `detected_glucose_events`; `user_events` remains for user/agent-recorded events.
@@ -161,19 +161,105 @@ python -m hermes_cgm_agent hermes-install
 
 ### 3. 部署配置（环境变量一览）
 
-单用户个人部署的全部可配置项。除标注"建议设置"外均有安全默认值，可不配置。
+单用户个人部署的全部可配置项，按功能分组。除标注"必需/建议设置"外均有安全默认值，可不配置。完整模板见仓库根目录 [.env.example](.env.example)。
 
-| 环境变量 | 作用 | 默认值 | 说明 |
-|---|---|---|---|
-| `CGM_AGENT_USER_ID` | **建议设置**。部署的唯一用户身份 | `demo-user` | 记忆 provider、工具调用缺省 user_id、CLI 默认值统一走这里（D052）。设置后模型无需在工具参数里猜 user_id |
-| `CGM_AGENT_DISPLAY_UNIT` | 用户可见文本的血糖单位 | `mg/dL` | 设为 `mmol/L`（国内习惯）后，状态摘要与本人/家属版报告均以 mmol/L 呈现；存储与医生版保持 mg/dL |
-| `CGM_WEBHOOK_URL` | 推送投递 webhook 端点 | 未配置=不投递 | 配置后 `push_tick` 在同一次 tick 内自动投递（HTTPS-only、禁重定向、PHI 白名单过滤，见 D048/D053）|
-| `CGM_AGENT_DB_PATH` | SQLite 数据库路径显式覆盖 | Hermes 主目录 `cgm-agent/app.db` | 一般无需设置；CLI 与插件共用同一解析器防裂脑 |
-| `CGM_AGENT_STORAGE_KEY_PATH` / `CGM_AGENT_STORAGE_KEY` | Fernet 加密密钥位置/内容 | DB 同目录 `storage.key` | 密钥必须与 DB 同迁移。**⚠️ 密钥丢失则历史加密数据不可恢复，请与 DB 一同备份** |
-| `CGM_AGENT_RECOVERY_WINDOW_SECONDS` | 红区恢复复查窗口 | `7200`（2 小时） | 见 §5c |
-| `CGM_SOURCE_ALLOW_INSECURE_HTTP` | 允许公网明文 HTTP 数据源（仅测试） | 关闭 | 生产勿开；本地/私网 HTTP 默认即可用 |
-| `CGM_SMTP_HOST` 等 `CGM_SMTP_*` | Email 投递通道（可选） | 未配置=保持 queued | 配置 `CGM_SMTP_HOST`+`CGM_SMTP_TO_ADDRESS` 后即真实发信（TLS 证书校验，正文同 webhook 走 PHI 白名单过滤）；未经生产长期验证，webhook 仍是首选远程通道 |
-| `HERMES_HOME` | Hermes 主目录覆盖 | 平台默认 | 影响 DB 路径解析与插件安装位置 |
+#### 核心配置
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `CGM_AGENT_USER_ID` | 部署的唯一用户身份；记忆 provider、工具调用缺省 user_id、CLI 默认值统一走这里（D052） | `demo-user` | 建议设置 | `alice` |
+| `CGM_AGENT_DISPLAY_UNIT` | 用户可见文本的血糖单位；设为 `mmol/L` 后状态摘要与本人/家属版报告以 mmol/L 呈现，存储与医生版保持 mg/dL | `mg/dL` | 否 | `mmol/L` |
+| `CGM_AGENT_TIMEZONE` | 报告与调度使用的时区（IANA 名称） | `Asia/Shanghai` | 否 | `Asia/Shanghai` |
+| `CGM_AGENT_DB_PATH` | SQLite 数据库路径显式覆盖；CLI 与插件共用同一解析器防裂脑 | Hermes 主目录 `cgm-agent/app.db` | 否 | `D:\data\cgm\app.db` |
+| `CGM_AGENT_TIMEOUT_SECONDS` | 工具执行超时秒数 | `300` | 否 | `600` |
+| `CGM_AGENT_MODEL` | Hermes 会话默认模型覆盖 | 无（用 Hermes 默认） | 否 | `deepseek-chat` |
+| `CGM_AGENT_PROVIDER` | Hermes 会话默认 provider 覆盖 | 无 | 否 | `deepseek` |
+| `CGM_AGENT_TOOLSETS` | Hermes 会话默认工具集覆盖（逗号分隔） | 无 | 否 | `cgm` |
+| `CGM_AGENT_SKILLS` | Hermes 会话默认技能覆盖（逗号分隔） | 无 | 否 | `cgm-companion` |
+| `CGM_AGENT_PROJECT_ROOT` | 插件安装时的工程根目录覆盖（`hermes-install` 用） | 自动探测 | 否 | `E:\CGM-Agent` |
+| `HERMES_HOME` | Hermes 主目录覆盖；影响 DB 路径解析与插件安装位置 | `~/.hermes/` 或 `%LOCALAPPDATA%\hermes\` | 否 | `D:\hermes` |
+| `HERMES_BIN` | Hermes 可执行文件路径覆盖 | 自动探测 | 否 | `D:\hermes\bin\hermes.exe` |
+| `LOCALAPPDATA` / `USERNAME` | Windows 系统变量，用于默认路径与 WAL 伴生文件属主判断 | 系统提供 | 系统提供 | — |
+
+#### 安全与加密
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `CGM_AGENT_STORAGE_KEY_PATH` | Fernet 加密密钥文件路径 | DB 同目录 `storage.key` | 否 | `D:\secrets\storage.key` |
+| `CGM_AGENT_STORAGE_KEY` | Fernet 密钥内容直接注入（优先级高于文件） | 无 | 否 | `<base64-fernet-key>` |
+| `CGM_AGENT_RECOVERY_WINDOW_SECONDS` | 红区恢复复查窗口秒数（见 §5c） | `7200`（2 小时） | 否 | `3600` |
+
+> **⚠️ 安全提示**：密钥必须与 DB 同迁移，**密钥丢失则历史加密数据不可恢复，请与 DB 一同备份**。切勿将 `CGM_AGENT_STORAGE_KEY`、`AIDEX_CLIENT_SECRET`、`DEXCOM_CLIENT_SECRET`、`CGM_SMTP_PASSWORD` 写入版本库或共享配置。
+
+#### RAG / 知识库
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `CGM_AGENT_KB_PATH` | 权威 KB JSON 路径覆盖 | 包内 `knowledge/authoritative_kb.json` | 否 | `D:\kb\authoritative_kb.json` |
+| `CGM_AGENT_KB_MIN_UNTRUSTED_OVERLAP` | 未核验（auto tier）卡片进入检索结果所需最小词法覆盖 | `1` | 否 | `2` |
+
+#### 语义检索（可选，需 `pip install -e ".[semantic]"`）
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `CGM_AGENT_EMBED_MODEL` | 个人记忆轨 dense 向量模型 | `paraphrase-multilingual-MiniLM-L12-v2` | 否 | 同左 |
+| `CGM_AGENT_RERANK_MODEL` | 检索重排 cross-encoder 模型 | `cross-encoder/ms-marco-MiniLM-L-6-v2` | 否 | 同左 |
+| `CGM_AGENT_PERSONAL_SEMANTIC_MIN_EPISODES` | 个人轨从 BM25 升级为语义检索所需最少 L1 情景数 | `200` | 否 | `100` |
+| `CGM_AGENT_ENABLE_SEMANTIC_RETRIEVAL` | 显式开启语义检索（`1/true/yes/on`） | 关闭 | 否 | `1` |
+| `CGM_AGENT_USE_HASHING_EMBEDDER` | 使用离线 hashing embedder（测试/无网环境） | 关闭 | 否 | `1` |
+
+#### Dexcom 数据源（可选）
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `DEXCOM_CLIENT_ID` | Dexcom 开发者应用 client id | 无 | 用 Dexcom 时必需 | `abc123` |
+| `DEXCOM_CLIENT_SECRET` | Dexcom 开发者应用 secret（**保密**） | 无 | 用 Dexcom 时必需 | `<secret>` |
+| `DEXCOM_REDIRECT_URI` | OAuth 回调 URI（须与开发者后台注册一致） | `https://www.google.com` | 否 | 同左 |
+| `DEXCOM_USE_SANDBOX` | 使用 sandbox 环境 | `true` | 否 | `false` |
+| `DEXCOM_SCOPE` | OAuth scope | `offline_access` | 否 | 同左 |
+| `DEXCOM_REGION` | API 区域（`us`/`ous`/`jp` 等别名归一化） | `us` | 否 | `ous` |
+| `DEXCOM_MAX_REQUESTS_PER_MINUTE` | 客户端限速 | `20` | 否 | `10` |
+| `DEXCOM_BASE_URL` | API base URL 显式覆盖（优先于 region/sandbox 推导） | 无 | 否 | `https://sandbox-api.dexcom.com` |
+
+#### 微泰 LinX/AiDEX 官方 API（默认真实数据源）
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `AIDEX_CLIENT_ID` | 微泰开放平台应用 client id | 无 | 是 | `<client-id>` |
+| `AIDEX_CLIENT_SECRET` | 微泰开放平台应用 secret（**保密**） | 无 | 是 | `<secret>` |
+| `AIDEX_USE_SANDBOX` | 使用官方沙箱；生产应用审核通过后设为 `false` | `true` | 否 | `false` |
+| `AIDEX_MAX_REQUESTS_PER_MINUTE` | 本地请求上限（官方上限 1000/min） | `120` | 否 | `60` |
+| `AIDEX_BASE_URL` | 受控测试/地区端点覆盖，必须 HTTPS | 官方沙箱/生产地址 | 否 | `https://sandbox-accesslist-x.microtechmd.com` |
+| `AIDEX_SYNC_OVERLAP_MINUTES` | 增量 cron 重叠窗口，吸收延迟上传 | `15` | 否 | `20` |
+| `AIDEX_SYNC_BOOTSTRAP_HOURS` | 无本地游标时首次回填时长 | `24` | 否 | `48` |
+
+#### HTTP 数据源桥
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `CGM_SOURCE_ALLOW_INSECURE_HTTP` | 允许公网明文 HTTP 数据源（**仅测试，生产勿开**；本地/私网 HTTP 默认即可用） | 关闭 | 否 | `true` |
+
+#### SMTP / 推送投递（可选）
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `CGM_WEBHOOK_URL` | 推送投递 webhook 端点；配置后 `push_tick` 同一 tick 内自动投递（HTTPS-only、禁重定向、PHI 白名单过滤，见 D048/D053） | 未配置=不投递 | 否 | `https://hooks.example/cgm` |
+| `CGM_SMTP_HOST` | SMTP 服务器；与 `CGM_SMTP_TO_ADDRESS` 同时配置后即真实发信 | 未配置=保持 queued | 否 | `smtp.gmail.com` |
+| `CGM_SMTP_TO_ADDRESS` | 收件地址 | 无 | 用 Email 时必需 | `me@example.com` |
+| `CGM_SMTP_PORT` | SMTP 端口 | `587` | 否 | `465` |
+| `CGM_SMTP_USERNAME` | SMTP 登录用户名 | 无 | 视服务器 | `me@example.com` |
+| `CGM_SMTP_PASSWORD` | SMTP 登录密码（**保密**） | 无 | 视服务器 | `<app-password>` |
+| `CGM_SMTP_FROM_ADDRESS` | 发件地址 | username 或 `cgm-agent@localhost` | 否 | `cgm@example.com` |
+| `CGM_SMTP_USE_TLS` | 启用 STARTTLS（`0/false/no` 关闭） | `1` | 否 | `1` |
+
+Email 通道未经生产长期验证，webhook 仍是首选远程通道。
+
+#### 开发 / 测试专用
+
+| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
+|---|---|---|---|---|
+| `CGM_RUN_HERMES_E2E` | 开启真实 Hermes+LLM 端到端测试（产生真实 API 费用） | 关闭 | 否 | `1` |
+| `CGM_HERMES_REPO` | 仿真管线使用的 hermes-agent 仓库路径覆盖 | `%LOCALAPPDATA%` 下探测 | 否 | `D:\hermes-agent` |
 
 ---
 
@@ -192,6 +278,44 @@ python -m hermes_cgm_agent tools
 python -m hermes_cgm_agent hermes-version
 ```
 
+### Hermes local acceptance (`hermes-accept`)
+
+`hermes-accept` runs a protected 24/48/72-hour accelerated replay against the
+canonical synthetic database. It creates retrieval/rebuild copies plus a
+manifest, timeline, redacted public scenario results, sidecar links, and a
+machine-readable final report. The run checks L0-L3/Warm memory, pending
+conversation candidates, authoritative RAG quote safety, 24 model scenarios,
+periodic reports/push idempotency, and same-database replay. A real-model run
+stops immediately on provider or tool-loading failure; it never silently
+switches models.
+
+```powershell
+$env:PYTHONPATH='src'
+python -m hermes_cgm_agent.cli hermes-accept `
+  --source-db "$env:LOCALAPPDATA\hermes\cgm-agent\app.db" `
+  --user-id demo-prediabetes-14d-v2 `
+  --duration-hours 72 `
+  --provider custom:<configured-provider> `
+  --model gpt-5.5 `
+  --max-model-calls 30 `
+  --max-external-messages 6
+```
+
+`--no-model` is a deterministic smoke only. `--activate-on-pass` is required
+for the guarded default-profile cutover; it backs up config, environment,
+cron jobs, database, and storage key, activates `cgm_memory`, installs the
+Windows Python watchdog/health jobs, verifies a default conversation, and
+restores every backup automatically if any hard gate fails. External delivery
+also requires `--send-external`, an existing Weixin target, the
+`[CGM模拟验收]` prefix, and remains capped at six messages.
+
+With external delivery enabled, the cutover runs the three oracle-date jobs
+and up to two oracle-event jobs immediately via `hermes cron run`; the sixth
+slot is reserved for the default-profile canary. Any failed execution or
+delivery causes automatic rollback.
+
+设计与硬门详见 [`docs/HERMES-ACCEPTANCE.md`](docs/HERMES-ACCEPTANCE.md)。
+
 ### 全链路导入仿真 (Seed Demo)
 导入模拟的 14 天 CSV 时序点，自动触发低血糖事件检测、 consolidated L1/L2 记忆构建与画像生成：
 ```bash
@@ -200,7 +324,40 @@ python -m hermes_cgm_agent seed-demo --db-path .runtime/demo.db
 ```
 
 ### Realtime CGM Source Polling (F2)
-The current implemented bridge can poll an xDrip/Juggluco/Nightscout-compatible HTTP feed once, preserve the raw payload, insert deduped glucose points, and persist deterministic detected events. For the default MicroTech/AiDEX hardware direction, this is a fallback bridge; the next source work is AiDEX API validation and a single-device PC Bluetooth direct PoC.
+The current production path does not require MicroTech API access:
+
+```text
+LinX/AiDEX-X sensor → Android Juggluco over Bluetooth
+                    → authenticated xDrip-compatible web server on the home LAN
+                    → bridge-poll → canonical SQLite → events/memory → Hermes tools
+```
+
+Configure the active Hermes `.env` (on Windows,
+`%LOCALAPPDATA%\hermes\.env`):
+
+```powershell
+$env:CGM_AGENT_USER_ID='user-1'
+$env:CGM_BRIDGE_KIND='juggluco'
+$env:CGM_BRIDGE_URL='http://192.168.1.25:17580'
+$env:CGM_BRIDGE_API_SECRET='<phone-web-server-secret>'
+$env:CGM_BRIDGE_SOURCE='android:juggluco'
+python -m hermes_cgm_agent bridge-status
+python -m hermes_cgm_agent bridge-poll
+```
+
+`bridge-status` performs a read-only live probe and reports newest-reading age,
+staleness, clock skew, parsing issues, authentication mode and cron installation.
+`bridge-poll` archives raw rows, deduplicates normalized points, detects events,
+updates memory and writes a credential-free audit record. The client retries
+transient failures and never returns the API secret/token in URLs or logs.
+
+After the live probe passes, register the installed `cgm_bridge_poll.py` as a
+one-minute Hermes `--no-agent` cron job. No LLM call or model cost is involved.
+Detailed phone setup, static-IP and recovery instructions are in
+[`docs/ANDROID-CGM-BRIDGE.md`](docs/ANDROID-CGM-BRIDGE.md).
+
+Nightscout is optional when the phone and PC are not on the same LAN. The older
+manual collector remains available for diagnostics:
 
 ```powershell
 python examples/cgm_test_dataset/virtual_cgm_feed.py --emit-interval-min 5
@@ -213,6 +370,10 @@ Plain HTTP is accepted only for localhost/private hosts by default. Public HTTP 
 ```powershell
 $env:CGM_SOURCE_ALLOW_INSECURE_HTTP='true'
 ```
+
+The official `aidex-auth` / `aidex-sync` implementation remains available for
+deployments that later obtain MicroTech API entitlement, but it is not the
+current production dependency.
 
 ### 医学指南 PDF 卡片提取导入 (Knowledge Pipeline)
 ```bash
@@ -295,6 +456,25 @@ $env:CGM_RUN_HERMES_E2E="1"
 ## 📄 关联规范文件
 
 *   **架构决策演进**: [docs/DECISION_LOG.md](docs/DECISION_LOG.md)
+
+## 24-72 小时加速回放验收
+
+使用隔离数据库运行两天验收：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m hermes_cgm_agent.cli simulate --max-speed --days 2 `
+  --time-base original --user-id acceptance-user `
+  --out-dir .runtime\simulation\acceptance-2d
+```
+
+权威结果写入 `simulation_report.json`。`status=ok` 且
+`acceptance.passed=true` 才表示通过；报告同时包含阶段时间线、关联边、
+L1/L2/L3 与报告计数，以及每条验收规则的 expected/actual 值。使用相同
+`--db-path` 再运行一次可验证重启和重复输入不会重复生成下游记忆或报告。
+
+GitHub Actions 中，普通 PR 使用快速门禁；push/夜间运行完整测试；
+`Simulation soak acceptance` 工作流可手动选择 1、2 或 3 天并保存验收工件。
 *   **记忆架构规范说明**: [docs/MEM-ARCH.md](docs/MEM-ARCH.md)
 *   **已知限制与能力边界**: [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
 *   **开源许可**: [LICENSE](LICENSE)（MIT）

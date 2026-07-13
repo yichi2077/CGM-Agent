@@ -5,12 +5,14 @@ from typing import Any
 from hermes_cgm_agent.services.dexcom import (
     DexcomAuthError,
     DexcomError,
+    DexcomRateLimitError,
     DexcomSyncFactory,
     DexcomSyncToolService,
 )
 from hermes_cgm_agent.services.tools.handlers.base import (
     BaseToolHandler,
     ToolExecutionResponse,
+    ToolStatus,
     describe_argument_error,
 )
 
@@ -32,6 +34,31 @@ class DexcomHandlerMixin(BaseToolHandler):
                 repository=self.repository,
                 sync_factory=self._dexcom_sync_factory,
             ).sync(arguments)
+        except DexcomRateLimitError as exc:
+            # Semantic status: HTTP 429 is throttling, not a generic error —
+            # the caller should back off and retry, not debug arguments.
+            message = str(exc)
+            audit_id = self.audit_service.log(
+                session_id=session_id,
+                event_type="tool_call",
+                payload={
+                    "tool_name": spec.name,
+                    "status": ToolStatus.RATE_LIMITED.value,
+                    "data_scope": {"user_id": arguments.get("user_id")},
+                    "risk_level": spec.risk_level,
+                    "evidence_refs": [],
+                    "error": message,
+                },
+            )
+            return ToolExecutionResponse(
+                status=ToolStatus.RATE_LIMITED.value,
+                evidence_refs=[],
+                audit_id=audit_id,
+                payload={
+                    "error": message,
+                    "retry_after_seconds": getattr(exc, "retry_after", None),
+                },
+            )
         except DexcomAuthError as exc:
             return self._error_response(
                 session_id=session_id,

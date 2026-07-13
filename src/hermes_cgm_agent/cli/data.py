@@ -99,4 +99,6 @@ def _tool_call(
     )
     body = response.to_dict()
     print(json.dumps(body, ensure_ascii=False, sort_keys=True))
-    return 0 if response.status == "ok" else 1
+    from hermes_cgm_agent.services.tools.handlers.base import FAILURE_STATUSES
+
+    return 1 if response.status in FAILURE_STATUSES else 0

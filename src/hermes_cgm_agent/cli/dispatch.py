@@ -14,8 +14,11 @@ from hermes_cgm_agent.cli.parser import build_parser, DOMAIN_MODELS
 from hermes_cgm_agent.cli.status import _warn_legacy_store_if_relevant, _hermes_status
 from hermes_cgm_agent.cli.data import _import_cgm, _tool_call
 from hermes_cgm_agent.cli.dexcom import _dexcom_auth, _dexcom_sync
+from hermes_cgm_agent.cli.aidex import _aidex_auth, _aidex_status, _aidex_sync
 from hermes_cgm_agent.cli.source import _source_poll
+from hermes_cgm_agent.cli.bridge import _bridge_poll, _bridge_status
 from hermes_cgm_agent.cli.simulation import _simulate
+from hermes_cgm_agent.cli.acceptance import _hermes_accept
 from hermes_cgm_agent.cli.memory import _memory_synthesize, _context_build, _seed_demo, _default_demo_csv
 from hermes_cgm_agent.cli.push import _push_tick
 from hermes_cgm_agent.cli.kb import (
@@ -30,14 +33,23 @@ from hermes_cgm_agent.cli.kb import (
 
 
 def main(argv: list[str] | None = None) -> int:
+    effective_argv = list(argv) if argv is not None else sys.argv[1:]
+    if effective_argv and effective_argv[0].startswith("aidex-"):
+        from hermes_cgm_agent.services.aidex import load_aidex_environment
+
+        load_aidex_environment()
+    if effective_argv and effective_argv[0].startswith("bridge-"):
+        from hermes_cgm_agent.services.sources import load_bridge_environment
+
+        load_bridge_environment()
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(effective_argv)
     config = AppConfig.from_env()
     _warn_legacy_store_if_relevant(config)
 
     if args.command == "status":
         status = _hermes_status(config)
-        print(f"project: hermes-cgm-agent")
+        print("project: hermes-cgm-agent")
         print(f"hermes_available: {str(status['available']).lower()}")
         print(f"hermes_executable: {status['executable']}")
         print(f"hermes_version: {status['version'] or ''}")
@@ -112,7 +124,10 @@ def main(argv: list[str] | None = None) -> int:
         print("cgm_importer_formats: csv,json")
         print("cgm_normalizer_present: true")
         print("cgm_source_collector_present: true")
-        print("cgm_source_collector_kinds: xdrip,juggluco,nightscout")
+        print("cgm_source_collector_kinds: juggluco,xdrip,nightscout,aidex_api")
+        print("android_bridge_production_path_present: true")
+        print("bridge_health_preflight_present: true")
+        print("aidex_official_api_present: true")
         print("cgm_analytics_present: true")
         print("cgm_analytics_metrics: TIR,TAR,TBR,MBG,CV,GMI,LBGI,HBGI,data_coverage")
         print("cgm_event_tools_present: true")
@@ -137,8 +152,8 @@ def main(argv: list[str] | None = None) -> int:
         print("push_scheduler_present: true")
         print("push_tiers: daily,weekly,monthly")
         print("silent_consent_present: true")
-        print("current_phase: f2 source collector implemented; real-device validation pending")
-        print("prototype_limit: authoritative KB verification, real-device CGM source validation, and email delivery remain workflow-dependent")
+        print("current_phase: Android Juggluco bridge implemented; real phone validation pending")
+        print("prototype_limit: exact sensor/phone pairing, LAN endpoint validation, authoritative KB verification, and email delivery remain workflow-dependent")
         print("test_command: PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest discover -s tests")
         return 0 if status["available"] else 1
 
@@ -218,6 +233,60 @@ def main(argv: list[str] | None = None) -> int:
             out_dir=Path(args.out_dir) if args.out_dir else None,
             hermes=args.hermes,
             fail_fast=args.fail_fast,
+        )
+
+    if args.command == "bridge-status":
+        return _bridge_status(db_path=config.database_path)
+
+    if args.command == "bridge-poll":
+        return _bridge_poll(db_path=config.database_path)
+
+    if args.command == "aidex-auth":
+        return _aidex_auth(
+            db_path=config.database_path,
+            user_id=args.user_id,
+            state=args.state,
+            code=args.code,
+        )
+
+    if args.command == "aidex-sync":
+        return _aidex_sync(
+            db_path=config.database_path,
+            user_id=args.user_id,
+            days=args.days,
+            force=args.force,
+            incremental=args.incremental,
+            overlap_minutes=args.overlap_minutes,
+            bootstrap_hours=args.bootstrap_hours,
+        )
+
+    if args.command == "aidex-status":
+        return _aidex_status(
+            db_path=config.database_path,
+            user_id=args.user_id,
+            live=args.live,
+        )
+
+    if args.command == "hermes-accept":
+        return _hermes_accept(
+            source_db=Path(args.source_db) if args.source_db else config.database_path,
+            user_id=args.user_id,
+            duration_hours=args.duration_hours,
+            output_dir=args.output_dir,
+            timezone_name=args.timezone,
+            hermes_home=args.hermes_home,
+            hermes_bin=args.hermes_bin,
+            provider=args.provider,
+            provider_user_agent=args.provider_user_agent,
+            provider_max_tokens=args.provider_max_tokens,
+            model=args.model,
+            deliver=args.deliver,
+            max_model_calls=args.max_model_calls,
+            max_external_messages=args.max_external_messages,
+            activate_on_pass=args.activate_on_pass,
+            run_model=not args.no_model,
+            send_external=args.send_external,
+            timeout_seconds=args.timeout_seconds,
         )
 
     if args.command == "memory-synthesize":

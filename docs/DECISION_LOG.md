@@ -477,3 +477,68 @@ queries (patient phrasing, not card-text tautology) alongside the 44 manual +
 colloquial queries and were outranked by off-topic `auto` cards; fixed by
 boosting their colloquial synonyms (deepening `KB_POOL_MIN` was rejected — it
 regressed eval precision), keeping the trusted-first guard and eval gate intact.
+
+### D060 - Machine-verifiable 24-72 hour simulation soak acceptance
+
+**Decision**: Promote `SimulationRunner` from a replay utility to the release
+acceptance backbone. Every run emits an ordered run-ID timeline, stage
+correlations, cross-stage links, durable pipeline counts, and expected/actual
+acceptance comparisons. False checks create audit issues and a non-zero exit.
+A duplicate-only replay against the same DB must leave downstream memory and
+report counts unchanged. PRs use a fast smoke gate; full tests run on push and
+nightly; a manual 1-3 day soak workflow runs both the initial replay and the
+same-DB restart probe and retains artifacts.
+
+**Rationale**: Green module tests did not prove the long-running product loop.
+The first live same-DB probe confirmed fact-level idempotency (576 duplicate
+points, zero inserted) but still doubled reports and warm summaries. Skipping
+downstream stages for duplicate facts and checking before/after durable counts
+closes that operational gap and makes restart safety machine-verifiable.
+
+**Impact**: `services/simulation/{runner,audit}.py`, simulation runner tests,
+CI quick/full split, `.github/workflows/simulation-soak.yml`, and ADR-0003.
+
+### D061 - Official MicroTech LinX/AiDEX API is the production CGM source
+
+**Decision**: Implement the vendor's published OAuth 2.0 cloud API as the
+default real-data path. Tokens are encrypted in the canonical SQLite store;
+sensor glucose is pulled in bounded/incremental windows, raw rows are retained,
+and only normalized facts and deterministic events cross into analytics and
+memory. Continuous acquisition is a CLI/Hermes no-agent cron responsibility,
+not a new LLM-facing tool. The existing xDrip/Juggluco/Nightscout collector and
+Dexcom integration remain compatibility code.
+
+**Rationale**: The vendor now publishes a sandbox, production endpoints and an
+explicit resource contract. The repository's earlier "API validation pending"
+state had become stale, while the compatibility bridge could not serve the
+user's iPhone-first real AiDEX deployment. Keeping collection outside the LLM
+surface preserves the Hermes/capability-layer boundary and prevents raw
+minute-level PHI from entering prompts.
+
+**Impact**: `services/aidex/`, `aidex-auth`, `aidex-status --live`, `aidex-sync`,
+encrypted `aidex_tokens`, persisted `aidex_auth_*` / `aidex_sync_*` audit events,
+and `scripts/hermes_cron/cgm_aidex_sync.py`. Cron refuses the `demo-user`
+fallback and requires `CGM_AGENT_USER_ID` to match the authorized identity.
+Production activation still requires MicroTech app approval and user OAuth
+consent.
+
+### D062 - Android Juggluco bridge supersedes vendor API as deployment default
+
+**Decision**: Because this deployment has no MicroTech API entitlement, use a
+current Android phone as the sensor gateway. Prefer Juggluco for LinX/AiDEX-X
+Bluetooth acquisition and expose its authenticated xDrip-compatible web server
+only on the trusted LAN. Poll it deterministically with `bridge-poll` and the
+Hermes no-agent `cgm_bridge_poll.py`; use Nightscout only as an HTTPS remote
+relay. Keep the official AiDEX adapter dormant for a future entitled deployment.
+
+**Rationale**: Juggluco documents both the target sensor family and the exact
+`/sgv.json`/Nightscout interface already supported by `services/sources/`.
+This removes the unavailable vendor-API gate and avoids a separate cloud server
+for the normal same-LAN case. Continuous acquisition remains outside the LLM
+surface, so Hermes only reads canonical facts, events and memory.
+
+**Impact**: `BridgeConfig`, authenticated/retrying `HTTPSourceClient`,
+`bridge-status`, `bridge-poll`, staleness/clock-skew health, credential-free
+bridge audit events, `cgm_bridge_poll.py`, installer deployment and
+`docs/ANDROID-CGM-BRIDGE.md`. Real-device acceptance still requires the exact
+sensor model, Android pairing, phone LAN address and web-server secret.

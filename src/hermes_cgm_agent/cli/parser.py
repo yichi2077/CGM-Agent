@@ -79,6 +79,44 @@ def build_parser() -> argparse.ArgumentParser:
     dexcom_sync.add_argument("--force", action="store_true")
     dexcom_sync.add_argument("--session-id", default="dexcom-cli-session")
 
+    aidex_auth = sub.add_parser(
+        "aidex-auth",
+        help="Authorize the official MicroTech LinX/AiDEX API and store encrypted tokens",
+    )
+    aidex_auth.add_argument("--user-id", required=True)
+    aidex_auth.add_argument("--state", default=None, help="Optional OAuth state value")
+    aidex_auth.add_argument(
+        "--code",
+        default=None,
+        help="Authorization code or full redirect URL (skips the interactive prompt)",
+    )
+
+    aidex_sync = sub.add_parser(
+        "aidex-sync",
+        help="Sync official MicroTech LinX/AiDEX glucose data into the shared store",
+    )
+    aidex_sync.add_argument("--user-id", required=True)
+    aidex_sync.add_argument("--days", type=int, default=1, help="Backfill window in days")
+    aidex_sync.add_argument("--force", action="store_true")
+    aidex_sync.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Continue from the latest stored AiDEX point with an overlap window",
+    )
+    aidex_sync.add_argument("--overlap-minutes", type=int, default=15)
+    aidex_sync.add_argument("--bootstrap-hours", type=int, default=24)
+
+    aidex_status = sub.add_parser(
+        "aidex-status",
+        help="Check AiDEX credentials, authorization, storage, cron script, and optional live API access",
+    )
+    aidex_status.add_argument("--user-id", required=True)
+    aidex_status.add_argument(
+        "--live",
+        action="store_true",
+        help="Use the stored token to verify the official data-range endpoint",
+    )
+
     source_poll = sub.add_parser(
         "source-poll",
         help=(
@@ -93,6 +131,15 @@ def build_parser() -> argparse.ArgumentParser:
     source_poll.add_argument("--source", default=None, help="Optional stable source label override")
     source_poll.add_argument("--db-path", default=None, help="SQLite DB path (default: runtime DB)")
     source_poll.add_argument("--expected-interval-min", type=int, default=5)
+
+    sub.add_parser(
+        "bridge-status",
+        help="Verify the configured Android/Juggluco/xDrip/Nightscout bridge without writing data",
+    )
+    sub.add_parser(
+        "bridge-poll",
+        help="Poll the configured Android bridge once into the canonical Hermes CGM store",
+    )
 
     simulate = sub.add_parser(
         "simulate",
@@ -129,6 +176,38 @@ def build_parser() -> argparse.ArgumentParser:
     simulate.add_argument("--out-dir", default=None)
     simulate.add_argument("--hermes", action="store_true")
     simulate.add_argument("--fail-fast", action="store_true")
+
+    accept = sub.add_parser(
+        "hermes-accept",
+        help="Run an isolated Hermes CGM L0-L3, RAG, prompt, and restart acceptance",
+    )
+    accept.add_argument("--source-db", default=None, help="Canonical DB snapshot source")
+    accept.add_argument("--duration-hours", type=int, choices=[24, 48, 72], default=72)
+    accept.add_argument("--user-id", default="demo-prediabetes-14d-v2")
+    accept.add_argument("--output-dir", default=None)
+    accept.add_argument("--timezone", default=default_timezone())
+    accept.add_argument("--hermes-home", default=None)
+    accept.add_argument("--hermes-bin", default=None)
+    accept.add_argument("--provider", default=None)
+    accept.add_argument(
+        "--provider-user-agent",
+        default=None,
+        help="Optional User-Agent applied only to the isolated provider smoke/model calls",
+    )
+    accept.add_argument(
+        "--provider-max-tokens",
+        type=int,
+        default=None,
+        help="Optional legacy max_tokens body field for custom provider compatibility",
+    )
+    accept.add_argument("--model", default="gpt-5.5")
+    accept.add_argument("--deliver", default=None)
+    accept.add_argument("--max-model-calls", type=int, default=30)
+    accept.add_argument("--max-external-messages", type=int, default=6)
+    accept.add_argument("--activate-on-pass", action="store_true")
+    accept.add_argument("--no-model", action="store_true", help="Only run deterministic acceptance")
+    accept.add_argument("--send-external", action="store_true", help="Allow capped real-channel delivery")
+    accept.add_argument("--timeout-seconds", type=int, default=180)
 
     synthesize = sub.add_parser(
         "memory-synthesize",

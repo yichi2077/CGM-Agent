@@ -82,15 +82,15 @@ This section supersedes older status rows below when they conflict.
 
 - Full local validation: `$env:PYTHONPATH='src'; .\.venv\Scripts\python.exe -m unittest discover -s tests` -> `579 tests, OK (skipped=2)`.
 - F1, F3, F4, F5 D1, and F5 D2 are implemented in code. Webhook delivery is covered by `tests/test_webhook_delivery.py`; email remains queued/non-MVP.
-- F2 is now the current mainline: `ADR-0002-cgm-data-source-strategy.md` records MicroTech/AiDEX as the default hardware direction.
+- F2 is now the current mainline: MicroTech remains the hardware, while ADR-0002 and D062 select Android Juggluco as the deployable transport because vendor API entitlement is unavailable.
 - Dexcom auth/sync remains a tested code capability, but it is not the MVP data source.
-- xDrip/Juggluco/Nightscout HTTP feeds remain an implemented compatibility bridge, not the default path for an iPhone-only AiDEX user.
-- Real-device validation remains the next gate for AiDEX API access and a narrowly scoped PC Bluetooth direct PoC.
+- Juggluco's authenticated xDrip-compatible LAN feed is the default production path; xDrip is a compatibility alternative and Nightscout is the remote relay.
+- Real-device validation now means exact LinX/AiDEX-X pairing, phone web-server reachability, freshness, reconnect recovery and a 24-hour soak.
 
 | Feature | Current status | Development next step |
 |---|---|---|
 | F1 Hermes runtime usability | DONE | Keep as regression surface only. |
-| F2 CGM data source | PARTIAL / VALIDATE | Default hardware is MicroTech/AiDEX. Validate vendor API access first, then a single-device PC BLE direct PoC; keep `source-poll` as bridge fallback. |
+| F2 CGM data source | IMPLEMENTED / REAL-DEVICE VALIDATE | Android Juggluco bridge, authenticated polling, health preflight, audit and Hermes no-agent script are implemented; pair the real phone/sensor and run acceptance. |
 | F3 medical safety hardening | DONE | Continue clinical KB sign-off outside the F2 path. |
 | F4 companion narrative/interactions | DONE | Product copy improvements only; not blocking F2. |
 | F5 push + delivery loop | DONE for D1/D2 webhook | Email delivery remains deferred; webhook is implemented. |
@@ -153,10 +153,15 @@ This section supersedes older status rows below when they conflict.
 | D2 | delivery webhook/email 实现 | `DONE/PARTIAL` | webhook HTTP POST 已实现并受测；`local_file` 完整；email 保持 queued/non-MVP。 |
 
 ### E. 数据来源（→ F2，战略决策）
+
+> 2026-07-13 correction: D062 supersedes older E2 wording. The current route is
+> MicroTech LinX/AiDEX-X → Android Juggluco → authenticated LAN HTTP bridge →
+> Hermes. Vendor API and direct-PC BLE are not current dependencies.
+
 | # | 条目 | 状态 | 说明 |
 |---|---|---|---|
 | E1 | Dexcom 集成解阻 | `SUPPORTED / NOT-MVP` | Dexcom auth/sync 代码保留且受测，但不作为下一阶段 MVP 主线；默认 CGM 是微泰/AiDEX。 |
-| E2 | 微泰/AiDEX 数据接入策略 | `PARTIAL / VALIDATE` | ADR-0002 已修正：默认硬件为 MicroTech/AiDEX。优先验证 AiDEX API/厂商云可用性；并行保留单设备 PC BLE 直连 PoC；xDrip/Juggluco/Nightscout HTTP Collector 作为兼容桥保留。 |
+| E2 | 微泰/AiDEX 数据接入策略 | `IMPLEMENTED / REAL-DEVICE VALIDATE` | D062：微泰硬件连接安卓 Juggluco，电脑经带认证的局域网 xDrip 接口采集；Nightscout 仅作跨网中继，官方 API 无权限时不作为依赖。 |
 
 ### F. 分析深度（→ F7，暂缓）
 | # | 条目 | 状态 | 说明 |

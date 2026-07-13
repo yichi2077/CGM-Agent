@@ -245,10 +245,11 @@ def _make_handler(state: MockState):
                 if query.get("reset"):
                     state.reset()
                 end = state.visible_end()
-                node = lambda dt: {
-                    "systemTime": dt.strftime(QUERY_DT_FORMAT),
-                    "displayTime": dt.strftime(QUERY_DT_FORMAT),
-                }
+                def node(dt):
+                    return {
+                        "systemTime": dt.strftime(QUERY_DT_FORMAT),
+                        "displayTime": dt.strftime(QUERY_DT_FORMAT),
+                    }
                 self._send(
                     200,
                     {

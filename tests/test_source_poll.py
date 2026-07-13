@@ -150,6 +150,30 @@ class SourcePollTests(unittest.TestCase):
         self.assertEqual(result.detected_event_inserted, 1)
         self.assertEqual(events[0].event_type, GlucoseEventType.DATA_GAP)
 
+    def test_future_phone_timestamp_is_archived_but_not_normalized(self) -> None:
+        received = datetime(2026, 6, 1, 0, 0, tzinfo=timezone.utc)
+        future = received + timedelta(minutes=20)
+        service = SourcePollService(
+            repository=self.repository,
+            client=FakeHTTPClient([{"_id": "future-1", "sgv": 100, "date": _epoch_ms(future)}]),
+            config=SourcePollConfig(max_future_clock_skew_minutes=5),
+        )
+
+        result = service.poll(
+            user_id="user-1",
+            kind="xdrip",
+            url="http://127.0.0.1:17580",
+            received_at=received,
+        )
+
+        self.assertEqual(result.parsed_count, 1)
+        self.assertEqual(result.inserted_count, 0)
+        self.assertEqual(result.issue_count, 1)
+        self.assertTrue(result.future_clock_skew)
+        self.assertEqual(self.repository.status().glucose_point_count, 0)
+        with self.store.connect() as conn:
+            self.assertEqual(conn.execute("SELECT COUNT(*) FROM raw_cgm_records").fetchone()[0], 1)
+
     def test_poll_memory_sink_promotes_repeated_detected_events_to_l2_l3(self) -> None:
         service = SourcePollService(
             repository=self.repository,

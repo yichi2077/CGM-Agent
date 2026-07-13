@@ -1,0 +1,20 @@
+# Local quality gate: ruff (lint + format) plus a fast pytest smoke subset.
+# Install: pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: pytest-smoke
+        name: pytest smoke subset
+        # Fast fail-first subset only (-x) so a commit never waits on the full
+        # 12-minute suite; CI runs the complete suite with a longer timeout.
+        entry: python -m pytest tests/test_config.py tests/test_assembler.py tests/test_sections.py tests/test_tool_status.py -x -q --timeout=60
+        language: system
+        pass_filenames: false
+        types: [python]

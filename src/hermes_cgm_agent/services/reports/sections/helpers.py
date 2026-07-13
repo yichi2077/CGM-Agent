@@ -22,6 +22,8 @@ from hermes_cgm_agent.domain.report import (
 REPORT_WINDOW_DAYS = {
     ReportType.DAILY: 1,
     ReportType.WEEKLY: 7,
+    # Matches the scheduler's monthly tier span (_TIER_SPAN_DAYS).
+    ReportType.MONTHLY: 30,
     ReportType.DOCTOR: 14,
 }
 
@@ -92,6 +94,8 @@ def _window_label(report_type: ReportType | str) -> str:
         return "day"
     if report_type == ReportType.WEEKLY:
         return "week"
+    if report_type == ReportType.MONTHLY:
+        return "month"
     if report_type == ReportType.DOCTOR:
         return "14d"
     return report_type.value

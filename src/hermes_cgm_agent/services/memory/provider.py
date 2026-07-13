@@ -23,7 +23,7 @@ import hashlib
 import json
 import os
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -44,7 +44,7 @@ from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory.assembler import MemoryContextAssembler
 from hermes_cgm_agent.services.memory.consolidation import ConsolidationService
 from hermes_cgm_agent.services.memory.l0_builder import L0ContextBuilder
-from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository, new_id
+from hermes_cgm_agent.services.memory.repository import SQLiteMemoryRepository
 from hermes_cgm_agent.services.memory.user_md_sync import UserMDSyncService
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -173,6 +173,7 @@ class CGMMemoryProvider:
         self._hermes_home = ""
         self._platform = ""
         self._agent_context = "primary"
+        self._anchor_at: datetime | None = None
         self._session_turns: dict[str, list[str]] = {}
         self._soul_prompt = _load_soul_prompt()
 
@@ -186,11 +187,25 @@ class CGMMemoryProvider:
 
     def initialize(self, session_id: str, **kwargs: Any) -> None:
         self._session_id = session_id
+        self._anchor_at = None
         self._hermes_home = str(kwargs.get("hermes_home") or "")
         self._platform = str(kwargs.get("platform") or "")
         self._agent_context = str(kwargs.get("agent_context") or "primary")
-        if kwargs.get("user_id"):
+        if os.getenv("CGM_AGENT_ENFORCE_USER_ID", "").strip() == "1":
+            from hermes_cgm_agent.config import default_user_id
+
+            self._user_id = default_user_id()
+        elif kwargs.get("user_id"):
             self._user_id = str(kwargs["user_id"])
+        anchor = kwargs.get("anchor_at") or os.getenv("CGM_AGENT_ACCEPTANCE_ANCHOR_AT")
+        if isinstance(anchor, datetime):
+            self._anchor_at = anchor.astimezone(timezone.utc)
+        elif isinstance(anchor, str) and anchor.strip():
+            try:
+                parsed = datetime.fromisoformat(anchor.replace("Z", "+00:00"))
+                self._anchor_at = (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
+            except ValueError:
+                self._anchor_at = None
         self._session_turns.setdefault(session_id, [])
 
     def system_prompt_block(self) -> str:
@@ -304,7 +319,7 @@ class CGMMemoryProvider:
         """
         try:
             cgm_repo = SQLiteCGMRepository(self._store)
-            now = utc_now()
+            now = self._anchor_at or utc_now()
             window_start = now - timedelta(hours=1)
             scope = DataScope(
                 user_id=self._user_id,
@@ -386,7 +401,7 @@ class CGMMemoryProvider:
         try:
             l0 = L0ContextBuilder(
                 repository=SQLiteCGMRepository(self._store),
-            ).build(user_id=self._user_id)
+            ).build(user_id=self._user_id, anchor_at=self._anchor_at)
             if l0.window_summary.point_count or l0.key_glucose_events:
                 lines.append(
                     "[CGM L0 context] "
@@ -528,7 +543,11 @@ class CGMMemoryProvider:
         if reset or rewound:
             self._session_turns.pop(new_session_id, None)
         self._session_id = new_session_id
-        if kwargs.get("user_id"):
+        if os.getenv("CGM_AGENT_ENFORCE_USER_ID", "").strip() == "1":
+            from hermes_cgm_agent.config import default_user_id
+
+            self._user_id = default_user_id()
+        elif kwargs.get("user_id"):
             self._user_id = str(kwargs["user_id"])
         if kwargs.get("agent_context"):
             self._agent_context = str(kwargs["agent_context"])

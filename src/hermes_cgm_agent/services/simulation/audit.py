@@ -23,9 +23,34 @@ class SimulationAudit:
     records: list[dict[str, Any]] = field(default_factory=list)
     issues: list[SimulationIssue] = field(default_factory=list)
     invariants: dict[str, Any] = field(default_factory=dict)
+    acceptance_checks: dict[str, bool] = field(default_factory=dict)
+    acceptance_comparisons: dict[str, dict[str, Any]] = field(default_factory=dict)
+    links: list[dict[str, str]] = field(default_factory=list)
 
     def record(self, stage: str, **payload: Any) -> None:
-        self.records.append({"stage": stage, **payload})
+        self.records.append(
+            {"sequence": len(self.records) + 1, "run_id": self.run_id, "stage": stage, **payload}
+        )
+
+    def link(
+        self,
+        *,
+        from_stage: str,
+        from_id: str,
+        to_stage: str,
+        to_id: str,
+        relation: str,
+    ) -> None:
+        self.links.append(
+            {
+                "run_id": self.run_id,
+                "from_stage": from_stage,
+                "from_id": from_id,
+                "to_stage": to_stage,
+                "to_id": to_id,
+                "relation": relation,
+            }
+        )
 
     def issue(
         self,
@@ -49,12 +74,38 @@ class SimulationAudit:
     def set_invariant(self, key: str, value: Any) -> None:
         self.invariants[key] = value
 
+    def require(
+        self,
+        key: str,
+        passed: bool,
+        *,
+        message: str,
+        expected: Any = True,
+        actual: Any = None,
+    ) -> None:
+        """Record a machine-readable acceptance check and fail loudly."""
+        self.acceptance_checks[key] = bool(passed)
+        self.acceptance_comparisons[key] = {
+            "passed": bool(passed),
+            "expected": expected,
+            "actual": actual if actual is not None else bool(passed),
+        }
+        if not passed:
+            self.issue(stage="acceptance", message=message)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "run_id": self.run_id,
             "records": self.records,
+            "timeline": self.records,
+            "links": self.links,
             "issues": [asdict(issue) for issue in self.issues],
             "invariants": self.invariants,
+            "acceptance": {
+                "passed": all(self.acceptance_checks.values()),
+                "checks": self.acceptance_checks,
+                "comparisons": self.acceptance_comparisons,
+            },
             "status": "ok" if not self.issues else "failed",
         }
 
@@ -92,6 +143,15 @@ class SimulationAudit:
         ]
         for key, value in sorted(self.invariants.items()):
             lines.append(f"- `{key}`: `{value}`")
+        lines.extend(["", "## Acceptance checks"])
+        for key, value in sorted(self.acceptance_checks.items()):
+            lines.append(f"- [{'x' if value else ' '}] `{key}`")
+        lines.extend(["", "## Stage links"])
+        for link in self.links:
+            lines.append(
+                f"- `{link['from_stage']}:{link['from_id']}` "
+                f"--{link['relation']}--> `{link['to_stage']}:{link['to_id']}`"
+            )
         if self.issues:
             lines.extend(["", "## Issues"])
             for issue in self.issues:

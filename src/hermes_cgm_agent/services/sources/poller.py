@@ -14,6 +14,7 @@ from hermes_cgm_agent.domain import (
     QualityFlag,
     RawCGMRecord,
     RawImportBatch,
+    ImportIssue,
     convert_glucose_value,
 )
 from hermes_cgm_agent.domain.cgm import utc_now
@@ -41,6 +42,8 @@ class SourcePollConfig:
     suspect_high_mg_dl: float = 400.0
     auto_memory_enabled: bool = True
     warm_summary_min_interval_minutes: int = 60
+    max_stale_minutes: int = 12
+    max_future_clock_skew_minutes: int = 5
 
 
 class SourcePollService:
@@ -76,6 +79,23 @@ class SourcePollService:
         received = _as_utc(received_at or utc_now())
         resolved_url, payload = self.client.fetch_json(url=url, kind=kind, count=count)
         parsed = parse_source_payload(payload, kind=kind)
+        issues = list(parsed.issues)
+        accepted_readings = []
+        future_limit = received + timedelta(minutes=self.config.max_future_clock_skew_minutes)
+        for index, reading in enumerate(parsed.readings, start=1):
+            if reading.measured_at > future_limit:
+                issues.append(
+                    ImportIssue(
+                        row_number=index,
+                        message=(
+                            "Reading timestamp exceeds allowed future clock skew; "
+                            "raw row retained but normalized point rejected"
+                        ),
+                        raw_record=reading.raw_payload,
+                    )
+                )
+            else:
+                accepted_readings.append(reading)
         source_label = source or _source_label(kind, resolved_url)
         batch_id = f"poll-{uuid.uuid4().hex}"
         batch = RawImportBatch(
@@ -97,13 +117,13 @@ class SourcePollService:
                 )
                 for index, reading in enumerate(parsed.readings, start=1)
             ],
-            issues=parsed.issues,
+            issues=issues,
         )
         self.repository.create_import_batch(batch)
 
         inserted = 0
         duplicate = 0
-        for reading in parsed.readings:
+        for reading in accepted_readings:
             point = GlucosePoint(
                 user_id=user_id,
                 timestamp=reading.measured_at,
@@ -126,11 +146,11 @@ class SourcePollService:
         event_inserted = 0
         event_duplicate = 0
         inserted_events = []
-        if parsed.readings:
+        if accepted_readings:
             events = self._detect_events(
                 user_id=user_id,
                 source=source_label,
-                readings_measured_at=[reading.measured_at for reading in parsed.readings],
+                readings_measured_at=[reading.measured_at for reading in accepted_readings],
             )
             event_count = len(events)
             for event in events:
@@ -145,11 +165,21 @@ class SourcePollService:
             self._memory_service().ingest_poll_result(
                 user_id=user_id,
                 source=source_label,
-                reading_times=[reading.measured_at for reading in parsed.readings],
+                reading_times=[reading.measured_at for reading in accepted_readings],
                 inserted_point_count=inserted,
                 inserted_events=inserted_events,
                 now=received,
             )
+
+        newest = max(
+            (reading.measured_at for reading in parsed.readings),
+            default=None,
+        )
+        age_seconds = (received - newest).total_seconds() if newest else None
+        stale = bool(age_seconds is None or age_seconds > self.config.max_stale_minutes * 60)
+        future_clock_skew = bool(
+            age_seconds is not None and age_seconds < -(self.config.max_future_clock_skew_minutes * 60)
+        )
 
         return SourcePollResult(
             user_id=user_id,
@@ -161,11 +191,15 @@ class SourcePollService:
             parsed_count=len(parsed.readings),
             inserted_count=inserted,
             duplicate_count=duplicate,
-            issue_count=len(parsed.issues),
+            issue_count=len(issues),
             detected_event_count=event_count,
             detected_event_inserted=event_inserted,
             detected_event_duplicate=event_duplicate,
             received_at=received,
+            newest_reading_at=newest,
+            newest_reading_age_seconds=age_seconds,
+            stale=stale,
+            future_clock_skew=future_clock_skew,
         )
 
     def _memory_service(self) -> StreamMemoryService:
@@ -175,9 +209,7 @@ class SourcePollService:
                 memory_repository=SQLiteMemoryRepository(self.repository.store),
                 config=StreamMemoryConfig(
                     expected_interval_minutes=self.config.expected_interval_minutes,
-                    warm_refresh_min_interval_minutes=(
-                        self.config.warm_summary_min_interval_minutes
-                    ),
+                    warm_refresh_min_interval_minutes=(self.config.warm_summary_min_interval_minutes),
                 ),
             )
         return self.memory_service

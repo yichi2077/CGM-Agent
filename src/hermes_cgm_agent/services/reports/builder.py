@@ -35,6 +35,7 @@ from hermes_cgm_agent.services.reports.renderer import (
     render_markdown,
 )
 from hermes_cgm_agent.services.reports.repository import SQLiteReportRepository
+from hermes_cgm_agent.services.reports.sections.monthly import MonthlySectionsMixin
 from hermes_cgm_agent.services.reports.sections import (
     DailyCardMixin,
     DoctorMixin,
@@ -90,6 +91,7 @@ class ReportService(
     EventsMixin,
     ObservationsMixin,
     PatternsMixin,
+    MonthlySectionsMixin,
     DoctorMixin,
 ):
     def __init__(
@@ -282,7 +284,7 @@ class ReportService(
             # red-zone / disclaimer already replaced content wholesale (Principle
             # III), and the deterministic metric sections are never guarded
             # (analyze I2/I3/U1).
-            self._apply_citation_gate(report_input, report)
+            self._apply_citation_gate(report_input, report, aggregate=aggregate)
 
         # RAG merge sentinels are renderer-internal only.  Strip them after
         # companion validation (which needs the sentinel) but before the report
@@ -296,7 +298,12 @@ class ReportService(
         report.output_hash = _output_hash(report.rendered_markdown)
         return self.report_repository.create_report(report)
 
-    def _apply_citation_gate(self, report_input: ReportInput, report: Report) -> None:
+    def _apply_citation_gate(
+        self,
+        report_input: ReportInput,
+        report: Report,
+        aggregate: "GlucoseAggregate | None" = None,
+    ) -> None:
         """Block delivery if the medical-claim narrative has an unbacked number.
 
         The guarded text is the externally-generated ``medical_narrative`` only;
@@ -337,9 +344,31 @@ class ReportService(
                             {"violations": violations},
                         )
                     return
+            # Issue #8: attribution-consistency layer — the citation gate only
+            # verifies NUMBERS and the companion guard only verifies TONE; a
+            # causal attribution ("餐后小高峰") contradicting the deterministic
+            # metrics passes both. Cross-check and append a correction note
+            # (never rewrite — verbatim narrative is a citation-gate invariant).
+            from hermes_cgm_agent.services.reports.attribution_guard import (
+                ATTRIBUTION_CORRECTION_NOTE,
+                attribution_consistency_check,
+            )
+            narrative_block = narrative
+            attribution_violations = attribution_consistency_check(aggregate, narrative)
+            if attribution_violations:
+                narrative_block = f"{narrative}\n\n{ATTRIBUTION_CORRECTION_NOTE}"
+                if self.audit_logger is not None:
+                    self.audit_logger(
+                        "attribution_inconsistency_flagged",
+                        {
+                            "report_id": report.report_id,
+                            "user_id": report.user_id,
+                            "violations": attribution_violations,
+                        },
+                    )
             report.rendered_markdown = _append_before_disclaimer_footer(
                 report.rendered_markdown,
-                "## 医学参考\n\n" + narrative,
+                "## 医学参考\n\n" + narrative_block,
             )
             return
         report.rendered_markdown = _with_disclaimer_footer(CITATION_BLOCK_TEMPLATE)
@@ -425,6 +454,7 @@ class ReportService(
         period_label = {
             ReportType.DAILY: "今天",
             ReportType.WEEKLY: "这一周",
+            ReportType.MONTHLY: "这个月",
             ReportType.DOCTOR: "这两周",
         }.get(report_type, "这段时间")
 
@@ -512,6 +542,22 @@ class ReportService(
                     scope,
                     aggregate,
                     events,
+                    detected_events,
+                    audience,
+                    timezone_name=timezone_name,
+                )
+            )
+        if report_type == ReportType.MONTHLY:
+            # G6: month-level overview (with MoM comparison) + monthly patterns.
+            prev_aggregate = self._previous_month_aggregate(scope, aggregate)
+            sections.insert(
+                1,
+                self._monthly_summary_section(scope, aggregate, prev_aggregate, audience),
+            )
+            sections.append(
+                self._monthly_patterns_section(
+                    scope,
+                    aggregate,
                     detected_events,
                     audience,
                     timezone_name=timezone_name,

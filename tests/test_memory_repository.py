@@ -16,7 +16,7 @@ from hermes_cgm_agent.domain import (
     MemoryLayer,
     MemorySummary,
 )
-from hermes_cgm_agent.services.memory import MemoryReviewService, SQLiteMemoryRepository, new_id
+from hermes_cgm_agent.services.memory import MemoryReviewService, SQLiteMemoryRepository
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
 NOW = datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)

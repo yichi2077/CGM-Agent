@@ -8,14 +8,12 @@ from pathlib import Path
 from unittest import mock
 
 from hermes_cgm_agent.domain import (
-    CandidateStatus,
     EvidenceRef,
     HypothesisState,
     L1Episode,
     L3Hypothesis,
     MemoryCandidate,
     MemoryLayer,
-    MemorySummary,
 )
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.memory import (

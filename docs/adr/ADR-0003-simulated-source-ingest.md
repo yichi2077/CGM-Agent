@@ -47,6 +47,26 @@ The first implementation is CSV replay:
 - The simulation audit writes both JSON and Markdown artifacts so failed runs
   leave concrete evidence.
 
+## Long-run acceptance contract
+
+The same runner is the 24-72 hour accelerated soak backbone. Its JSON report is
+machine-authoritative and contains:
+
+- a run-scoped, ordered `timeline` with correlation IDs for ingest, hourly
+  analytics/events, memory, reports, and push stages;
+- explicit cross-stage `links` so event and report outputs can be traced to the
+  stage/window that produced them;
+- durable `pipeline_counts` for L1/L2/L3, warm summaries, and reports;
+- `acceptance.comparisons` with expected and actual values, plus a single
+  `acceptance.passed` decision used as the process exit gate;
+- duplicate/loss accounting and a same-database replay check that proves a
+  restart does not reproduce downstream memory, reports, or pushes.
+
+Pull requests use a fast deterministic smoke gate. The full suite runs on
+push/nightly, while `.github/workflows/simulation-soak.yml` is the explicit
+24-72 hour accelerated acceptance workflow and retains its reports as CI
+artifacts.
+
 ## Alternatives Considered
 
 - Extend the mock Dexcom server: rejected because Dexcom is frozen and the mock

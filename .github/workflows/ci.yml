@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop]
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  quick-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check src tests
+
+      - name: Run fast PR smoke suite
+        run: >-
+          python -m pytest
+          tests/test_config.py
+          tests/test_tool_registry.py
+          tests/test_tool_arguments.py
+          tests/test_sim_clock.py
+          tests/test_sim_source.py
+          tests/test_sim_ingest.py
+          -q --timeout=60
+
+  full-suite:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run complete offline deterministic suite
+        # Real-LLM e2e modules remain skipped unless explicitly enabled.
+        run: python -m pytest tests/ -q --timeout=300

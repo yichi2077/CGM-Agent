@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -193,7 +192,9 @@ class ReportToolTests(unittest.TestCase):
             session_id=self.session_id,
             arguments={
                 "user_id": "user-1",
-                "report_type": "monthly",
+                # "monthly" became a valid report type in G6; use a genuinely
+                # unknown value so this still exercises the validation-error path.
+                "report_type": "yearly",
             },
         )
         body = response.to_dict()

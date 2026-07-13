@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from hermes_cgm_agent.hermes_plugins.installer import (
+    CRON_SCRIPT_NAMES,
     ROOT_MARKER_NAME,
     install_hermes_integration,
     _resolve_project_root,
@@ -39,6 +40,14 @@ class HermesInstallerTests(unittest.TestCase):
 
             marker = Path(hermes_home) / ROOT_MARKER_NAME
             self.assertEqual(marker.read_text(encoding="utf-8").strip(), str(PROJECT_ROOT))
+            for script_name in CRON_SCRIPT_NAMES:
+                script = Path(hermes_home) / "scripts" / script_name
+                self.assertTrue(script.exists())
+                self.assertEqual(
+                    script.read_text(encoding="utf-8"),
+                    (PROJECT_ROOT / "scripts" / "hermes_cron" / script_name).read_text(encoding="utf-8"),
+                )
+                self.assertIn(f"installed-script:{script_name}", report.actions)
 
     def test_install_runs_hermes_runtime_configuration_commands(self) -> None:
         import sys
@@ -80,7 +89,9 @@ class HermesInstallerTests(unittest.TestCase):
                 )
 
             self.assertFalse((Path(hermes_home) / "plugins").exists())
+            self.assertFalse((Path(hermes_home) / "scripts").exists())
             self.assertFalse((Path(hermes_home) / ROOT_MARKER_NAME).exists())
+            self.assertTrue(any(action.startswith("would-install-script:cgm_aidex_sync.py:") for action in report.actions))
             self.assertIn("would-enable-plugin:cgm", report.actions)
             self.assertIn("would-enable-memory-provider:cgm_memory", report.actions)
             run.assert_not_called()

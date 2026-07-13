@@ -6,16 +6,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from hermes_cgm_agent.domain import (
-    DataScope,
     GlucosePoint,
-    UserEvent,
-    EscalationState,
     HypothesisState,
     L3Hypothesis,
     L2ProfileItem,
-    PendingInteraction,
 )
-from hermes_cgm_agent.domain.report import ReportAudience, ReportInput, ReportType, ReportSourceTrack
+from hermes_cgm_agent.domain.report import ReportAudience, ReportInput, ReportSourceTrack
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
 from hermes_cgm_agent.services.memory import SQLiteMemoryRepository
 from hermes_cgm_agent.services.reports import (
@@ -31,7 +27,6 @@ from hermes_cgm_agent.storage.sqlite import SQLiteStore
 from hermes_cgm_agent.services.reports.narrative_templates import (
     validate_companion_text,
     render_hypothesis_narrative,
-    translate_metric,
 )
 
 
