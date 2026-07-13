@@ -590,6 +590,31 @@ class SQLiteMemoryRepository:
         rows = self.list_summaries(user_id, period=period, limit=1)
         return rows[0] if rows else None
 
+    def find_summary_window(
+        self,
+        user_id: str,
+        *,
+        period: str,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> MemorySummary | None:
+        """Return the warm summary already materialized for an exact window.
+
+        The scheduler and replay harness can call consolidation more than once
+        (after a restart or a duplicated cron tick).  A window is the natural
+        idempotency key for a deterministic warm summary; returning the existing
+        row prevents a replay from growing ``memory_summaries`` indefinitely.
+        """
+
+        with self.store.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM memory_summaries "
+                "WHERE user_id = ? AND period = ? AND window_start = ? AND window_end = ? "
+                "ORDER BY created_at DESC LIMIT 1",
+                (user_id, period, _dt(window_start), _dt(window_end)),
+            ).fetchone()
+        return _row_to_summary(row, self.store) if row else None
+
     def purge_old_summaries(self, user_id: str, keep_count: int = 30) -> int:
         """B5: keep only the most recent ``keep_count`` summaries for a user,
         deleting older ones. Prevents unbounded ``memory_summaries`` growth

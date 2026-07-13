@@ -16,6 +16,32 @@ cgm-agent status
 cgm-agent tools
 ```
 
+## Configure
+
+For a first-time setup, copy `.env.example` to the Hermes environment file and
+set the single-user identity, timezone, database path, and the credentials for
+any data source you enable. Keep all secrets in the local environment file;
+never commit them.
+
+## Android bridge and AiDEX sources
+
+An authenticated Android/Juggluco/xDrip/Nightscout bridge can be checked and
+polled with:
+
+```powershell
+cgm-agent bridge-status
+cgm-agent bridge-poll
+```
+
+The optional MicroTech LinX/AiDEX API integration provides encrypted OAuth
+tokens and incremental sync:
+
+```powershell
+cgm-agent aidex-auth --user-id your-user-id
+cgm-agent aidex-status --user-id your-user-id
+cgm-agent aidex-sync --user-id your-user-id --incremental
+```
+
 ## Add data
 
 Import a CGM export:

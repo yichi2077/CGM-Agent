@@ -42,6 +42,10 @@ class SourcePollResult:
     detected_event_inserted: int
     detected_event_duplicate: int
     received_at: datetime
+    newest_reading_at: datetime | None = None
+    newest_reading_age_seconds: float | None = None
+    stale: bool = False
+    future_clock_skew: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -60,4 +64,8 @@ class SourcePollResult:
             "detected_event_inserted": self.detected_event_inserted,
             "detected_event_duplicate": self.detected_event_duplicate,
             "received_at": self.received_at.isoformat(),
+            "newest_reading_at": (self.newest_reading_at.isoformat() if self.newest_reading_at else None),
+            "newest_reading_age_seconds": self.newest_reading_age_seconds,
+            "stale": self.stale,
+            "future_clock_skew": self.future_clock_skew,
         }

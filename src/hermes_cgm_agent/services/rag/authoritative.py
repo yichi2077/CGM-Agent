@@ -163,6 +163,21 @@ def expand_authoritative_query(query: str) -> str:
         additions.extend(["压迫性低值", "compression low", "fingerstick", "BGM", "数据质量"])
     if any(
         term in compact
+        for term in ("运动", "锻炼", "活动", "exercise", "workout", "physicalactivity")
+    ):
+        additions.extend(
+            [
+                "运动",
+                "exercise",
+                "physical activity",
+                "运动前",
+                "运动后",
+                "before exercise",
+                "after exercise",
+            ]
+        )
+    if any(
+        term in compact
         for term in ("没数据", "数据不全", "佩戴", "断连", "dataquality", "weartime")
     ):
         additions.extend(["CGM 数据质量", "data quality", "佩戴时间", "wear time", "14 天", "70%"])

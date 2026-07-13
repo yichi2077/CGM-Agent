@@ -120,7 +120,12 @@ def _object_schema(
 
 def _response_schema(properties: dict[str, Any]) -> dict[str, Any]:
     base_properties = {
-        "status": {"type": "string", "enum": ["ok", "error"]},
+        "status": {
+            "type": "string",
+            # Mirrors handlers.base.ToolStatus — semantic outcomes beyond the
+            # old ok/error binary (no_data/partial/not_found/rate_limited).
+            "enum": ["ok", "no_data", "partial", "not_found", "rate_limited", "error"],
+        },
         "evidence_refs": {"type": "array", "items": EVIDENCE_REF_SCHEMA},
         "audit_id": {"type": ["string", "null"]},
     }
@@ -377,7 +382,7 @@ def build_default_tool_registry() -> ToolRegistry:
                 properties={
                     "user_id": {"type": "string"},
                     "data_scope": DATA_SCOPE_SCHEMA,
-                    "report_type": {"type": "string", "enum": ["daily", "weekly", "doctor"]},
+                    "report_type": {"type": "string", "enum": ["daily", "weekly", "monthly", "doctor"]},
                     "audience": {"type": "string", "enum": ["self", "clinician", "family"]},
                     "language": {"type": "string", "enum": ["zh-CN", "en-US"]},
                     "timezone": {"type": "string"},

@@ -15,6 +15,7 @@ from hermes_cgm_agent.services.memory import MemoryToolService, SQLiteMemoryRepo
 from hermes_cgm_agent.services.tools.handlers.base import (
     BaseToolHandler,
     ToolExecutionResponse,
+    ToolStatus,
     describe_argument_error,
 )
 from hermes_cgm_agent.services.tools.handlers.helpers import parse_candidate_status
@@ -112,12 +113,19 @@ class MemoryHandlerMixin(BaseToolHandler):
                 data_scope={"user_id": arguments.get("user_id")},
                 message=describe_argument_error(exc),
             )
+        # Semantic status: an empty memory store is a successful query with no
+        # data, not a bare "ok" the model must infer from total_count.
+        status = (
+            ToolStatus.NO_DATA
+            if result.total_count == 0 and result.candidate_count == 0
+            else ToolStatus.OK
+        ).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": {"user_id": user_id, "layer": layer},
                 "risk_level": spec.risk_level,
                 "evidence_refs": [],
@@ -130,7 +138,7 @@ class MemoryHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=[],
             audit_id=audit_id,
             payload={
@@ -157,8 +165,6 @@ class MemoryHandlerMixin(BaseToolHandler):
                 memory_id=memory_id,
                 layer=layer,
             )
-            if not deleted:
-                raise KeyError(f"Unknown memory record: {layer}:{memory_id}")
         except (KeyError, TypeError, ValueError) as exc:
             return self._error_response(
                 session_id=session_id,
@@ -166,6 +172,28 @@ class MemoryHandlerMixin(BaseToolHandler):
                 risk_level=spec.risk_level,
                 data_scope={"user_id": arguments.get("user_id")},
                 message=describe_argument_error(exc),
+            )
+        if not deleted:
+            # Semantic status: deleting a record that does not exist is
+            # not_found, not a generic error the model must parse text for.
+            message = f"Unknown memory record: {layer}:{memory_id}"
+            audit_id = self.audit_service.log(
+                session_id=session_id,
+                event_type="tool_call",
+                payload={
+                    "tool_name": spec.name,
+                    "status": ToolStatus.NOT_FOUND.value,
+                    "data_scope": {"user_id": user_id, "layer": layer},
+                    "risk_level": spec.risk_level,
+                    "evidence_refs": [],
+                    "error": message,
+                },
+            )
+            return ToolExecutionResponse(
+                status=ToolStatus.NOT_FOUND.value,
+                evidence_refs=[],
+                audit_id=audit_id,
+                payload={"error": message, "memory_id": memory_id, "layer": layer},
             )
         audit_id = self.audit_service.log(
             session_id=session_id,
