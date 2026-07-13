@@ -4,13 +4,17 @@ import json
 import sqlite3
 from pathlib import Path
 
+from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import (
     CGMImporter,
     CGMNormalizer,
     NormalizationConfig,
     SQLiteCGMRepository,
 )
+from hermes_cgm_agent.services.tools import ToolExecutor
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
+
+from hermes_cgm_agent.cli.utils import _read_json_object
 
 
 def _import_cgm(
@@ -72,3 +76,29 @@ def _import_cgm(
     }
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     return 0
+
+
+def _tool_call(
+    *,
+    db_path: Path,
+    tool_name: str,
+    input_path: Path,
+    session_id: str,
+) -> int:
+    store = SQLiteStore(db_path)
+    store.initialize()
+    arguments = _read_json_object(input_path)
+    executor = ToolExecutor(
+        repository=SQLiteCGMRepository(store),
+        audit_service=AuditService(store),
+    )
+    response = executor.execute(
+        tool_name=tool_name,
+        arguments=arguments,
+        session_id=session_id,
+    )
+    body = response.to_dict()
+    print(json.dumps(body, ensure_ascii=False, sort_keys=True))
+    from hermes_cgm_agent.services.tools.handlers.base import FAILURE_STATUSES
+
+    return 1 if response.status in FAILURE_STATUSES else 0

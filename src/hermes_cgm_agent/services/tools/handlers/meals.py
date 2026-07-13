@@ -8,6 +8,7 @@ from hermes_cgm_agent.services.analytics.meal_correlation import MealCorrelation
 from hermes_cgm_agent.services.tools.handlers.base import (
     BaseToolHandler,
     ToolExecutionResponse,
+    ToolStatus,
     describe_argument_error,
 )
 from hermes_cgm_agent.services.tools.handlers.helpers import event_evidence
@@ -49,12 +50,15 @@ class MealCorrelationHandlerMixin(BaseToolHandler):
             window_hours=window_hours,
         )
         evidence_refs = [event_evidence(match.event, action="historical meal") for match in matches]
+        # Semantic status: no similar historical meals is a successful search
+        # with no data, not a bare "ok".
+        status = (ToolStatus.NO_DATA if not matches else ToolStatus.OK).value
         audit_id = self.audit_service.log(
             session_id=session_id,
             event_type="tool_call",
             payload={
                 "tool_name": spec.name,
-                "status": "ok",
+                "status": status,
                 "data_scope": {"user_id": user_id},
                 "risk_level": spec.risk_level,
                 "evidence_refs": evidence_refs,
@@ -62,7 +66,7 @@ class MealCorrelationHandlerMixin(BaseToolHandler):
             },
         )
         return ToolExecutionResponse(
-            status="ok",
+            status=status,
             evidence_refs=evidence_refs,
             audit_id=audit_id,
             payload={

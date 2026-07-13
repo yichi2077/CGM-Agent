@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from hermes_cgm_agent.services.arguments import optional_bool, optional_int, require_bool
+from hermes_cgm_agent.services.arguments import optional_int, require_bool
 from hermes_cgm_agent.services.rag.authoritative import (
     AuthoritativeRAGService,
     normalize_population,
