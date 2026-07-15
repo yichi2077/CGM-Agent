@@ -317,8 +317,8 @@ class SQLiteCGMRepository:
         return [self._row_to_device_session(row) for row in rows]
 
     def create_user_event(self, event: UserEvent, *, replace: bool = False) -> str:
-        # ``replace`` overwrites the row sharing the event_id primary key, used by
-        # a forced Dexcom re-sync (event_ids are deterministic: dexcom-evt-<id>).
+        # ``replace`` overwrites the row sharing the event_id primary key, used
+        # by forced re-syncs from sources with deterministic event_ids.
         verb = "INSERT OR REPLACE INTO" if replace else "INSERT INTO"
         with self.store.connect() as conn:
             conn.execute(

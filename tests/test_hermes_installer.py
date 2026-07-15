@@ -91,7 +91,7 @@ class HermesInstallerTests(unittest.TestCase):
             self.assertFalse((Path(hermes_home) / "plugins").exists())
             self.assertFalse((Path(hermes_home) / "scripts").exists())
             self.assertFalse((Path(hermes_home) / ROOT_MARKER_NAME).exists())
-            self.assertTrue(any(action.startswith("would-install-script:cgm_aidex_sync.py:") for action in report.actions))
+            self.assertTrue(any(action.startswith("would-install-script:cgm_bridge_poll.py:") for action in report.actions))
             self.assertIn("would-enable-plugin:cgm", report.actions)
             self.assertIn("would-enable-memory-provider:cgm_memory", report.actions)
             run.assert_not_called()

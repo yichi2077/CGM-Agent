@@ -27,8 +27,9 @@ This section supersedes older status rows below when they conflict. See
 `docs/DECISION_LOG.md` D051 for full details.
 
 - **产品范围裁决**：唯一支持的 CGM 硬件目标是**微泰 MicroTech/AiDEX**（用户
-  2026-07-05 指令）。Dexcom 与 xDrip/Juggluco/Nightscout 桥保留为受测兼容代码，
-  不再是路线图条目。F2 的后续动作只针对 AiDEX（厂商 API 验证 / BLE PoC）。
+  2026-07-05 指令）。2026-07-14 更新（D063）：厂商 API 永久无权限，Dexcom 与
+  微泰官方 API 适配层已整体移除；xDrip/Juggluco/Nightscout 安卓桥是唯一
+  真实数据路径。F2 的后续动作是 Juggluco 真机配对 + 桥接验收。
 - **Hermes 真实可用性修复（D051）**：naive datetime 统一按 UTC 处理；
   `timeseries.get_aggregate` / `timeseries.get_realtime_snapshot` /
   `scheduling.push_tick` 此前对 LLM 常见的无时区 ISO 输入直接 TypeError 崩溃，
@@ -82,10 +83,12 @@ This section supersedes older status rows below when they conflict.
 
 - Full local validation: `$env:PYTHONPATH='src'; .\.venv\Scripts\python.exe -m unittest discover -s tests` -> `579 tests, OK (skipped=2)`.
 - F1, F3, F4, F5 D1, and F5 D2 are implemented in code. Webhook delivery is covered by `tests/test_webhook_delivery.py`; email remains queued/non-MVP.
-- F2 is now the current mainline: MicroTech remains the hardware, while ADR-0002 and D062 select Android Juggluco as the deployable transport because vendor API entitlement is unavailable.
-- Dexcom auth/sync remains a tested code capability, but it is not the MVP data source.
-- Juggluco's authenticated xDrip-compatible LAN feed is the default production path; xDrip is a compatibility alternative and Nightscout is the remote relay.
-- Real-device validation now means exact LinX/AiDEX-X pairing, phone web-server reachability, freshness, reconnect recovery and a 24-hour soak.
+- F2 is now the current mainline: device confirmed as **AiDEX X**; D064 selects **xDrip+ Companion mode** as the default transport (vendor app kept for BLE/alarms), superseding D062's Juggluco-first default.
+- Dexcom auth/sync and the official AiDEX API adapter were removed on 2026-07-14 (D063); the Android bridge is the only real data path.
+- Product identity (D064): CGM-Agent is an **AI enhancement layer over the vendor app**. Companion capture is analysis-grade (~95% coverage, community-reported 2-4 missed readings/hour), **not** an alarm channel — the vendor app remains the alarm authority.
+- A data-freshness **watchdog** (`services/sources/watchdog.py`) posts a PHI-free alert on a healthy↔stale boundary crossing when `CGM_WEBHOOK_URL` is set, defeating silent overnight stalls.
+- Juggluco direct-connect is the data-completeness fallback (costs the vendor app's alarms); Nightscout is the cross-network relay; iOS deferred (no companion-grade bridge).
+- Real-device validation now means AiDEX X vendor-app notification capture, xDrip web-service reachability, freshness, reconnect recovery and a 24-48h soak.
 
 | Feature | Current status | Development next step |
 |---|---|---|
@@ -160,8 +163,8 @@ This section supersedes older status rows below when they conflict.
 
 | # | 条目 | 状态 | 说明 |
 |---|---|---|---|
-| E1 | Dexcom 集成解阻 | `SUPPORTED / NOT-MVP` | Dexcom auth/sync 代码保留且受测，但不作为下一阶段 MVP 主线；默认 CGM 是微泰/AiDEX。 |
-| E2 | 微泰/AiDEX 数据接入策略 | `IMPLEMENTED / REAL-DEVICE VALIDATE` | D062：微泰硬件连接安卓 Juggluco，电脑经带认证的局域网 xDrip 接口采集；Nightscout 仅作跨网中继，官方 API 无权限时不作为依赖。 |
+| E1 | Dexcom 集成解阻 | `REMOVED (D063)` | 厂商 API 无权限且硬件超出产品范围，Dexcom 适配层已于 2026-07-14 移除。 |
+| E2 | 微泰/AiDEX 数据接入策略 | `IMPLEMENTED / REAL-DEVICE VALIDATE` | D062/D063：微泰硬件连接安卓 Juggluco，电脑经带认证的局域网 xDrip 接口采集；Nightscout 仅作跨网中继；官方 API 适配层已移除。 |
 
 ### F. 分析深度（→ F7，暂缓）
 | # | 条目 | 状态 | 说明 |

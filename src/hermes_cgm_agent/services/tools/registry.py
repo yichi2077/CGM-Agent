@@ -642,44 +642,6 @@ def build_default_tool_registry() -> ToolRegistry:
     )
     registry.register(
         ToolSpec(
-            name="data.dexcom_sync",
-            group="data",
-            owner_module="dexcom_sync",
-            description=(
-                "Sync glucose readings (EGVs) and user events from the Dexcom "
-                "cloud (API v3) into local CGM storage. Requires a prior "
-                "dexcom-auth authorization for the user."
-            ),
-            input_schema=_object_schema(
-                required=["user_id"],
-                properties={
-                    "user_id": {"type": "string"},
-                    "days": {"type": "integer", "minimum": 1, "maximum": 90},
-                    "force": {"type": "boolean"},
-                },
-            ),
-            output_schema=_response_schema(
-                {
-                    "environment": {"type": "string"},
-                    "window_start": {"type": ["string", "null"]},
-                    "window_end": {"type": ["string", "null"]},
-                    "egv_fetched": {"type": "integer"},
-                    "egv_inserted": {"type": "integer"},
-                    "egv_duplicate": {"type": "integer"},
-                    "egv_skipped": {"type": "integer"},
-                    "event_fetched": {"type": "integer"},
-                    "event_inserted": {"type": "integer"},
-                    "event_duplicate": {"type": "integer"},
-                    "event_skipped": {"type": "integer"},
-                }
-            ),
-            risk_level="external",
-            evidence_required=False,
-            status="active",
-        )
-    )
-    registry.register(
-        ToolSpec(
             name="delivery.send",
             group="delivery",
             owner_module="delivery",

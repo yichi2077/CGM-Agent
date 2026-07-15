@@ -7,15 +7,10 @@ from zoneinfo import ZoneInfo
 
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
-from hermes_cgm_agent.services.dexcom import (
-    DexcomSyncFactory,
-    build_dexcom_sync_service,
-)
 from hermes_cgm_agent.services.rag import AuthoritativeRAGToolService
 from hermes_cgm_agent.services.tools.handlers import (
     ContextHandlerMixin,
     DeliveryHandlerMixin,
-    DexcomHandlerMixin,
     EventHandlerMixin,
     MealCorrelationHandlerMixin,
     MemoryHandlerMixin,
@@ -196,12 +191,11 @@ class ToolExecutor(
     MemoryHandlerMixin,
     RagHandlerMixin,
     DeliveryHandlerMixin,
-    DexcomHandlerMixin,
     PushTickHandlerMixin,
 ):
     """Routes a tool call to its per-domain handler (defined in the handler
     mixins) and owns the shared wiring: repository, audit service, registry,
-    and the lazily-built rag/dexcom seams."""
+    and the lazily-built rag seam."""
 
     def __init__(
         self,
@@ -209,7 +203,6 @@ class ToolExecutor(
         repository: SQLiteCGMRepository,
         audit_service: AuditService,
         registry: ToolRegistry | None = None,
-        dexcom_sync_factory: DexcomSyncFactory | None = None,
     ) -> None:
         self.repository = repository
         self.audit_service = audit_service
@@ -217,9 +210,6 @@ class ToolExecutor(
         self._rag_tool_service: AuthoritativeRAGToolService | None = None
         # L-26: cached MemoryToolService (lazy init on first memory.* call).
         self._memory_tool_service = None
-        # Seam for tests: a factory that builds a DexcomSyncService from the
-        # repository. Defaults to env-sourced wiring (build_dexcom_sync_service).
-        self._dexcom_sync_factory = dexcom_sync_factory or build_dexcom_sync_service
 
     _DISPATCH = {
         "timeseries.get_points": "_get_points",
@@ -239,7 +229,6 @@ class ToolExecutor(
         "kb.approve": "_kb_approve",
         "hypothesis.update": "_hypothesis_update",
         "delivery.send": "_delivery_send",
-        "data.dexcom_sync": "_dexcom_sync",
         "scheduling.push_tick": "_push_tick",
     }
 

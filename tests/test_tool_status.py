@@ -14,7 +14,6 @@ from unittest import mock
 
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
-from hermes_cgm_agent.services.dexcom import DexcomRateLimitError
 from hermes_cgm_agent.services.tools import ToolExecutor
 from hermes_cgm_agent.services.tools.handlers.base import (
     FAILURE_STATUSES,
@@ -137,24 +136,6 @@ class ToolStatusExecutionTests(unittest.TestCase):
             )
         self.assertEqual(response.status, "partial")
         self.assertEqual(response.to_dict()["delivery_status"], "failed")
-
-    def test_dexcom_rate_limited_maps_to_rate_limited(self) -> None:
-        class _ThrottledSync:
-            def sync(self, **kwargs):
-                raise DexcomRateLimitError("Dexcom rate limit exceeded (HTTP 429)")
-
-        executor = ToolExecutor(
-            repository=self.repository,
-            audit_service=AuditService(self.store),
-            dexcom_sync_factory=lambda repo: _ThrottledSync(),
-        )
-        response = executor.execute(
-            tool_name="data.dexcom_sync",
-            arguments={"user_id": "user-1", "days": 7},
-            session_id="status-test",
-        )
-        self.assertEqual(response.status, "rate_limited")
-        self.assertIn("rate limit", response.to_dict()["error"].lower())
 
 
 if __name__ == "__main__":

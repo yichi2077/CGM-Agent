@@ -21,6 +21,13 @@ from hermes_cgm_agent.services.sources.models import (
 )
 from hermes_cgm_agent.services.sources.parser import parse_source_payload
 from hermes_cgm_agent.services.sources.poller import SourcePollConfig, SourcePollService
+from hermes_cgm_agent.services.sources.watchdog import (
+    build_watchdog_payload,
+    decide_watchdog_alert,
+    read_prior_bridge_state,
+    run_bridge_watchdog,
+    send_watchdog_alert,
+)
 
 __all__ = [
     "BRIDGE_ENV_NAMES",
@@ -35,9 +42,14 @@ __all__ = [
     "SourcePollService",
     "SourceReading",
     "build_source_url",
+    "build_watchdog_payload",
     "check_bridge_health",
+    "decide_watchdog_alert",
     "load_bridge_environment",
     "parse_source_payload",
+    "read_prior_bridge_state",
     "redact_source_url",
+    "run_bridge_watchdog",
+    "send_watchdog_alert",
     "validate_source_url",
 ]

@@ -10,7 +10,22 @@
       "Bash(~/.hermes/hermes-agent/venv/bin/python3 -c \"import json,collections;d=json.load\\(open\\('src/hermes_cgm_agent/knowledge/authoritative_kb.json'\\)\\);c=d['cards'];print\\(' ',d['kb_version'],'total',len\\(c\\),'tier',dict\\(collections.Counter\\(x.get\\('tier'\\) for x in c\\)\\),'verified',dict\\(collections.Counter\\(x['verified'] for x in c\\)\\)\\)\")",
       "Bash(git merge *)",
       "Bash(git branch *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "WebSearch",
+      "Bash(awk 'NR>=643 && NR<=690' src/hermes_cgm_agent/services/tools/registry.py)",
+      "Bash(git rm *)",
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent status)",
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent --help)",
+      "WebFetch(domain:www.juggluco.nl)",
+      "WebFetch(domain:xdrip.readthedocs.io)",
+      "WebFetch(domain:navid200.github.io)",
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m unittest tests.test_bridge_watchdog -v)",
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent dev-status)",
+      "Bash(rm -f /private/tmp/claude-501/-Users-yichizhang-code-CGM-Agent/74cc07ef-c868-4752-832b-5f070772fedc/scratchpad/audit-demo.db*)",
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent seed-demo --db-path /private/tmp/claude-501/-Users-yichizhang-code-CGM-Agent/74cc07ef-c868-4752-832b-5f070772fedc/scratchpad/audit-demo.db)",
+      "WebFetch(domain:arxiv.org)",
+      "Bash(~/.hermes/hermes-agent/venv/bin/python3 -c \"import json,collections;d=json.load\\(open\\('src/hermes_cgm_agent/knowledge/authoritative_kb.json'\\)\\);c=d['cards'];print\\('kb_version:',d['kb_version'],'| cards:',len\\(c\\),'| verified:',dict\\(collections.Counter\\(x['verified'] for x in c\\)\\),'| tier:',dict\\(collections.Counter\\(x.get\\('tier'\\) for x in c\\)\\)\\)\")",
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent tools --status active)"
     ]
   }
 }

@@ -17,7 +17,7 @@ from hermes_cgm_agent.storage.sqlite import SQLiteStore
 class PushTickRegistrationTests(unittest.TestCase):
     """T002 / C1 / FR-001: push_tick is a registered, active, self-contained
     tool following the dotted ``group.action`` naming convention used by every
-    other tool (``delivery.send``, ``data.dexcom_sync``) -> ``scheduling.push_tick``."""
+    other tool (``delivery.send``, ``reports.generate``) -> ``scheduling.push_tick``."""
 
     def setUp(self) -> None:
         self.registry = build_default_tool_registry()

@@ -15,7 +15,6 @@ from hermes_cgm_agent.services.tools.handlers.base import (
 )
 from hermes_cgm_agent.services.tools.handlers.context import ContextHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.delivery import DeliveryHandlerMixin
-from hermes_cgm_agent.services.tools.handlers.dexcom import DexcomHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.events import EventHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.memory import MemoryHandlerMixin
 from hermes_cgm_agent.services.tools.handlers.meals import MealCorrelationHandlerMixin
@@ -29,7 +28,6 @@ __all__ = [
     "ToolExecutionResponse",
     "ContextHandlerMixin",
     "DeliveryHandlerMixin",
-    "DexcomHandlerMixin",
     "EventHandlerMixin",
     "MemoryHandlerMixin",
     "MealCorrelationHandlerMixin",

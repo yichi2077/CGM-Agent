@@ -542,3 +542,85 @@ surface, so Hermes only reads canonical facts, events and memory.
 bridge audit events, `cgm_bridge_poll.py`, installer deployment and
 `docs/ANDROID-CGM-BRIDGE.md`. Real-device acceptance still requires the exact
 sensor model, Android pairing, phone LAN address and web-server secret.
+
+### D063 - Vendor-API adapters removed; Android bridge is the only real CGM path
+
+**Decision**: Delete the dormant vendor-API integrations entirely — Dexcom v3
+(`services/dexcom/`, `dexcom-auth`/`dexcom-sync` CLI, `data.dexcom_sync` tool,
+`dexcom_tokens` table) and the official MicroTech LinX/AiDEX Open API
+(`services/aidex/`, `aidex-*` CLI, `aidex_tokens` table,
+`cgm_aidex_sync.py` cron). The Android bridge of D062
+(Juggluco/xDrip LAN, Nightscout HTTPS relay) is the sole real-data path.
+
+**Rationale**: Per the user directive (2026-07-14) the MicroTech API
+entitlement is permanently unavailable to this deployment, and Dexcom hardware
+is out of product scope (D051). Keeping two dead OAuth stacks (config, token
+encryption, sync services, tool registration, tests) added audit surface and
+maintenance cost with no reachable execution path. Removal supersedes the
+"keep as compatibility code" stance of D051/D061.
+
+**Impact**: Removed `services/dexcom/`, `services/aidex/`, `cli/dexcom.py`,
+`cli/aidex.py`, the `DexcomHandlerMixin`, the `data.dexcom_sync` ToolSpec,
+`dexcom_tokens`/`aidex_tokens` schema, `scripts/hermes_cron/cgm_aidex_sync.py`
+and all module-specific tests. `.env.example`/README no longer document
+`DEXCOM_*`/`AIDEX_*` variables. Existing databases keep the orphaned token
+tables (harmless); new databases no longer create them. Re-adding a vendor API
+later means a new feature spec, not a revert.
+
+### D064 - xDrip Companion mode is the default transport; the agent is an AI layer over the vendor app
+
+**Decision**: The confirmed device is **AiDEX X (mainland)**. Adopt **xDrip+
+Companion App mode** as the default real-data transport, superseding the
+Juggluco-first default of D062. The vendor (AiDEX) app keeps the sensor BLE
+connection, real-time UI, and hypo/hyper alarms; xDrip+ captures the vendor
+app's system notifications (touching no Bluetooth) and exposes them on its
+LAN web service, which `bridge-poll` reads unchanged (`CGM_BRIDGE_KIND=xdrip`).
+
+This fixes the product identity: **CGM-Agent is an AI enhancement layer over the
+vendor app, not a replacement.** The vendor app owns "what to do right now"
+(live values, alarms); the agent owns "what the past means and what to change"
+(analytics, F4 narrative, F5 tiered push, Hermes conversational recall).
+
+**Rationale**: Two user constraints drive this — a person uses one phone brand,
+and introducing an external data platform is itself a usability cost. Companion
+mode is zero-friction: the vendor app experience is completely preserved, no
+BLE re-pairing, no cloud account, no server. Juggluco direct-connect would seize
+the sensor BLE and disable the vendor app's own alarms — unacceptable when the
+project's value is *augmenting* the official experience, not supplanting it.
+The confirmed compatibility path (xDrip added LinX/AiDEX X companion support in
+2024-06; xDrip Web Service `/sgv.json` + Open Web Service + SHA1 api-secret align
+field-for-field with `services/sources/http.py`) means the ingest layer needs
+zero code change.
+
+**Accepted cost**: Notification capture is lossy — community reports ~2-4 missed
+readings/hour (~95% coverage). The bridge is therefore classified as an
+**analysis-grade source, not an alarm-grade one**; the vendor app remains the
+sole alarm authority (Constitution III: the agent's safety routing is
+conversation-side only, never a real-time hypo alarm). `data_coverage` is a
+first-class report metric and MUST be surfaced honestly rather than hidden.
+
+**Impact**:
+- New feature `specs/006-xdrip-companion-bridge/` (speckit spec/plan/tasks);
+  `.specify/feature.json` points to it.
+- New: data-freshness **watchdog** (`services/sources/watchdog.py`), edge-triggered
+  from `cgm_bridge_poll.py`/`bridge-poll`. On a healthy↔unhealthy boundary it
+  POSTs a **PHI-free** alert (`alert`, `state`, `newest_reading_age_minutes`, `at`
+  — no glucose value, no user_id) to `CGM_WEBHOOK_URL`, reusing the F5 webhook
+  security properties (https-only, no-redirect, domain-only audit). Prior state is
+  read from the most recent `bridge_poll_*` audit row — no new table. Best-effort:
+  a watchdog failure never breaks the poll.
+- Docs: `docs/ANDROID-CGM-BRIDGE.md` rewritten to the companion route; Juggluco
+  demoted to a "data-completeness" fallback; Nightscout stays the cross-network
+  relay. `.env.example`/README/BACKLOG/KNOWN_ISSUES updated.
+
+**Downgrade / upgrade ladder**:
+1. Data completeness insufficient → Juggluco direct-connect (`CGM_BRIDGE_KIND=juggluco`
+   + phone re-pair; cost: vendor app disabled, alarms move to Juggluco).
+2. Phone and PC on different networks → xDrip's built-in Nightscout upload +
+   `CGM_BRIDGE_KIND=nightscout`.
+3. **iOS**: evaluated and deferred — no companion-grade bridge exists on iOS
+   (system forbids the persistent background web server / free BLE scan that make
+   the Android path work; xDripSwift has no MicroTech support). ROI does not
+   justify a Shortcuts/HealthKit workaround for a personal project. Not a dead end:
+   the HTTP source layer is transport-agnostic, so any future iOS source emitting
+   the xDrip/Nightscout shape plugs in with an `.env` change only.

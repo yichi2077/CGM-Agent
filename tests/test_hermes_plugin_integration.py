@@ -94,7 +94,6 @@ class HermesPluginIntegrationTests(unittest.TestCase):
                 "cgm_rag_verify_quotes",
                 "cgm_kb_approve",
                 "cgm_delivery_send",
-                "cgm_data_dexcom_sync",
                 "cgm_scheduling_push_tick",
             },
         )

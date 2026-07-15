@@ -10,6 +10,7 @@ from hermes_cgm_agent.services.sources import (
     SourcePollConfig,
     SourcePollService,
     check_bridge_health,
+    run_bridge_watchdog,
 )
 from hermes_cgm_agent.storage.sqlite import SQLiteStore
 
@@ -79,8 +80,17 @@ def _bridge_poll(*, db_path: Path, session_kind: str = "cli") -> int:
         )
     except Exception as exc:
         user_id = _configured_user_id()
+        session_id = f"bridge-{session_kind}:{user_id}"
+        # Watchdog reads the prior state before we persist this failure, so a
+        # first-failure after healthy polls raises a boundary alert.
+        run_bridge_watchdog(
+            store=store,
+            current_state="failed",
+            newest_reading_age_seconds=None,
+            session_id=session_id,
+        )
         store.create_audit_log(
-            session_id=f"bridge-{session_kind}:{user_id}",
+            session_id=session_id,
             event_type="bridge_poll_failed",
             payload={"user_id": user_id, "error": str(exc)},
         )
@@ -91,6 +101,14 @@ def _bridge_poll(*, db_path: Path, session_kind: str = "cli") -> int:
     body = result.to_dict()
     body["status"] = "degraded" if degraded else "ok"
     body["database_path"] = str(db_path)
+    # Watchdog runs BEFORE this poll's audit is written so the prior-state read
+    # sees the previous poll, not this one. It only fires on a health boundary.
+    run_bridge_watchdog(
+        store=store,
+        current_state=_bridge_health_state(result),
+        newest_reading_age_seconds=result.newest_reading_age_seconds,
+        session_id=f"bridge-{session_kind}:{config.user_id}",
+    )
     store.create_audit_log(
         session_id=f"bridge-{session_kind}:{config.user_id}",
         event_type="bridge_poll_degraded" if degraded else "bridge_poll_completed",
@@ -98,6 +116,18 @@ def _bridge_poll(*, db_path: Path, session_kind: str = "cli") -> int:
     )
     print(json.dumps(body, ensure_ascii=False, sort_keys=True))
     return 2 if degraded else 0
+
+
+def _bridge_health_state(result) -> str:
+    """Map a poll result to the specific health state carried in the alert body.
+    Order matters: no_data and clock_skew are more actionable than plain stale."""
+    if result.parsed_count == 0:
+        return "no_data"
+    if result.future_clock_skew:
+        return "clock_skew"
+    if result.stale:
+        return "stale"
+    return "healthy"
 
 
 def _configured_user_id() -> str:

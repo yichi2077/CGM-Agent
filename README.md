@@ -3,7 +3,7 @@
 ## Current Implementation Snapshot (2026-07-01)
 
 - Hermes-facing tool count is 19 active tools, including realtime CGM snapshot reads.
-- F2 production path is [ADR-0002](docs/adr/ADR-0002-cgm-data-source-strategy.md): MicroTech LinX/AiDEX-X → Android Juggluco → authenticated LAN HTTP bridge → canonical Hermes DB. Nightscout is the optional remote relay; vendor API is non-default because this deployment has no API entitlement.
+- F2 production path (D064): **AiDEX X → vendor app → xDrip+ Companion mode → authenticated LAN HTTP bridge → canonical Hermes DB.** The project is an **AI enhancement layer over the vendor app**, not a replacement — the vendor app keeps the sensor BLE, live UI, and hypo/hyper alarms; xDrip captures its notifications. Companion capture is analysis-grade (~95% coverage), not an alarm channel. Juggluco direct-connect is the data-completeness fallback; Nightscout is the cross-network relay; vendor API was removed (D063, no entitlement).
 - Production CLI: `bridge-status` and `bridge-poll`; deterministic continuous collection runs through the installed Hermes no-agent script `cgm_bridge_poll.py`.
 - Default engineering fixture: `examples/cgm_test_dataset/cgm_14d_1min.csv` is a 14-day, single-user, native 1-minute prediabetes-style synthetic CGM dataset with behavior events and CGM artifacts.
 - Storage now distinguishes `timestamp` as measured-at time from `received_at` collector receipt time.
@@ -104,7 +104,7 @@ wrapper around the same sanctioned write path as the Hermes `kb.approve` tool.
 `SafetyRouter` 持有进程内状态 `_last_red_zone`，在红区事件后的 2 小时窗口内（可通过 `CGM_AGENT_RECOVERY_WINDOW_SECONDS` 环境变量覆盖），对后续评估自动比对存档原始红区与当前结果，并将 `recovery_check`（含 `recovery_confirmed` 指标）渲染进报告头。窗口到期自动清状态。
 
 ### 6. PHI 数据加密 ([src/hermes_cgm_agent/storage/sqlite.py](src/hermes_cgm_agent/storage/sqlite.py))
-SQLite 数据库文件（含 WAL 模式的 `-wal`/`-shm` 伴生文件）落地在 Unix 系统下采用 `0600` 权限，对涉敏个人健康数据（PHI 字段：血糖值、事件详情、报告全文、Dexcom 令牌、记忆各层等）采用本地生成的 Fernet 秘钥（保存在库同级目录的 `storage.key` 中）进行应用端加密。**`storage.key` 丢失则历史加密数据不可恢复——请与数据库文件一同备份。**
+SQLite 数据库文件（含 WAL 模式的 `-wal`/`-shm` 伴生文件）落地在 Unix 系统下采用 `0600` 权限，对涉敏个人健康数据（PHI 字段：血糖值、事件详情、报告全文、记忆各层等）采用本地生成的 Fernet 秘钥（保存在库同级目录的 `storage.key` 中）进行应用端加密。**`storage.key` 丢失则历史加密数据不可恢复——请与数据库文件一同备份。**
 
 ---
 
@@ -189,7 +189,7 @@ python -m hermes_cgm_agent hermes-install
 | `CGM_AGENT_STORAGE_KEY` | Fernet 密钥内容直接注入（优先级高于文件） | 无 | 否 | `<base64-fernet-key>` |
 | `CGM_AGENT_RECOVERY_WINDOW_SECONDS` | 红区恢复复查窗口秒数（见 §5c） | `7200`（2 小时） | 否 | `3600` |
 
-> **⚠️ 安全提示**：密钥必须与 DB 同迁移，**密钥丢失则历史加密数据不可恢复，请与 DB 一同备份**。切勿将 `CGM_AGENT_STORAGE_KEY`、`AIDEX_CLIENT_SECRET`、`DEXCOM_CLIENT_SECRET`、`CGM_SMTP_PASSWORD` 写入版本库或共享配置。
+> **⚠️ 安全提示**：密钥必须与 DB 同迁移，**密钥丢失则历史加密数据不可恢复，请与 DB 一同备份**。切勿将 `CGM_AGENT_STORAGE_KEY`、`CGM_BRIDGE_API_SECRET`、`CGM_SMTP_PASSWORD` 写入版本库或共享配置。
 
 #### RAG / 知识库
 
@@ -208,30 +208,18 @@ python -m hermes_cgm_agent hermes-install
 | `CGM_AGENT_ENABLE_SEMANTIC_RETRIEVAL` | 显式开启语义检索（`1/true/yes/on`） | 关闭 | 否 | `1` |
 | `CGM_AGENT_USE_HASHING_EMBEDDER` | 使用离线 hashing embedder（测试/无网环境） | 关闭 | 否 | `1` |
 
-#### Dexcom 数据源（可选）
+#### 安卓 CGM 桥（唯一真实数据源）
 
 | 环境变量 | 用途 | 默认值 | 必需 | 示例 |
 |---|---|---|---|---|
-| `DEXCOM_CLIENT_ID` | Dexcom 开发者应用 client id | 无 | 用 Dexcom 时必需 | `abc123` |
-| `DEXCOM_CLIENT_SECRET` | Dexcom 开发者应用 secret（**保密**） | 无 | 用 Dexcom 时必需 | `<secret>` |
-| `DEXCOM_REDIRECT_URI` | OAuth 回调 URI（须与开发者后台注册一致） | `https://www.google.com` | 否 | 同左 |
-| `DEXCOM_USE_SANDBOX` | 使用 sandbox 环境 | `true` | 否 | `false` |
-| `DEXCOM_SCOPE` | OAuth scope | `offline_access` | 否 | 同左 |
-| `DEXCOM_REGION` | API 区域（`us`/`ous`/`jp` 等别名归一化） | `us` | 否 | `ous` |
-| `DEXCOM_MAX_REQUESTS_PER_MINUTE` | 客户端限速 | `20` | 否 | `10` |
-| `DEXCOM_BASE_URL` | API base URL 显式覆盖（优先于 region/sandbox 推导） | 无 | 否 | `https://sandbox-api.dexcom.com` |
-
-#### 微泰 LinX/AiDEX 官方 API（默认真实数据源）
-
-| 环境变量 | 用途 | 默认值 | 必需 | 示例 |
-|---|---|---|---|---|
-| `AIDEX_CLIENT_ID` | 微泰开放平台应用 client id | 无 | 是 | `<client-id>` |
-| `AIDEX_CLIENT_SECRET` | 微泰开放平台应用 secret（**保密**） | 无 | 是 | `<secret>` |
-| `AIDEX_USE_SANDBOX` | 使用官方沙箱；生产应用审核通过后设为 `false` | `true` | 否 | `false` |
-| `AIDEX_MAX_REQUESTS_PER_MINUTE` | 本地请求上限（官方上限 1000/min） | `120` | 否 | `60` |
-| `AIDEX_BASE_URL` | 受控测试/地区端点覆盖，必须 HTTPS | 官方沙箱/生产地址 | 否 | `https://sandbox-accesslist-x.microtechmd.com` |
-| `AIDEX_SYNC_OVERLAP_MINUTES` | 增量 cron 重叠窗口，吸收延迟上传 | `15` | 否 | `20` |
-| `AIDEX_SYNC_BOOTSTRAP_HOURS` | 无本地游标时首次回填时长 | `24` | 否 | `48` |
+| `CGM_BRIDGE_KIND` | 桥类型：`juggluco`（局域网直连）/ `xdrip` / `nightscout`（跨网中继） | 无 | 是 | `juggluco` |
+| `CGM_BRIDGE_URL` | 手机 web server 或 Nightscout 实例地址 | 无 | 是 | `http://192.168.1.25:17580` |
+| `CGM_BRIDGE_API_SECRET` | Juggluco/Nightscout API secret（**保密**；仅发送 SHA-1 header） | 无 | 二选一 | `<secret>` |
+| `CGM_BRIDGE_ACCESS_TOKEN` | Nightscout 只读 reader token（跨网中继时使用） | 无 | 二选一 | `<reader-token>` |
+| `CGM_BRIDGE_SOURCE` | 数据源标签 | 无 | 是 | `android:juggluco` |
+| `CGM_BRIDGE_COUNT` | 每次拉取的读数条数 | `48` | 否 | `96` |
+| `CGM_BRIDGE_EXPECTED_INTERVAL_MINUTES` | 期望采样间隔（分钟） | `5` | 否 | `1` |
+| `CGM_BRIDGE_MAX_STALE_MINUTES` | 最新读数允许的最大陈旧度 | `12` | 否 | `15` |
 
 #### HTTP 数据源桥
 
@@ -324,23 +312,27 @@ python -m hermes_cgm_agent seed-demo --db-path .runtime/demo.db
 ```
 
 ### Realtime CGM Source Polling (F2)
-The current production path does not require MicroTech API access:
+The production path does not require MicroTech API access and preserves the
+vendor app (D064):
 
 ```text
-LinX/AiDEX-X sensor → Android Juggluco over Bluetooth
-                    → authenticated xDrip-compatible web server on the home LAN
-                    → bridge-poll → canonical SQLite → events/memory → Hermes tools
+AiDEX X sensor → vendor app (BLE + alarms, unchanged)
+              → system notifications → xDrip+ Companion mode (no BLE)
+              → authenticated xDrip web service on the home LAN
+              → bridge-poll → canonical SQLite → events/memory → Hermes tools
 ```
 
-Configure the active Hermes `.env` (on Windows,
+Configure the active Hermes `.env` (macOS/Linux `~/.hermes/.env`, Windows
 `%LOCALAPPDATA%\hermes\.env`):
 
-```powershell
-$env:CGM_AGENT_USER_ID='user-1'
-$env:CGM_BRIDGE_KIND='juggluco'
-$env:CGM_BRIDGE_URL='http://192.168.1.25:17580'
-$env:CGM_BRIDGE_API_SECRET='<phone-web-server-secret>'
-$env:CGM_BRIDGE_SOURCE='android:juggluco'
+```bash
+export CGM_AGENT_USER_ID='user-1'
+export CGM_BRIDGE_KIND='xdrip'
+export CGM_BRIDGE_URL='http://192.168.1.25:17580'
+export CGM_BRIDGE_API_SECRET='<xdrip-web-service-secret>'
+export CGM_BRIDGE_SOURCE='android:xdrip-companion'
+export CGM_BRIDGE_EXPECTED_INTERVAL_MINUTES='1'
+export CGM_BRIDGE_MAX_STALE_MINUTES='20'
 python -m hermes_cgm_agent bridge-status
 python -m hermes_cgm_agent bridge-poll
 ```
@@ -353,11 +345,14 @@ transient failures and never returns the API secret/token in URLs or logs.
 
 After the live probe passes, register the installed `cgm_bridge_poll.py` as a
 one-minute Hermes `--no-agent` cron job. No LLM call or model cost is involved.
-Detailed phone setup, static-IP and recovery instructions are in
+Companion capture is analysis-grade (~95% coverage), not an alarm channel — the
+vendor app remains the alarm authority. Set `CGM_WEBHOOK_URL` to enable the
+freshness watchdog (a PHI-free alert on a healthy↔stale boundary crossing, so a
+silent overnight stall is announced). Detailed phone setup, watchdog, fallbacks
+(Juggluco direct-connect / Nightscout relay / iOS) are in
 [`docs/ANDROID-CGM-BRIDGE.md`](docs/ANDROID-CGM-BRIDGE.md).
 
-Nightscout is optional when the phone and PC are not on the same LAN. The older
-manual collector remains available for diagnostics:
+The older manual collector remains available for diagnostics:
 
 ```powershell
 python examples/cgm_test_dataset/virtual_cgm_feed.py --emit-interval-min 5
@@ -371,9 +366,9 @@ Plain HTTP is accepted only for localhost/private hosts by default. Public HTTP 
 $env:CGM_SOURCE_ALLOW_INSECURE_HTTP='true'
 ```
 
-The official `aidex-auth` / `aidex-sync` implementation remains available for
-deployments that later obtain MicroTech API entitlement, but it is not the
-current production dependency.
+The official MicroTech/Dexcom vendor-API adapters were removed (2026-07-14):
+this deployment has no API entitlement, so the Android bridge above is the
+only real CGM data path.
 
 ### 医学指南 PDF 卡片提取导入 (Knowledge Pipeline)
 ```bash

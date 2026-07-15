@@ -12,7 +12,7 @@ from hermes_cgm_agent.config import default_hermes_exe, default_hermes_home
 
 ROOT_MARKER_NAME = "cgm-agent-project-root.txt"
 PLUGIN_NAMES = ("cgm", "cgm_memory")
-CRON_SCRIPT_NAMES = ("cgm_aidex_sync.py", "cgm_bridge_poll.py")
+CRON_SCRIPT_NAMES = ("cgm_bridge_poll.py",)
 
 
 @dataclass(frozen=True)

@@ -33,12 +33,20 @@ TIR/TBR/TAR/GMI/CV、酮体检测（≥250 mg/dL / 生病）、成人/妊娠/老
 
 ## 3. 数据源支持范围
 
-唯一的产品级硬件方向是**微泰 MicroTech/AiDEX**（见 ADR-0002），其厂商
-API/BLE 接入仍在验证中。当前可用的数据入口：
+硬件已确认为**微泰 AiDEX X**（见 ADR-0002、D063、D064）。厂商 API（微泰
+Open API、Dexcom v3）无权限且已于 2026-07-14 整体移除。当前可用的数据入口：
 
-- CSV 导入（`import-cgm`），支持 mg/dL 与 mmol/L 常见写法；
-- xDrip / Juggluco / Nightscout HTTP 桥（`source-poll`，兼容性保留）；
-- Dexcom API（代码保留且受测，非主线）。
+- 安卓桥（`bridge-poll`/`cgm_bridge_poll.py`）：默认 **xDrip 伴侣模式**
+  （官方 App 保留 BLE/报警,xDrip 抓通知),局域网 HTTP → 真实数据唯一路径,
+  真机验证待完成;Juggluco 直连为数据完整性备选,Nightscout 为跨网中继;
+- xDrip / Juggluco / Nightscout HTTP 手动采集（`source-poll`,诊断用）;
+- CSV 导入（`import-cgm`）,支持 mg/dL 与 mmol/L 常见写法。
+
+**已知限制（D064）**:伴侣模式为通知捕获,有损——社区报告每小时丢 2-4 个
+读数（覆盖率 ~95%）。本桥定位为**分析级数据源,非报警级**;实时低/高血糖
+报警仍由官方 App 负责,本系统不承担报警职责（宪章 III）。若数据缺口影响
+分析质量,可切 Juggluco 直连（代价:官方 App 报警停用）。设置
+`CGM_WEBHOOK_URL` 后,新鲜度看门狗会在断流/恢复边界各发一条 PHI-free 告警。
 
 ## 4. 单用户假设
 

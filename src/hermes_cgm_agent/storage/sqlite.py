@@ -93,8 +93,6 @@ _WHITELISTED_TABLES = frozenset({
     "l3_hypotheses",
     "memory_candidates",
     "memory_summaries",
-    "dexcom_tokens",
-    "aidex_tokens",
     "push_events",
     "pending_interactions",
     "unread_badges",
@@ -519,28 +517,6 @@ class SQLiteStore:
 
                 CREATE INDEX IF NOT EXISTS idx_memory_summaries_user
                     ON memory_summaries(user_id, created_at);
-
-                CREATE TABLE IF NOT EXISTS dexcom_tokens (
-                    user_id TEXT PRIMARY KEY,
-                    access_token TEXT NOT NULL,
-                    refresh_token TEXT NOT NULL,
-                    token_type TEXT NOT NULL DEFAULT 'Bearer',
-                    scope TEXT,
-                    expires_at TEXT NOT NULL,
-                    environment TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-
-                CREATE TABLE IF NOT EXISTS aidex_tokens (
-                    user_id TEXT PRIMARY KEY,
-                    access_token TEXT NOT NULL,
-                    refresh_token TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    environment TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
 
                 -- P2 tiered-push state: scheduling metadata only (no PHI). The
                 -- UNIQUE(user_id, tier, period_key) constraint makes a push

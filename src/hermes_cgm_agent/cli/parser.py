@@ -58,65 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
     tool_call.add_argument("--input", required=True, help="JSON file containing tool arguments")
     tool_call.add_argument("--session-id", required=True)
 
-    dexcom_auth = sub.add_parser(
-        "dexcom-auth",
-        help="Authorize Dexcom API v3 access (OAuth2) and store encrypted tokens",
-    )
-    dexcom_auth.add_argument("--user-id", required=True)
-    dexcom_auth.add_argument("--state", default=None, help="Optional OAuth state value")
-    dexcom_auth.add_argument(
-        "--code",
-        default=None,
-        help="Authorization code or full redirect URL (skips the interactive prompt)",
-    )
-
-    dexcom_sync = sub.add_parser(
-        "dexcom-sync",
-        help="Sync glucose readings and events from the Dexcom cloud into local storage",
-    )
-    dexcom_sync.add_argument("--user-id", required=True)
-    dexcom_sync.add_argument("--days", type=int, default=7)
-    dexcom_sync.add_argument("--force", action="store_true")
-    dexcom_sync.add_argument("--session-id", default="dexcom-cli-session")
-
-    aidex_auth = sub.add_parser(
-        "aidex-auth",
-        help="Authorize the official MicroTech LinX/AiDEX API and store encrypted tokens",
-    )
-    aidex_auth.add_argument("--user-id", required=True)
-    aidex_auth.add_argument("--state", default=None, help="Optional OAuth state value")
-    aidex_auth.add_argument(
-        "--code",
-        default=None,
-        help="Authorization code or full redirect URL (skips the interactive prompt)",
-    )
-
-    aidex_sync = sub.add_parser(
-        "aidex-sync",
-        help="Sync official MicroTech LinX/AiDEX glucose data into the shared store",
-    )
-    aidex_sync.add_argument("--user-id", required=True)
-    aidex_sync.add_argument("--days", type=int, default=1, help="Backfill window in days")
-    aidex_sync.add_argument("--force", action="store_true")
-    aidex_sync.add_argument(
-        "--incremental",
-        action="store_true",
-        help="Continue from the latest stored AiDEX point with an overlap window",
-    )
-    aidex_sync.add_argument("--overlap-minutes", type=int, default=15)
-    aidex_sync.add_argument("--bootstrap-hours", type=int, default=24)
-
-    aidex_status = sub.add_parser(
-        "aidex-status",
-        help="Check AiDEX credentials, authorization, storage, cron script, and optional live API access",
-    )
-    aidex_status.add_argument("--user-id", required=True)
-    aidex_status.add_argument(
-        "--live",
-        action="store_true",
-        help="Use the stored token to verify the official data-range endpoint",
-    )
-
     source_poll = sub.add_parser(
         "source-poll",
         help=(
