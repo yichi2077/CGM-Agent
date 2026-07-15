@@ -25,7 +25,9 @@
       "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent seed-demo --db-path /private/tmp/claude-501/-Users-yichizhang-code-CGM-Agent/74cc07ef-c868-4752-832b-5f070772fedc/scratchpad/audit-demo.db)",
       "WebFetch(domain:arxiv.org)",
       "Bash(~/.hermes/hermes-agent/venv/bin/python3 -c \"import json,collections;d=json.load\\(open\\('src/hermes_cgm_agent/knowledge/authoritative_kb.json'\\)\\);c=d['cards'];print\\('kb_version:',d['kb_version'],'| cards:',len\\(c\\),'| verified:',dict\\(collections.Counter\\(x['verified'] for x in c\\)\\),'| tier:',dict\\(collections.Counter\\(x.get\\('tier'\\) for x in c\\)\\)\\)\")",
-      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent tools --status active)"
+      "Bash(PYTHONPATH=src ~/.hermes/hermes-agent/venv/bin/python3 -m hermes_cgm_agent tools --status active)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit -m 'chore: update local permission allowlist *)"
     ]
   }
 }
