@@ -7,7 +7,14 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable
 
-from hermes_cgm_agent.domain import DataScope, EvidenceKind, EvidenceRef, GlucosePoint, ensure_utc
+from hermes_cgm_agent.domain import (
+    DataScope,
+    EvidenceKind,
+    EvidenceRef,
+    GlucosePoint,
+    QualityFlag,
+    ensure_utc,
+)
 from hermes_cgm_agent.domain.cgm import utc_now
 
 if TYPE_CHECKING:
@@ -46,14 +53,47 @@ YELLOW_ZONE_LOW_MGDL = 70.0
 YELLOW_ZONE_HIGH_MGDL = 180.0
 
 # -- templates ----------------------------------------------------------------
-RED_ZONE_TEMPLATE = (
+# P0-1 (MVP audit): red-zone messages split by direction so an acute episode
+# carries fixed self-care guidance ahead of the defer-to-clinician close
+# ("先救命再 defer"). The guidance wording follows ADA public standard
+# first-aid steps (15-15 rule for level-1 lows, glucagon/emergency for <54,
+# ketone check/hydration for >250) and is deterministic template text — never
+# LLM-generated — so it introduces no hallucination surface and stays outside
+# the personalised-medical-advice boundary.
+RED_ZONE_DEFER = (
     "这个问题涉及医疗判断，我无法代替医生给出建议。"
     "我可以帮你整理相关数据，你可以在复诊时带给医生。需要我生成报告吗？"
 )
 
+RED_ZONE_LOW_TEMPLATE = (
+    "🔴 你的血糖很低（最低 {value:.0f} mg/dL）。"
+    "如果可以，先吃或喝下 15 克速效碳水（比如半杯果汁或 3-4 片葡萄糖片），15 分钟后复测；"
+    "如果身边有胰高血糖素急救药，请按医嘱使用；"
+    "如果感到意识模糊，请立刻联系身边的人或拨打急救电话。"
+) + RED_ZONE_DEFER
+
+RED_ZONE_HIGH_TEMPLATE = (
+    "🔴 你的血糖很高（最高 {value:.0f} mg/dL）。"
+    "如果方便，测一下酮体，多喝水；"
+    "如果持续不降，或出现恶心、呕吐、呼吸急促，请尽快就医。"
+) + RED_ZONE_DEFER
+
+# Backward-compatible name: the pre-split generic red-zone text (defer-only).
+# Kept importable for existing callers; new code should prefer the
+# direction-specific templates above.
+RED_ZONE_TEMPLATE = RED_ZONE_DEFER
+
 YELLOW_ZONE_TEMPLATE = (
     "⚠️ 当前血糖处于{direction}范围（{value:.0f} mg/dL），"
     "建议关注。以下是整体情况——"
+)
+
+# P0-1: the low-side yellow zone (54-70 mg/dL, ADA level-1 hypoglycemia) gets
+# the 15-15 rule inline — this is where 15-15 belongs; the red zone (<54,
+# level-2) escalates to glucagon/emergency wording instead.
+YELLOW_ZONE_LOW_TEMPLATE = (
+    "⚠️ 当前血糖处于偏低范围（{value:.0f} mg/dL），"
+    "如果有不适，可以先吃 15 克速效碳水，15 分钟后复测。以下是整体情况——"
 )
 
 
@@ -322,6 +362,16 @@ class SafetyRouter:
         scope: DataScope,
         points: list[GlucosePoint],
     ) -> SafetyDecision:
+        # P1-7 (MVP audit): warmup-period readings are known-unreliable sensor
+        # output and are excluded from zone evaluation. SUSPECT points (20-40 /
+        # 400-600 mg/dL) deliberately stay IN: a real 35 mg/dL severe low is
+        # flagged SUSPECT by the normalizer, and the safety router must never
+        # trade sensitivity for cleanliness (miss > false alarm). When a red
+        # decision rests solely on SUSPECT points, _red appends a
+        # confirm-by-fingerstick note instead of suppressing the alert.
+        # Physiologically impossible values (unit bugs) are already hard-
+        # rejected at ingestion by the normalizer and never reach this code.
+        points = [p for p in points if str(p.quality_flag) != QualityFlag.WARMUP.value]
         if not points:
             return self._green()
 
@@ -455,15 +505,31 @@ class SafetyRouter:
             )
             for p in red_points[:5]
         ]
-        direction = "极低" if min_val < RED_ZONE_LOW_MGDL else "极高"
+        # P0-1: lows take priority over highs when both occur in one window —
+        # hypoglycemia is the more acute risk, so the low-side guidance wins.
+        if min_val < RED_ZONE_LOW_MGDL:
+            direction = "极低"
+            message = RED_ZONE_LOW_TEMPLATE.format(value=min_val)
+        else:
+            direction = "极高"
+            message = RED_ZONE_HIGH_TEMPLATE.format(value=max_val)
+        # P1-7: every triggering point is quality-flagged SUSPECT -> the alert
+        # still fires (sensitivity first), but the reader is nudged to confirm
+        # with a fingerstick before acting on a possibly-glitching sensor.
+        suspect_count = sum(
+            1 for p in red_points if str(p.quality_flag) == QualityFlag.SUSPECT.value
+        )
+        suspect_only = suspect_count == len(red_points)
+        if suspect_only:
+            message += "（这些读数带有传感器异常标记，如果感觉和数字对不上，先用指尖血复测确认。）"
         return SafetyDecision(
             route="reports.generate.red_zone",
-            message=RED_ZONE_TEMPLATE,
+            message=message,
             evidence_refs=evidence_refs,
             safety_result={
                 "status": "red_zone",
                 "reason": "glucose_red_zone_detected",
-                "template": RED_ZONE_TEMPLATE,
+                "template": message,
                 "thresholds": {
                     "low_mgdl": RED_ZONE_LOW_MGDL,
                     "high_mgdl": RED_ZONE_HIGH_MGDL,
@@ -472,6 +538,8 @@ class SafetyRouter:
                 "min_value_mgdl": min_val,
                 "max_value_mgdl": max_val,
                 "rep_direction": direction,
+                "suspect_count": suspect_count,
+                "suspect_only": suspect_only,
                 "window_start": scope.window_start.isoformat(),
                 "window_end": scope.window_end.isoformat(),
             },
@@ -486,10 +554,15 @@ class SafetyRouter:
         if min_val < YELLOW_ZONE_LOW_MGDL:
             direction = "偏低"
             rep_value = min_val
+            # P0-1: low-side yellow (level-1 hypoglycemia) carries the 15-15
+            # rule inline instead of the generic "建议关注" prefix.
+            message = YELLOW_ZONE_LOW_TEMPLATE.format(value=rep_value)
+            template = YELLOW_ZONE_LOW_TEMPLATE
         else:
             direction = "偏高"
             rep_value = max_val
-        message = YELLOW_ZONE_TEMPLATE.format(direction=direction, value=rep_value)
+            message = YELLOW_ZONE_TEMPLATE.format(direction=direction, value=rep_value)
+            template = YELLOW_ZONE_TEMPLATE
         evidence_refs = [
             EvidenceRef(
                 kind=EvidenceKind.GLUCOSE_POINT,
@@ -505,7 +578,7 @@ class SafetyRouter:
             safety_result={
                 "status": "yellow_zone",
                 "reason": "glucose_yellow_zone_detected",
-                "template": YELLOW_ZONE_TEMPLATE,
+                "template": template,
                 "thresholds": {
                     "low_mgdl": YELLOW_ZONE_LOW_MGDL,
                     "high_mgdl": YELLOW_ZONE_HIGH_MGDL,

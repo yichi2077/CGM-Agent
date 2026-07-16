@@ -132,6 +132,7 @@ class ObservationsMixin(BaseSectionMixin):
         esc_state: EscalationState = EscalationState.NORMAL,
         consecutive_days: int = 0,
         detected_events: list[GlucoseEvent] | None = None,
+        is_vulnerable: bool = False,
     ) -> ReportSection:
         detected_events = detected_events or []
         if audience == ReportAudience.CLINICIAN:
@@ -149,7 +150,17 @@ class ObservationsMixin(BaseSectionMixin):
         )
         prompts: list[str] = []
         if esc_state == EscalationState.CONCERN:
-            prompts.append("最近几天都有点波动，你还好吗？我一直在这儿。")
+            if is_vulnerable and consecutive_days >= 3:
+                # P2-11 (MVP audit): the vulnerable-population ladder is
+                # day 1 / day 3 / day 5 (SOUL "第一天/第三天/第五天"). Day 3
+                # is the reinforced check-in between first concern (day 1)
+                # and external support (day 5).
+                prompts.append(
+                    "已经第三天了，我有点惦记你。要不要跟我说说这几天过得怎么样？"
+                    "不聊数据也行。"
+                )
+            else:
+                prompts.append("最近几天都有点波动，你还好吗？我一直在这儿。")
         elif esc_state == EscalationState.EXTERNAL_SUPPORT:
             prompts.append("这几天的情况，要不要下次复诊时也跟医生聊聊？我可以帮你把记录整理好。")
 

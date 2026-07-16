@@ -397,6 +397,14 @@ def build_default_tool_registry() -> ToolRegistry:
                     "include_candidate_events": {"type": "boolean"},
                     "retrieve_context": {"type": "boolean"},
                     "auto_ingest_memory": {"type": "boolean"},
+                    "user_message": {
+                        "type": ["string", "null"],
+                        "description": (
+                            "The user utterance that triggered this report, if any. "
+                            "Distress vocabulary makes the report lead with an "
+                            "empathy section before any data (emotional-first)."
+                        ),
+                    },
                 },
             ),
             output_schema=_response_schema(

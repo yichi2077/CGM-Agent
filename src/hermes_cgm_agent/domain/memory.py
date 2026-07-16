@@ -36,6 +36,20 @@ class HypothesisState(str, Enum):
     ARCHIVED = "archived"
 
 
+class HypothesisCategory(str, Enum):
+    """P1-4 (MVP audit): coarse content class of an L3 hypothesis.
+
+    ``apply_silent_consent`` only auto-advances BEHAVIORAL candidates —
+    MEDICAL/SAFETY hypotheses always require explicit user confirmation,
+    turning the scheduler docstring's "NEVER auto-accepts safety/medical
+    content" promise from a comment into a code guarantee.
+    """
+
+    BEHAVIORAL = "behavioral"
+    MEDICAL = "medical"
+    SAFETY = "safety"
+
+
 class CandidateStatus(str, Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
@@ -111,6 +125,8 @@ class L3Hypothesis(CGMBaseModel):
     user_id: str
     statement: str
     state: HypothesisState = HypothesisState.CANDIDATE
+    # P1-4: content class gating silent-consent auto-advance (behavioral only).
+    category: HypothesisCategory = HypothesisCategory.BEHAVIORAL
     evidence_count: int = Field(default=0, ge=0)
     contra_count: int = Field(default=0, ge=0)
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)

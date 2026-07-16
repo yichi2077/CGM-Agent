@@ -137,6 +137,11 @@ class ReportInput(CGMBaseModel):
     include_candidate_events: bool = True
     consecutive_anomaly_days: int | None = None
     escalation_level: str | None = None
+    # P1-5 (MVP audit): the user utterance that triggered this report, when
+    # available. Affect detection runs on it — a distress hit makes the
+    # builder lead with an empathy section before any data section
+    # (emotional-first as code orchestration, not just a prompt promise).
+    user_message: str | None = None
 
     @model_validator(mode="after")
     def normalize_anchor(self) -> "ReportInput":

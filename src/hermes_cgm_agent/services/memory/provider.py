@@ -41,6 +41,7 @@ from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.audit import AuditService
 from hermes_cgm_agent.services.analytics import RealtimeSignalConfig
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.services.memory.affect import detect_affect
 from hermes_cgm_agent.services.memory.assembler import MemoryContextAssembler
 from hermes_cgm_agent.services.memory.consolidation import ConsolidationService
 from hermes_cgm_agent.services.memory.l0_builder import L0ContextBuilder
@@ -390,37 +391,52 @@ class CGMMemoryProvider:
 
     def prefetch(self, query: str, *, session_id: str = "") -> str:
         lines: list[str] = []
+        # P1-5 (MVP audit): deterministic emotional-first orchestration. When
+        # the user's message carries distress vocabulary, lead the injected
+        # context with an empathy directive and reduce data-injection strength
+        # (skip warm summary + L0 stats, cap memory recall) so the LLM's first
+        # move is acknowledgement, not numbers. Realtime status stays — safety
+        # visibility is never traded away.
+        affect_terms = detect_affect(query)
+        affect_hit = bool(affect_terms)
+        if affect_hit:
+            lines.append(
+                "[CGM 情感优先] 用户此刻的话里带着情绪（"
+                + "、".join(affect_terms[:3])
+                + "）。先回应感受，再谈数据；这一轮少给数字，多给陪伴。"
+            )
         # D4: real-time CGM status (current value, trend, range).
         realtime = self._build_realtime_status()
         if realtime:
             lines.append(f"[CGM 实时状态] {realtime}")
         # Warm state summary ("dreaming", D034) injected first as background.
         latest = self._repository.latest_summary(self._user_id)
-        if latest is not None:
+        if latest is not None and not affect_hit:
             lines.append(f"[CGM state summary] {latest.content}")
-        try:
-            l0 = L0ContextBuilder(
-                repository=SQLiteCGMRepository(self._store),
-            ).build(user_id=self._user_id, anchor_at=self._anchor_at)
-            if l0.window_summary.point_count or l0.key_glucose_events:
-                lines.append(
-                    "[CGM L0 context] "
-                    f"{l0.window.span_days}d points={l0.window_summary.point_count}, "
-                    f"recent_points={len(l0.high_res_recent)}, "
-                    f"hourly={len(l0.mid_far_hourly)}, "
-                    f"events={len(l0.key_glucose_events)}"
-                )
-            elif latest is not None:
-                lines.append(
-                    "[CGM L0 context unavailable] No recent glucose points were found "
-                    "in the current L0 window; any CGM state summary above may be stale."
-                )
-        except Exception:
-            # Prefetch must remain best-effort; context.get_l0 is the auditable
-            # tool path when callers need the full structured object.
-            pass
+        if not affect_hit:
+            try:
+                l0 = L0ContextBuilder(
+                    repository=SQLiteCGMRepository(self._store),
+                ).build(user_id=self._user_id, anchor_at=self._anchor_at)
+                if l0.window_summary.point_count or l0.key_glucose_events:
+                    lines.append(
+                        "[CGM L0 context] "
+                        f"{l0.window.span_days}d points={l0.window_summary.point_count}, "
+                        f"recent_points={len(l0.high_res_recent)}, "
+                        f"hourly={len(l0.mid_far_hourly)}, "
+                        f"events={len(l0.key_glucose_events)}"
+                    )
+                elif latest is not None:
+                    lines.append(
+                        "[CGM L0 context unavailable] No recent glucose points were found "
+                        "in the current L0 window; any CGM state summary above may be stale."
+                    )
+            except Exception:
+                # Prefetch must remain best-effort; context.get_l0 is the auditable
+                # tool path when callers need the full structured object.
+                pass
         context = self._assembler.build_memory_context(
-            user_id=self._user_id, query=query, top_k=5
+            user_id=self._user_id, query=query, top_k=2 if affect_hit else 5
         )
         if context.items:
             lines.append("[CGM user-memory recall]")

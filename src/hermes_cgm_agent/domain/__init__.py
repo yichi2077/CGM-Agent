@@ -37,6 +37,7 @@ from hermes_cgm_agent.domain.context import (
 from hermes_cgm_agent.domain.memory import (
     CandidateStatus,
     EscalationState,
+    HypothesisCategory,
     HypothesisState,
     L1Episode,
     L2ProfileItem,
@@ -94,6 +95,7 @@ __all__ = [
     "L0_DEFAULT_TOKEN_BUDGET",
     "CandidateStatus",
     "EscalationState",
+    "HypothesisCategory",
     "HypothesisState",
     "L1Episode",
     "L2ProfileItem",

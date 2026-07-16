@@ -468,6 +468,7 @@ class SQLiteStore:
                     user_id TEXT NOT NULL,
                     statement TEXT NOT NULL,
                     state TEXT NOT NULL DEFAULT 'candidate',
+                    category TEXT NOT NULL DEFAULT 'behavioral',
                     evidence_count INTEGER NOT NULL DEFAULT 0,
                     contra_count INTEGER NOT NULL DEFAULT 0,
                     evidence_refs_json TEXT NOT NULL DEFAULT '[]',
@@ -534,6 +535,16 @@ class SQLiteStore:
 
                 CREATE INDEX IF NOT EXISTS idx_push_events_user
                     ON push_events(user_id, tier, period_key);
+
+                -- P1-6 (MVP audit): per-(user, local-day) idempotency ledger for
+                -- scheduler-driven staged consolidation (push_tick closes the
+                -- L1->L2->L3 loop even when sessions never end gracefully).
+                CREATE TABLE IF NOT EXISTS consolidation_runs (
+                    user_id TEXT NOT NULL,
+                    day_key TEXT NOT NULL,
+                    ran_at TEXT NOT NULL,
+                    PRIMARY KEY (user_id, day_key)
+                );
 
                 -- F4 pending interaction tracking (with TTL)
                 CREATE TABLE IF NOT EXISTS pending_interactions (
@@ -641,6 +652,13 @@ class SQLiteStore:
             # C-02: track last-evidence-added time for decay calculation.
             self._ensure_column(
                 conn, "l3_hypotheses", "last_evidence_added", "TEXT"
+            )
+            # P1-4 (MVP audit): hypothesis content class; silent consent only
+            # auto-advances 'behavioral' rows. Existing rows default to
+            # 'behavioral' (all historical hypotheses came from the behavioral
+            # pattern miner).
+            self._ensure_column(
+                conn, "l3_hypotheses", "category", "TEXT NOT NULL DEFAULT 'behavioral'"
             )
             # B4: candidate queue TTL — pending candidates expire after 30 days
             # so unconfirmed entries don't accumulate indefinitely.

@@ -29,6 +29,7 @@ from hermes_cgm_agent.services.analytics import (
     median_interval_minutes,
 )
 from hermes_cgm_agent.services.data import SQLiteCGMRepository
+from hermes_cgm_agent.services.memory.affect import detect_affect
 from hermes_cgm_agent.services.reports.renderer import (
     CITATION_BLOCK_TEMPLATE,
     MEDICAL_DISCLAIMER_FOOTER,
@@ -224,6 +225,28 @@ class ReportService(
                 warnings=warnings,
                 is_vulnerable=is_vulnerable,
             )
+            # P1-5 (MVP audit): emotional-first as code. When the triggering
+            # user message carries distress vocabulary, the report leads with
+            # a deterministic empathy section — acknowledgement before any
+            # number. Safety paths are unaffected (red zone / disclaimer
+            # replace content wholesale above; yellow prefix stays first).
+            if detect_affect(report_input.user_message):
+                sections.insert(
+                    0,
+                    ReportSection(
+                        section_id="affect_ack",
+                        kind="companion",
+                        title="先说一句",
+                        content=(
+                            "听起来你现在有点辛苦。数字可以先放一放，"
+                            "下面的内容你想看再看，不想看也没关系。"
+                        ),
+                        data_scope=scope,
+                        evidence_refs=[],
+                        source_tracks=[ReportSourceTrack.FACT],
+                        confidence=1.0,
+                    ),
+                )
             # 🟡 Yellow zone: prepend alert prefix to the first section
             if safety_decision.safety_result["status"] == "yellow_zone" and sections:
                 alert_prefix = safety_decision.message or ""
@@ -523,7 +546,7 @@ class ReportService(
                 report_input.authoritative_context,
                 audience,
             ),
-            self._follow_up_section(scope, aggregate, events, audience, esc_state=esc_state, consecutive_days=consecutive_days, detected_events=detected_events),
+            self._follow_up_section(scope, aggregate, events, audience, esc_state=esc_state, consecutive_days=consecutive_days, detected_events=detected_events, is_vulnerable=is_vulnerable),
         ]
         # US2/FR-004: state-aware L3 hypothesis narrative (companion audiences only;
         # clinician reports stay pure clinical, Principle IV / F3 isolation).

@@ -16,6 +16,7 @@ from typing import Any
 from hermes_cgm_agent.domain import (
     CandidateStatus,
     EvidenceRef,
+    HypothesisCategory,
     HypothesisState,
     L1Episode,
     L2ProfileItem,
@@ -318,15 +319,16 @@ class SQLiteMemoryRepository:
             conn.execute(
                 """
                 INSERT INTO l3_hypotheses (
-                    hypothesis_id, user_id, statement, state, evidence_count,
+                    hypothesis_id, user_id, statement, state, category, evidence_count,
                     contra_count, evidence_refs_json, valid_from, valid_to,
                     source_episode_ids_json, contra_episode_ids_json,
                     supersedes_hypothesis_id, last_checked, last_evidence_added,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(hypothesis_id) DO UPDATE SET
                     statement = excluded.statement,
                     state = excluded.state,
+                    category = excluded.category,
                     evidence_count = excluded.evidence_count,
                     contra_count = excluded.contra_count,
                     evidence_refs_json = excluded.evidence_refs_json,
@@ -344,6 +346,7 @@ class SQLiteMemoryRepository:
                     hypothesis.user_id,
                     self.store.seal(hypothesis.statement),
                     _enum(hypothesis.state),
+                    _enum(hypothesis.category),
                     hypothesis.evidence_count,
                     hypothesis.contra_count,
                     self.store.seal([ref.model_dump(mode="json") for ref in hypothesis.evidence_refs]),
@@ -799,6 +802,11 @@ def _row_to_hypothesis(row: Any, store: SQLiteStore) -> L3Hypothesis:
         user_id=row["user_id"],
         statement=store.unseal(row["statement"]),
         state=HypothesisState(state_value),
+        category=(
+            HypothesisCategory(row["category"])
+            if "category" in row.keys() and row["category"]
+            else HypothesisCategory.BEHAVIORAL
+        ),
         evidence_count=row["evidence_count"],
         contra_count=row["contra_count"],
         evidence_refs=_parse_refs(store.unseal(row["evidence_refs_json"], legacy="json")),

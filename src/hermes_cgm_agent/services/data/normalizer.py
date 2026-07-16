@@ -29,6 +29,14 @@ class NormalizationConfig:
     warmup_until: datetime | None = None
     suspect_low_mg_dl: float = 40
     suspect_high_mg_dl: float = 400
+    # P1-7 (MVP audit): physiologically impossible values are rejected at
+    # ingestion instead of being stored as SUSPECT. CGM sensors clamp to
+    # roughly 40-400 mg/dL; anything outside 20-600 is a unit bug (e.g. a
+    # mmol/L reading written as mg/dL) or corrupt data, and must never reach
+    # the safety router. 20-40 / 400-600 stay SUSPECT: they may be real
+    # extreme events and the safety layer must remain able to see them.
+    reject_low_mg_dl: float = 20
+    reject_high_mg_dl: float = 600
 
 
 @dataclass(frozen=True)
@@ -98,6 +106,24 @@ class CGMNormalizer:
         timestamp = self._to_utc(record.recorded_at, config.default_timezone)
         assert record.value is not None
         assert record.unit is not None
+        # P1-7: hard range gate — physiologically impossible readings are
+        # rejected with an ImportIssue (never stored, never routed).
+        value_mg_dl = convert_glucose_value(
+            record.value, GlucoseUnit(record.unit), GlucoseUnit.MG_DL
+        )
+        if value_mg_dl < config.reject_low_mg_dl or value_mg_dl > config.reject_high_mg_dl:
+            issues.append(
+                self._issue(
+                    record,
+                    "value",
+                    (
+                        f"Glucose value {value_mg_dl:.1f} mg/dL is outside the plausible "
+                        f"range [{config.reject_low_mg_dl:g}, {config.reject_high_mg_dl:g}] "
+                        "(likely a unit mismatch or corrupt record); rejected"
+                    ),
+                )
+            )
+            return None, issues
         quality_flag = self._quality_flag(timestamp, record.value, GlucoseUnit(record.unit), config)
 
         return (

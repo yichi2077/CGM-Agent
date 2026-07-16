@@ -30,7 +30,13 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from hermes_cgm_agent.config import default_timezone
-from hermes_cgm_agent.domain import DataScope, HypothesisState, GlucoseEventType, ensure_utc
+from hermes_cgm_agent.domain import (
+    DataScope,
+    GlucoseEventType,
+    HypothesisCategory,
+    HypothesisState,
+    ensure_utc,
+)
 from hermes_cgm_agent.domain.cgm import utc_now
 from hermes_cgm_agent.services.analytics import (
     CGMAnalyticsService,
@@ -87,6 +93,9 @@ class PushTickResult:
     now: str
     pushed: list[dict[str, Any]] = field(default_factory=list)
     silent_consent: list[dict[str, Any]] = field(default_factory=list)
+    # P1-6 (MVP audit): True when this tick ran the staged L1->L2->L3
+    # consolidation (first tick of the local day for this user).
+    consolidated: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -95,6 +104,7 @@ class PushTickResult:
             "now": self.now,
             "pushed": list(self.pushed),
             "silent_consent": list(self.silent_consent),
+            "consolidated": self.consolidated,
         }
 
 
@@ -160,6 +170,11 @@ class PushSchedulerService:
         # against aware timestamps (hypothesis.created_at) raises TypeError.
         now = ensure_utc(now or utc_now())
         consent = self.apply_silent_consent(user_id=user_id, now=now)
+        # P1-6 (MVP audit): close the staged L1->L2->L3 consolidation loop from
+        # the scheduler path. Previously staged consolidation only ran on
+        # provider.on_session_end, so the memory pipeline stalled whenever a
+        # session did not exit gracefully. Idempotent per (user, local day).
+        consolidated = self._maybe_consolidate(user_id=user_id, now=now)
         pushed: list[dict[str, Any]] = []
         
         # Prioritize monthly, then weekly, then daily
@@ -170,7 +185,7 @@ class PushSchedulerService:
             emitted = self._emit(tier, user_id=user_id, now=now)
             if emitted is not None:
                 pushed.append(emitted)
-        if self.audit_service is not None and (pushed or consent):
+        if self.audit_service is not None and (pushed or consent or consolidated):
             self.audit_service.log(
                 session_id=self._session_id,
                 event_type="push_tick",
@@ -179,11 +194,37 @@ class PushSchedulerService:
                     "status": "ok",
                     "pushed_tiers": [p["tier"] for p in pushed],
                     "silent_consent_count": len(consent),
+                    "consolidated": consolidated,
                 },
             )
         return PushTickResult(
-            user_id=user_id, now=now.isoformat(), pushed=pushed, silent_consent=consent
+            user_id=user_id,
+            now=now.isoformat(),
+            pushed=pushed,
+            silent_consent=consent,
+            consolidated=consolidated,
         )
+
+    def _maybe_consolidate(self, *, user_id: str, now: datetime) -> bool:
+        """Run staged consolidation at most once per (user, local day).
+
+        The INSERT-first ledger makes the check race-safe: whichever tick wins
+        the primary-key insert runs consolidate(); every other tick that day
+        is a no-op. consolidate() itself is transactional and re-derives from
+        episodes, so a crash after the ledger insert loses at most one day's
+        scheduled run (the next session-end or manual CLI run still covers it).
+        """
+        day_key = now.astimezone(self._tz).strftime("%Y-%m-%d")
+        try:
+            with self.store.connect() as conn:
+                conn.execute(
+                    "INSERT INTO consolidation_runs (user_id, day_key, ran_at) VALUES (?, ?, ?)",
+                    (user_id, day_key, now.isoformat()),
+                )
+        except sqlite3.IntegrityError:
+            return False  # already consolidated today
+        self.consolidation.consolidate(user_id, now=now, session_id=self._session_id)
+        return True
 
     def _emit(self, tier: str, *, user_id: str, now: datetime) -> dict[str, Any] | None:
         # Rate limit: Max 1 non-urgent push per day
@@ -200,8 +241,16 @@ class PushSchedulerService:
         )
 
         # For daily digests, check if daily trend triggers (threshold check)
+        overnight_low = False
         if tier == "daily":
-            if not self._should_trigger_daily_trend(user_id, now, aggregate.tir):
+            # P0-2 (MVP audit): a single overnight low is never silenced by
+            # the trend gate (TIR delta / new candidate / consecutive-2-day).
+            # It forces the next-morning daily push with a gentle follow-up —
+            # no real-time wake-up; this reuses the ordinary daily pipeline.
+            overnight_low = self._overnight_low_today(user_id, now)
+            if not overnight_low and not self._should_trigger_daily_trend(
+                user_id, now, aggregate.tir
+            ):
                 return None
 
         summary = self.consolidation.synthesize_state(
@@ -218,7 +267,7 @@ class PushSchedulerService:
         # abbreviation-free, <=100-char text — NOT the warm-digest summary.content
         # (which keeps "TIR ..." for prefetch/D034, NC-2). synthesize_state still
         # runs and persists the summary for consecutive-day counting + prefetch.
-        push_text = self._companion_push_text(tier, aggregate)
+        push_text = self._companion_push_text(tier, aggregate, overnight_low=overnight_low)
 
         # Try OS Push and fallback to badge count if permission is denied
         try:
@@ -239,7 +288,35 @@ class PushSchedulerService:
             "content": push_text,
         }
 
-    def _companion_push_text(self, tier: str, aggregate: Any) -> str:
+    def _overnight_low_today(self, user_id: str, now: datetime) -> bool:
+        """P0-2 (MVP audit): True when an OVERNIGHT_LOW event is detected on
+        the current local day (overnight hours are 0-6 local, so last night's
+        low lands on today's date by the time the morning tick runs)."""
+        from hermes_cgm_agent.domain import DataScope
+
+        now_local = now.astimezone(self._tz)
+        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        scope = DataScope(
+            user_id=user_id,
+            window_start=today_start.astimezone(ZoneInfo("UTC")),
+            window_end=now,
+        )
+        points = self.cgm.list_glucose_points(scope)
+        if not points:
+            return False
+        events = _cadence_tuned_detector(points, timezone_name=self.config.timezone).detect(
+            points=points, scope=scope
+        )
+        today_date = today_start.date()
+        return any(
+            event.event_type == GlucoseEventType.OVERNIGHT_LOW
+            and event.ts_start.astimezone(self._tz).date() == today_date
+            for event in events
+        )
+
+    def _companion_push_text(
+        self, tier: str, aggregate: Any, *, overnight_low: bool = False
+    ) -> str:
         """Render an abbreviation-free, <=100-char companion push message
         (FR-005 / FR-007 / FR-010). Clinical numbers stay in the report; the
         proactive push speaks plainly. enforce_companion_text hard-blocks any
@@ -248,6 +325,13 @@ class PushSchedulerService:
             translate_metric,
             enforce_companion_text,
         )
+        if overnight_low:
+            # P0-2: gentle next-morning follow-up after an overnight low —
+            # a check-in, not an alarm (SOUL: companion, not supervisor).
+            return enforce_companion_text(
+                "昨晚后半夜有一段血糖偏低，你可能睡着没察觉。今天多留意一下自己的感觉，想聊聊随时找我。",
+                max_len=100,
+            )
         label = {"daily": "今天", "weekly": "这周", "monthly": "这个月"}.get(tier, "最近")
         tir = getattr(aggregate, "tir", None)
         if tir is None:
@@ -271,6 +355,9 @@ class PushSchedulerService:
 
         Safe by construction: only candidate -> observing (a watch-state, no action
         taken); never stable/archived; fully reversible via memory.correct.
+        P1-4 (MVP audit): "behavioral" is now a code guarantee, not a docstring
+        promise — medical/safety-category candidates are skipped and always
+        require explicit user confirmation.
         """
         now = now or utc_now()
         threshold = now - timedelta(days=self.config.silence_days)
@@ -280,6 +367,8 @@ class PushSchedulerService:
             for hyp in self.memory.list_hypotheses(user_id):
                 if hyp.state != HypothesisState.CANDIDATE:
                     continue
+                if hyp.category != HypothesisCategory.BEHAVIORAL:
+                    continue  # medical/safety: never silent-advanced
                 last = hyp.last_checked or hyp.created_at
                 if last is not None and last > threshold:
                     continue  # still inside the silence window

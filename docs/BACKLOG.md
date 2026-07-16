@@ -1,6 +1,39 @@
 # CGM-Agent Feature Backlog（单一事实源）
 
-> **当前测试基线**：579 tests OK (skipped=2)。以下各快照段的计数为各自时点的历史记录，已被最新快照取代。
+> **当前测试基线**：859 tests OK (skipped=2)（2026-07-16，含 MVP 审计修正批次
+> `tests/test_mvp_audit_remediation.py`）。以下各快照段的计数为各自时点的历史记录，已被最新快照取代。
+
+## MVP Audit Remediation Snapshot (2026-07-16)
+
+外部平台 6 轮审计（MVP_AUDIT_REPORT）复核后落地的修正（P0 全部 + P1 全部 + 部分 P2）：
+
+- **P0-1** 红区模板按方向分流：低侧（<54）速效碳水/胰高血糖素/急救指引，高侧（>250）
+  测酮体/补水/就医指引，均为 ADA 公开标准的确定性模板文本，保留"无法代替医生"defer 尾句。
+  15-15 法则放在黄区低侧（54-70，ADA Level 1）前缀——审计报告原方案把 54-70 写进红区
+  分支属区间错误，已修正。
+- **P0-2** 单次夜间低不再被"连续 2 天"门槛静默：检出当日 OVERNIGHT_LOW 即强制次日
+  daily 推送（温柔问候话术，复用现有管道，不实时叫醒）。
+- **P0-3** README 三区阈值文档漂移修正（文档写 red>300/yellow 250-300，代码实际
+  red>250/yellow 180-250）；KNOWN_ISSUES 月报条目过时修正。
+- **P1-4** `L3Hypothesis.category`（behavioral/medical/safety）落库，
+  `apply_silent_consent` 只推进 behavioral——docstring 承诺变代码保证。
+- **P1-5** 情感优先下沉为代码编排：`services/memory/affect.py` 确定性关键词检测；
+  prefetch 命中时注入共情锚点并降级数据注入；报告可带 `user_message`，命中时以共情段开头。
+- **P1-6** consolidation 定时闭环：`push_tick` 经 `consolidation_runs` 表
+  per-(user, local day) 幂等触发 staged L1→L2→L3，不再只依赖 `on_session_end`。
+- **P1-7** 入库 range 硬校验（<20 / >600 mg/dL 拒绝入库，杀死单位错写场景）；
+  安全路由器排除 WARMUP 点；SUSPECT 点保留红区触发权（35 mg/dL 真实重度低血糖
+  会被标 SUSPECT，丢弃即漏报），全 SUSPECT 红区附加指尖血复测提示。
+- **P2-11** 弱势人群 day3 独立关心话术（SOUL 第一天/第三天/第五天承诺补齐）。
+
+**遗留（记录在案，暂不做）**：
+
+- **replay engine + eval_recall.py**（记忆效能评测门）仍在
+  `claude/glucose-system-review-qrmw6e` 远程分支上，未合入 develop。用户裁决
+  2026-07-16：本轮不找回；需要"记忆有无对比 demo"或记忆回归门时再立项 cherry-pick。
+- 速率检测 resolution-independent 修复未统一到主路径（scheduler 已有
+  `_cadence_tuned_detector` 局部适配，events.py 默认仍 5min）。
+- KB 0/580 签核、红区推送可靠投递、密钥轮换等见原 P2/P3 分级。
 
 ## Real-Usability Hardening Snapshot (2026-07-05)
 

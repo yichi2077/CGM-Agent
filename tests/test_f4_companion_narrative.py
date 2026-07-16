@@ -230,9 +230,10 @@ class F4CompanionNarrativeTests(unittest.TestCase):
         md1 = self._daily_self_md(1)
         self.assertIn("最近几天都有点波动，你还好吗？", md1)
 
-        # Day 3 is still CONCERN for vulnerable users (external only at day 5).
+        # Day 3 is still CONCERN state, but vulnerable users get the P2-11
+        # reinforced day-3 check-in (SOUL "第一天/第三天/第五天" ladder).
         md3 = self._daily_self_md(3)
-        self.assertIn("最近几天都有点波动，你还好吗？", md3)
+        self.assertIn("已经第三天了", md3)
         self.assertNotIn("跟医生聊聊", md3)
 
         md5 = self._daily_self_md(5)

@@ -28,7 +28,8 @@ TIR/TBR/TAR/GMI/CV、酮体检测（≥250 mg/dL / 生病）、成人/妊娠/老
 - **Email（SMTP）**：代码已实现（配置 `CGM_SMTP_HOST`/`CGM_SMTP_TO_ADDRESS`
   后即真实发信，正文同样经 PHI 白名单过滤），但未经生产环境长期验证，
   定位为可选通道；未配置时投递记录状态为 `queued`。
-- **月报**：推送节奏支持 monthly tier，但月报叙事模板尚未实现。
+- **月报**：推送节奏支持 monthly tier，月报叙事模板（月度总结 + 月度环比，
+  `sections/monthly.py`）已实现（本条曾长期过时，2026-07-16 修正）。
 - **PDF 导出**：未实现，报告输出为 Markdown。
 
 ## 3. 数据源支持范围

@@ -169,7 +169,10 @@ class ReportServiceTests(unittest.TestCase):
         self.assertEqual(report.route, "reports.generate.red_zone")
         self.assertEqual(report.safety_result["status"], "red_zone")
         self.assertEqual(report.sections[0].section_id, "safety_red_zone")
-        self.assertEqual(report.sections[0].content, RED_ZONE_TEMPLATE)
+        # P0-1: low-side red now leads with fixed first-aid guidance and keeps
+        # the defer-to-clinician close (RED_ZONE_TEMPLATE) as the tail.
+        self.assertIn("你的血糖很低", report.sections[0].content)
+        self.assertTrue(report.sections[0].content.endswith(RED_ZONE_TEMPLATE))
         self.assertIn(RED_ZONE_TEMPLATE, report.rendered_markdown)
 
     def test_weekly_report_emits_l3_candidate_but_no_memory_table_write(self) -> None:
